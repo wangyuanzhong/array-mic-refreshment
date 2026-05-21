@@ -1,0 +1,49 @@
+# Array Mic Refreshment — 仅配置映射，不定义 prompt 正文
+# 正文一律读 skills/upstream/ 下第三方原文
+
+version: 1
+
+# LLM #1：意图分类（上游 prompt）
+router:
+  system_prompt_file: upstream/shanttoosh/voice-controlled-ai-agent.intent-classification.md
+  # 将上游 intent 映射到本应用 specialist（C# 读取此表）
+  intent_map:
+    write_code: code-editing
+    general_chat: general-ai
+    summarize: research
+    create_file: task-plan
+
+# LLM #2：按 specialist 拼接 system prompt（顺序 = prompt stack）
+specialists:
+  code-editing:
+    stack:
+      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
+      - upstream/danielrosehill/voice-prompt-enhancement-node.prompt.md
+      - upstream/danielrosehill/text-transform/code-editing.md
+
+  general-ai:
+    stack:
+      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
+      - upstream/danielrosehill/text-transform/general-prompt.md
+
+  research:
+    stack:
+      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
+      - upstream/danielrosehill/text-transform/deep-research-prompt.md
+
+  task-plan:
+    stack:
+      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
+      - upstream/danielrosehill/text-transform/to-do-list.md
+
+# 可选：完整 Claude Skill 格式（非默认；输出为多段 Markdown）
+optional_skills:
+  voice_refine:
+    file: upstream/florianbruniaux/voice-refine.SKILL.md
+    note: "FlorianBruniaux/claude-code-ultimate-guide — 适合 Claude Code 长任务，非默认剪贴板模式"
+
+  dictation_cleanup:
+    file: upstream/majiayu000/dictation-githubnext-gh-aw-2.SKILL.md
+    note: "GitHub gh-aw 听写纠错 Skill — 可选叠加在 stack 前，偏 GitHub/英文术语"
+
+# 设置页「强制意图」时跳过 router，直接选 specialists 键名

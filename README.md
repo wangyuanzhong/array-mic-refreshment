@@ -16,7 +16,7 @@
 | 4 | **Agent 开启时，剪贴板只放优化句** | 不写 ASR 原文；优化失败时可配置降级策略（见输出逻辑） |
 | 5 | **松开 PTT 优先触发 ASR** | **松开快捷键** 立即截断并识别，优先级 **高于** VAD 句末；按住期间 VAD 句末仅作辅助（长句中间停顿） |
 | 6 | **子开关 OFF：仍写剪贴板** | 子开关只控制 **是否自动粘贴到光标**；OFF = 不粘贴，**仍更新剪贴板** |
-| 7 | **API + 多 Skill 协同** | Router 判意图 → Specialist 整理；**编程 / 通用 / 调研 / 待办** 四类（见 [`docs/SKILL_PIPELINE.md`](docs/SKILL_PIPELINE.md)） |
+| 7 | **API + 他人 Skill/Prompt 栈** | 意图来自 [voice-controlled-ai-agent](https://github.com/shanttoosh/voice-controlled-ai-agent)；整理栈来自 [danielrosehill](https://github.com/danielrosehill/Speech-Tech-Index) 等（[`skills/manifest.yaml`](skills/manifest.yaml)） |
 | 8 | **Qwen3-ASR** | **首版不做**；仅文档保留对比，见 [SenseVoice vs Qwen3](#sensevoice-和-qwen3-asr-哪个好) |
 
 ---
@@ -144,29 +144,31 @@ flowchart TB
 - **整理模式**：自动（Router）/ 强制 编程·通用·调研·待办
 - **Skills 目录**：默认 `skills/`（一般无需改）
 
-### 多 Skill 协同（按说话内容，非默认写代码）
+### 多 Skill 协同（**仅用他人 prompt**，见 `skills/upstream/`）
 
 ```text
 ASR 原文
-  → ① skills/router/SKILL.md     （只输出 JSON intent）
-  → ② skills/intents/{intent}/   （整理成一条可粘贴文本）
+  → ① shanttoosh/voice-controlled-ai-agent 意图分类 prompt（JSON）
+  → manifest.yaml 映射 → specialist
+  → ② 拼接 danielrosehill 等上游 prompt 栈（STT cleanup + 场景 prompt）
   → 剪贴板
 ```
 
-| intent | 何时用 | Specialist |
-|--------|--------|------------|
-| `code-editing` | 讲改代码、接口、组件、框架… | [`intents/code-editing/SKILL.md`](skills/intents/code-editing/SKILL.md) |
-| `general-ai` | 通用问答、写作、解释 | [`intents/general-ai/SKILL.md`](skills/intents/general-ai/SKILL.md) |
-| `research` | 调研、对比、深度检索 | [`intents/research/SKILL.md`](skills/intents/research/SKILL.md) |
-| `task-plan` | 待办、步骤、今日安排 | [`intents/task-plan/SKILL.md`](skills/intents/task-plan/SKILL.md) |
+| specialist | 他人作品（manifest 中 stack） |
+|------------|-------------------------------|
+| `code-editing` | STT-Basic-Cleanup + Voice-Prompt-Enhancement-Node + [code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md) |
+| `general-ai` | STT-Basic-Cleanup + [general-prompt.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/general-prompt.md) |
+| `research` | STT-Basic-Cleanup + [deep-research-prompt.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/deep-research-prompt.md) |
+| `task-plan` | STT-Basic-Cleanup + [to-do-list.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/to-do-list.md) |
 
-| 文档 | 说明 |
-|------|------|
-| [`skills/README.md`](skills/README.md) | 目录与 C# 接口 |
-| [`docs/SKILL_PIPELINE.md`](docs/SKILL_PIPELINE.md) | 判据、两次 API、设置项 |
-| [`docs/SKILL_RESEARCH.md`](docs/SKILL_RESEARCH.md) | GitHub 调研 |
+| 文档 / 脚本 | 说明 |
+|-------------|------|
+| [`skills/manifest.yaml`](skills/manifest.yaml) | 路径与 intent 映射（**无自写正文**） |
+| [`skills/upstream/`](skills/upstream/) | 第三方原文副本 |
+| [`scripts/sync-upstream-skills.sh`](scripts/sync-upstream-skills.sh) | 从 GitHub 同步上游 |
+| [`docs/SKILL_PIPELINE.md`](docs/SKILL_PIPELINE.md) | 管线说明 |
 
-共用 STT 清理：[`skills/shared/stt-base.md`](skills/shared/stt-base.md)。上游见 [danielrosehill/Text-Transformation-Prompt-Collection-2](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2) 与 [Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node)。
+可选完整 Skill：[voice-refine](https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/examples/skills/voice-refine/SKILL.md)、[dictation-githubnext-gh-aw-2](https://github.com/majiayu000/claude-skill-registry/blob/main/skills/other/dictation-githubnext-gh-aw-2/SKILL.md)（见 manifest `optional_skills`）。
 
 ### 隐私（与出网）
 
@@ -221,11 +223,12 @@ ArrayMicRefreshment/
 │   ├── ArrayMicRefreshment.Prompt/    # Router + Specialist Skills
 │   └── ArrayMicRefreshment.Output/
 ├── skills/
-│   └── prompt-refine/
-│       └── SKILL.md                   # 强提示词优化 Skill
-├── models/                            # gitignore
+│   ├── manifest.yaml                  # 仅映射，无自写 prompt
+│   └── upstream/                      # 第三方 prompt 原文副本
 ├── scripts/
-│   └── download-models.ps1
+│   ├── download-models.ps1
+│   └── sync-upstream-skills.sh
+├── models/                            # gitignore
 └── README.md
 ```
 
@@ -254,10 +257,11 @@ ArrayMicRefreshment/
 - [ ] `SenseVoiceAsr` + 纯文本抽取（去掉情感标签等）
 - [ ] `ModelManifest` / `download-models.ps1` 仅 SenseVoice
 
-### Phase 4 — Router + Specialists + 输出
+### Phase 4 — 上游 Prompt 栈 + 输出
 
-- [ ] `IntentRouter` + `PromptRefiner`（router + `skills/intents/*`）
-- [ ] 设置：自动 / 强制意图；剪贴板仅优化句
+- [ ] 读 `skills/manifest.yaml`，拼接 `skills/upstream/*`
+- [ ] `IntentRouter`（shanttoosh 分类 prompt）+ `PromptRefiner`（danielrosehill stack）
+- [ ] 设置：自动 / 强制意图；可选 voice-refine / dictation Skill
 - [ ] 隐私确认弹窗
 
 ### Phase 5 — 发布
@@ -345,13 +349,13 @@ dotnet run --project src/ArrayMicRefreshment.App
 |------|------|
 | `README.md` | 架构、已定稿决策、输出逻辑 |
 | `docs/ASR_MODEL.md` | **SenseVoice 定稿**与 manifest |
-| `docs/SKILL_PIPELINE.md` | Router + 多 Specialist 管线 |
-| `docs/SKILL_RESEARCH.md` | GitHub 调研 |
-| `skills/README.md` | Skills 目录说明 |
-| `skills/router/SKILL.md` | 意图分类 |
-| `skills/intents/*` | 分场景 Specialist |
+| `skills/manifest.yaml` | 上游路径与 intent 映射 |
+| `skills/upstream/` | 第三方 prompt 原文 |
+| `scripts/sync-upstream-skills.sh` | 同步上游 |
+| `docs/SKILL_PIPELINE.md` | 管线说明 |
+| `docs/SKILL_RESEARCH.md` | 采用的他人仓库列表 |
 | `docs/PRIVACY_COPY.md` | 隐私文案（可选） |
 
 ---
 
-*已定稿：SenseVoice；LLM 为 Router + 四 Specialist（按内容判意图）；整理默认关；PTT 松开优先。*
+*已定稿：SenseVoice；LLM 使用第三方 prompt 栈（manifest 配置）；整理默认关；PTT 松开优先。*

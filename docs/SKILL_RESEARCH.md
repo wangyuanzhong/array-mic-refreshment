@@ -1,47 +1,35 @@
-# Skill 调研：意图路由 + 多 Skill 协同
+# Skill 调研：只用他人成品
 
-> 更新：2026-05。产品策略：**根据用户说话内容选 Skill**，而非默认代码向。
-
----
-
-## 业界模式
-
-| 项目 | 模式 | 与本产品关系 |
-|------|------|----------------|
-| [shanttoosh/voice-controlled-ai-agent](https://github.com/shanttoosh/voice-controlled-ai-agent) | STT → **LLM 意图** → LangGraph → 不同 tool | ✅ 同款「先分类再处理」 |
-| [Intent_IQ](https://github.com/sagar31joon/Intent_IQ) | embedding/分类 → **动态 skill 模块** | ✅ 模块化 skill 文件 |
-| [danielrosehill/Speech-To-Text-System-Prompt-Library](https://github.com/danielrosehill/Speech-To-Text-System-Prompt-Library) | **basic cleanup + 叠 layer**（邮件/任务/AI prompt…） | ✅ Specialist 来源库 |
-| [FlorianBruniaux/.../voice-refine](https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/examples/skills/voice-refine/SKILL.md) | 单 Skill 压 token + 结构化 Markdown | ⚠ 不默认；偏 Claude Code 长任务 |
+> 策略：**复制上游 prompt / SKILL 原文** + `manifest.yaml` 做路由与拼接。不在本仓库发明 Skill 正文。
 
 ---
 
-## 本仓库结构
+## 实际采用的第三方资源
 
-```text
-skills/router/SKILL.md          # LLM #1：只输出 JSON intent
-skills/shared/stt-base.md       # 共用 STT 清理片段
-skills/intents/*/SKILL.md       # LLM #2：按意图整理成一条文本
-```
+| 角色 | 仓库 | 本仓库路径 |
+|------|------|------------|
+| 意图分类 | [shanttoosh/voice-controlled-ai-agent](https://github.com/shanttoosh/voice-controlled-ai-agent) `agent/intent.py` | `upstream/shanttoosh/voice-controlled-ai-agent.intent-classification.md` |
+| STT 清理底层 | [danielrosehill/STT-Basic-Cleanup-System-Prompt](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt) | `upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md` |
+| 语音→LLM prompt | [danielrosehill/Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node) | `upstream/danielrosehill/voice-prompt-enhancement-node.prompt.md` |
+| 编程指令 | [Text-Transformation-Prompt-Collection-2/code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md) | `upstream/danielrosehill/text-transform/code-editing.md` |
+| 通用 AI prompt | …/general-prompt.md | `…/general-prompt.md` |
+| 深度调研 | …/deep-research-prompt.md | `…/deep-research-prompt.md` |
+| 待办清单 | …/to-do-list.md | `…/to-do-list.md` |
+| 可选 Claude Skill | [FlorianBruniaux/…/voice-refine/SKILL.md](https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/examples/skills/voice-refine/SKILL.md) | `upstream/florianbruniaux/voice-refine.SKILL.md` |
+| 可选听写纠错 Skill | [majiayu000/…/dictation-githubnext-gh-aw-2/SKILL.md](https://github.com/majiayu000/claude-skill-registry/blob/main/skills/other/dictation-githubnext-gh-aw-2/SKILL.md) | `upstream/majiayu000/dictation-githubnext-gh-aw-2.SKILL.md` |
 
-详见 [`SKILL_PIPELINE.md`](SKILL_PIPELINE.md)、[`skills/README.md`](../skills/README.md)。
-
----
-
-## Specialist 与上游
-
-| Intent | 上游 prompt | 场景 |
-|--------|-------------|------|
-| `code-editing` | [code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md) | 用户明显在讲编程 |
-| `general-ai` | [general-prompt.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/general-prompt.md) | 通用问答/写作 |
-| `research` | [deep-research-prompt.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/deep-research-prompt.md) | 调研/对比 |
-| `task-plan` | [to-do-list.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/to-do-list.md) | 待办/步骤 |
-
-共用：[Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node)、[STT-Basic-Cleanup](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt)。
+索引库：[danielrosehill/Speech-Tech-Index](https://github.com/danielrosehill/Speech-Tech-Index)（Transcript Processing 章节）。
 
 ---
 
-## 为何不用「单 Skill 全包」
+## 为何不用自写 `skills/intents/*.md`
 
-- 用户说调研时，代码向 prompt 会改坏语气与结构。
-- 用户说改代码时，general prompt 不够实现向。
-- Router + Specialist 可 **独立迭代**、设置页可 **强制意图** 跳过 Router。
+早期草案已删除。自写内容易与上游漂移；改为 **sync 脚本 + manifest** 更易核对出处与升级。
+
+---
+
+## 相关文档
+
+- [`skills/README.md`](../skills/README.md)
+- [`skills/manifest.yaml`](../skills/manifest.yaml)
+- [`docs/SKILL_PIPELINE.md`](SKILL_PIPELINE.md)

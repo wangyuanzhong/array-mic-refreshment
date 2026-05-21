@@ -1,9 +1,5 @@
-# 已迁移
+# 已废弃
 
-单文件 `prompt-refine` 已拆分为 **意图路由 + 多 Specialist**。
+请使用 [`skills/manifest.yaml`](../manifest.yaml) + [`skills/upstream/`](../upstream/)。
 
-请使用：
-
-- [`skills/router/SKILL.md`](../router/SKILL.md) — 意图识别
-- [`skills/intents/`](../intents/) — 按场景整理
-- [`skills/README.md`](../README.md) — 总览
+同步上游：`./scripts/sync-upstream-skills.sh`
