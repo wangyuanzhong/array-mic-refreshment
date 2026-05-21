@@ -1,0 +1,16 @@
+# Build
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Models (downloaded locally)
+models/
+
+# App data / logs (local dev)
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

@@ -238,9 +238,10 @@ ArrayMicRefreshment/
 
 ### Phase 0 — 底座
 
-- [ ] .NET 8 解决方案、Sherpa native dll 部署说明
-- [ ] 托盘：总开关、子开关、PTT 热键
-- [ ] 设置窗：API URL / Key / Model、**整理默认关**、Skill 路径
+- [x] .NET 8 解决方案、Sherpa native dll 部署说明（见 [`docs/DEPLOY_SHERPA.md`](docs/DEPLOY_SHERPA.md)）
+- [x] 托盘：总开关、子开关（PTT 热键配置项；全局热键 Phase 1）
+- [x] 设置窗：API URL / Key / Model、**整理默认关**、Skill 路径
+- [x] `scripts/download-models.ps1` + [`scripts/ModelManifest.json`](scripts/ModelManifest.json)
 
 ### Phase 1 — 音频
 
@@ -331,14 +332,22 @@ ptt.PttReleased += async () => {
 
 ---
 
-## 本地开发（占位）
+## 本地开发
+
+**Windows（托盘应用）**
 
 ```powershell
-git clone <repo>
+git clone https://github.com/wangyuanzhong/array-mic-refreshment.git
 cd array-mic-refreshment
-./scripts/download-models.ps1
-dotnet build
-dotnet run --project src/ArrayMicRefreshment.App
+.\scripts\download-models.ps1
+dotnet build ArrayMicRefreshment.sln -c Release
+dotnet run --project src\ArrayMicRefreshment.App -c Release
+```
+
+**Linux / CI（仅编译类库）**
+
+```bash
+./scripts/build-libraries.sh
 ```
 
 ---
@@ -354,7 +363,9 @@ dotnet run --project src/ArrayMicRefreshment.App
 | `scripts/sync-upstream-skills.sh` | 同步上游 |
 | `docs/SKILL_PIPELINE.md` | 管线说明 |
 | `docs/SKILL_RESEARCH.md` | 采用的他人仓库列表 |
-| `docs/PRIVACY_COPY.md` | 隐私文案（可选） |
+| `docs/DEPLOY_SHERPA.md` | Sherpa-ONNX native 部署说明 |
+| `scripts/ModelManifest.json` | SenseVoice 模型下载清单 |
+| `scripts/download-models.ps1` | 下载 ASR 模型到 `models/` |
 
 ---
 

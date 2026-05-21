@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models",
+  "packages": [
+    {
+      "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
+      "role": "asr-primary",
+      "archive": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09.tar.bz2",
+      "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
+      "sha256": null,
+      "notes": "SenseVoice int8 — primary ASR model (see docs/ASR_MODEL.md)"
+    },
+    {
+      "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+      "role": "asr-fallback",
+      "archive": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
+      "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+      "sha256": null,
+      "notes": "SenseVoice int8 — fallback if 2025-09 package unavailable"
+    }
+  ],
+  "phase2Speaker": {
+    "notes": "Speaker models added in Phase 2; entries will be appended here.",
+    "packages": []
+  }
+}

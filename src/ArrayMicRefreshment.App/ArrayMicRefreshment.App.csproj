@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ArrayMicRefreshment.App</RootNamespace>
+    <AssemblyName>ArrayMicRefreshment</AssemblyName>
+    <ApplicationIcon />
+    <StartupObject>ArrayMicRefreshment.App.Program</StartupObject>
+    <!-- Allow compiling WinForms project on non-Windows CI for API checks -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ArrayMicRefreshment.Core\ArrayMicRefreshment.Core.csproj" />
+    <ProjectReference Include="..\ArrayMicRefreshment.Audio\ArrayMicRefreshment.Audio.csproj" />
+    <ProjectReference Include="..\ArrayMicRefreshment.Speaker\ArrayMicRefreshment.Speaker.csproj" />
+    <ProjectReference Include="..\ArrayMicRefreshment.Asr\ArrayMicRefreshment.Asr.csproj" />
+    <ProjectReference Include="..\ArrayMicRefreshment.Prompt\ArrayMicRefreshment.Prompt.csproj" />
+    <ProjectReference Include="..\ArrayMicRefreshment.Output\ArrayMicRefreshment.Output.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
+
+</Project>
