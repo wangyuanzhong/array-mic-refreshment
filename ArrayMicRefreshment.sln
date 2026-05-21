@@ -23,6 +23,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{8D76021D
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArrayMicRefreshment.Core.Tests", "tests\ArrayMicRefreshment.Core.Tests\ArrayMicRefreshment.Core.Tests.csproj", "{33F8E1B5-2E87-4E50-8BC3-AE88D8A919F4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArrayMicRefreshment.Audio.Tests", "tests\ArrayMicRefreshment.Audio.Tests\ArrayMicRefreshment.Audio.Tests.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -64,6 +66,10 @@ Global
 		{33F8E1B5-2E87-4E50-8BC3-AE88D8A919F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{33F8E1B5-2E87-4E50-8BC3-AE88D8A919F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{33F8E1B5-2E87-4E50-8BC3-AE88D8A919F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{DD3D5146-80A5-417F-A6A3-1568D9FB744E} = {E3458EE9-A8EE-4C68-98FF-FF3B9C660B5F}
@@ -74,5 +80,6 @@ Global
 		{D4C938A9-BCBB-4087-A983-06AE7845D4F1} = {E3458EE9-A8EE-4C68-98FF-FF3B9C660B5F}
 		{7C4E9A12-3B5D-4F01-9E8C-1A2B3C4D5E6F} = {E3458EE9-A8EE-4C68-98FF-FF3B9C660B5F}
 		{33F8E1B5-2E87-4E50-8BC3-AE88D8A919F4} = {8D76021D-CAB5-4D35-853C-69B067A27290}
+		{A1B2C3D4-E5F6-7890-ABCD-EF1234567890} = {8D76021D-CAB5-4D35-853C-69B067A27290}
 	EndGlobalSection
 EndGlobal
