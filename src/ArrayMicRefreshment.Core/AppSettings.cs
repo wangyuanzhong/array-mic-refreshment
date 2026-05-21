@@ -35,4 +35,10 @@ public sealed class AppSettings
     public string SkillsDirectory { get; set; } = "skills";
 
     public string ModelsDirectory { get; set; } = "models";
+
+    /// <summary>Host user accepted for remote prompt refine (e.g. api.openai.com).</summary>
+    public string? PrivacyAcceptedHost { get; set; }
+
+    /// <summary>manifest optional_skills keys to prepend before specialist stack.</summary>
+    public List<string> OptionalOverlaySkills { get; set; } = new();
 }
