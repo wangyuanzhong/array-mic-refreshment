@@ -17,7 +17,7 @@
 | 5 | **松开 PTT 优先触发 ASR** | **松开快捷键** 立即截断并识别，优先级 **高于** VAD 句末；按住期间 VAD 句末仅作辅助（长句中间停顿） |
 | 6 | **子开关 OFF：仍写剪贴板** | 子开关只控制 **是否自动粘贴到光标**；OFF = 不粘贴，**仍更新剪贴板** |
 | 7 | **API 任意厂商 + 设置窗 + Skill** | 提供 API Base URL、Key、模型名等配置界面；内置 **`prompt-refine` Skill**（强提示词优化），可扩展用户自定义 Skill 路径 |
-| 8 | **ASR 模型** | 首版默认 **SenseVoice int8**；保留 `IUtteranceAsr` 以便日后对比 **Paraformer / Qwen3-ASR**（见下文专节） |
+| 8 | **ASR 模型** | 首版默认 **SenseVoice int8**；设置页可切换 **Qwen3-ASR-0.6B int8**（更准、更慢）；见 [SenseVoice vs Qwen3](#sensevoice-和-qwen3-asr-哪个好) |
 
 ---
 
@@ -142,17 +142,18 @@ flowchart TB
 - **启用提示词整理**（checkbox，**默认不勾选**）
 - **Skill 路径**（可选，默认内置 `skills/prompt-refine/SKILL.md`）
 
-### Skill：`prompt-refine`
+### Skill：`prompt-refine`（基于 GitHub 调研，非自编）
 
-首版在仓库提供 **`skills/prompt-refine/SKILL.md`**（或同等 JSON 配置），职责包括但不限于：
+| 文档 | 说明 |
+|------|------|
+| [`docs/SKILL_RESEARCH.md`](docs/SKILL_RESEARCH.md) | 上游仓库对比与选用理由 |
+| [`skills/prompt-refine/SKILL.md`](skills/prompt-refine/SKILL.md) | 默认 Skill（衍生自 [Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node) 等） |
+| [`skills/prompt-refine/ATTRIBUTION.md`](skills/prompt-refine/ATTRIBUTION.md) | 出处与许可 |
 
-- 去口语 filler（嗯、那个、就是）
-- 纠错同音字、补标点
-- 将口语转为 **适合发给 AI 聊天机器人的一条提示词**（一句或短段，不扩写废话）
-- 保留用户原意，禁止臆造事实
-- 输出 **仅最终句子**，无 markdown 解释、无前缀「好的」
+**主参考**：`danielrosehill/Voice-Prompt-Enhancement-Node`（STT→推理用 prompt）、`STT-Basic-Cleanup-System-Prompt`、`Text-Transformation-Prompt-Collection-2/by-use-case/ai/general-prompt.md`。  
+**未采用**：`FlorianBruniaux/.../voice-refine` 的多段 Markdown 模板（更适合 Claude Code 长任务，不适合本工具「单条粘贴」）。
 
-调用方式：`system` = Skill 内容 + 少量固定护栏；`user` = ASR 原文。
+调用：`system` = Skill 全文；`user` = ASR 原文。设置页可改 Skill 路径覆盖默认。
 
 ### 隐私（与出网）
 
@@ -162,51 +163,45 @@ flowchart TB
 
 ---
 
-## ASR 模型怎么选？（你仍不确定的部分）
+## SenseVoice 和 Qwen3-ASR 哪个好？
 
-你已倾向 **SenseVoice + 离线 + 要准**。下面是在 **Sherpa-ONNX 生态内** 的对比，便于日后换模型不换架构。
+二者都已进入 **Sherpa-ONNX**（`OfflineRecognizer`），和 **C# + 松开 PTT 句末识别** 兼容。差别在 **准确率、方言、速度、体积**。
 
-### 对比总表（中文场景、本地、句末）
+### 一句话结论
 
-| 模型 | 流式 | 中文/方言 | 精准度（经验位次） | 速度 / 资源 | 适合本工具 |
-|------|------|-----------|-------------------|-------------|------------|
-| **SenseVoice** | ❌ 离线为主 | 普粤英日韩等 | **高**（阿里 FunASR 系，多方评测中文强） | int8 ~230MB，CPU 可跑 | ✅ **已选** |
-| **Paraformer（离线/流式）** | 可选 | 中文好 | 中高 | 更轻、更快 | 备选：极速 |
-| **Zipformer / Transducer** | ✅ 流式 | 中文 | 中高 | 流式延迟低 | ❌ 你不做流式 |
-| **Qwen3-ASR 0.6B/1.7B** | 支持 | 52 语 + 22 方言 | **很高** | 更重、更慢 | 备选：极致准 |
-| **Whisper / faster-whisper** | 段式 | 多语 | 中等～中高 | 大模型偏慢 | 不推荐首版 |
-| **Nemotron / Parakeet** | 流式 | **英文为主** | 英文极高 | 要 GPU 更佳 | ❌ 中文主线 |
+| 你的优先级 | 选谁 |
+|------------|------|
+| **识别更准**（能接受更慢、更大模型） | **Qwen3-ASR-0.6B int8**（再往上 1.7B） |
+| **默认安装、PTT 短句、CPU 省心** | **SenseVoice int8**（首版默认） |
+| 两者都要 | 设置 **下拉切换**，manifest 各下载一份 |
 
-### 为什么首版 SenseVoice 是合理默认？
+公开中文基准上，**Qwen3-ASR-1.7B 的 CER 通常低于 SenseVoice-Small**（例如 AISHELL-1 约 1.5% vs ~3% 量级，见 [Qwen3-ASR Technical Report](https://arxiv.org/abs/2601.21337) 及第三方统一评测）。  
+PTT 多是 **5～30 秒短句**，SenseVoice 往往已够用；是否值得为 1～2 个百分点 CER 换 **数倍推理耗时**，需用你的麦 **实测**。
 
-1. **你要的是准，不是流式**：SenseVoice 在 sherpa 里走 **OfflineRecognizer**，和「松开 PTT → 整段识别」完全一致。
-2. **和 Sherpa-ONNX 同源**：C# 绑同一套 `sherpa-onnx.dll`，换 Paraformer 只换模型路径，不动宿主。
-3. **中文 + 粤语**：阵列麦/大陆用户常见；SenseVoice 预训练含 **粤语 (yue)**，比纯普通话模型更宽。
-4. **体积可控**：int8 约 230MB，比 Qwen3-ASR 1.7B 小很多，比 Whisper large 更贴本地后台工具。
+### 对比表（Sherpa-ONNX 离线、中文）
 
-### 什么时候考虑换成 Qwen3-ASR？
+| 维度 | SenseVoice int8 | Qwen3-ASR-0.6B int8 |
+|------|-----------------|---------------------|
+| **架构** | 非自回归，偏快 | 更强建模，偏准 |
+| **中文普通话** | 很好 | **更好** |
+| **方言** | 普、粤 (yue) 等 | **22 种中文方言**（官方） |
+| **流式** | 不用 ❌ | 支持；本产品用离线即可 |
+| **体积** | ~230 MB | 更大（见 sherpa release） |
+| **CPU 速度** | 快 | 明显更慢 |
+| **Sherpa 文档** | 成熟 | 2026 新并入 |
+| **推荐** | **默认** | **高准确模式** |
 
-- 实测 SenseVoice 在你的 **口音 / 噪声 / 专业词汇** 上 CER 仍不满意；
-- 机器内存 ≥ 16GB、可接受识别慢 0.5～2×；
-- 需要 **更多中文方言** 覆盖。
-
-实施上：Phase 3 实现 `IUtteranceAsr`，默认 `SenseVoiceAsr`，设置里预留「引擎 + 模型路径」供高级用户切换。
-
-### 什么时候仍用 Paraformer？
-
-- 同一台机器上要 **极低 CPU**、句子极短、对错一个字无所谓；
-- 作为 **A/B 对照** 而非默认。
-
-### 建议的决策路径（减少纠结）
+### 工程落地
 
 ```text
-首版上线     → SenseVoice int8（2025-09 优先，2024-07 作 fallback）
-内部实测 2 周 → 记 CER/主观错误类型（专有名词、粤语、噪声）
-不达标       → 同管道换 Qwen3-ASR-0.6B int4 ONNX 对比
-仍不达标     → 考虑热词表 / 自定义词图（Sherpa 支持有限）或接受 LLM 整理兜底专有名词
+IUtteranceAsr
+├── SenseVoiceAsr     # 默认：2025-09-09 int8
+└── Qwen3Asr06B       # 设置页切换：sherpa-onnx-qwen3-asr-0.6B-int8-*
 ```
 
-**LLM 整理不能替代 ASR 准确率**：整理只能改表述，听错的字（如「张薇」→「张威」）仍需靠更好 ASR 或用户重说。因此 ASR 选 SenseVoice 是准度与工程量的平衡点。
+Phase 3：自建 20 句测试集（术语、粤语、噪声）双引擎对比后再决定是否改默认。
+
+**LLM Skill 不能替代 ASR**：听错的专有名词要靠更好 ASR 或重说；Skill 只优化表述。
 
 ---
 
@@ -352,8 +347,10 @@ dotnet run --project src/ArrayMicRefreshment.App
 
 | 路径 | 内容 |
 |------|------|
-| `README.md` | 架构、已定稿决策、ASR 选型、输出逻辑 |
-| `skills/prompt-refine/SKILL.md` | 提示词整理 Skill（Phase 4 落地） |
+| `README.md` | 架构、已定稿决策、SenseVoice vs Qwen3、输出逻辑 |
+| `docs/SKILL_RESEARCH.md` | GitHub STT→提示词 Skill 调研与出处 |
+| `skills/prompt-refine/SKILL.md` | 默认 Skill（衍生开源 prompt，非自编） |
+| `skills/prompt-refine/ATTRIBUTION.md` | Skill 上游许可与来源 |
 | `docs/PRIVACY_COPY.md` | 隐私文案定稿（可选） |
 
 ---
