@@ -1,6 +1,6 @@
 # Array Mic Refreshment
 
-本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理（代码编辑向 Skill）** → 剪贴板 / 光标粘贴（面向 Cursor 等 AI 编程助手）。
+本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 多 Skill 整理（先识别意图再改写）** → 剪贴板 / 光标粘贴。
 
 阵列麦已在硬件侧完成降噪/增益；软件侧 `IAudioPreprocessor` 仅预留，首版不实现。
 
@@ -16,7 +16,7 @@
 | 4 | **Agent 开启时，剪贴板只放优化句** | 不写 ASR 原文；优化失败时可配置降级策略（见输出逻辑） |
 | 5 | **松开 PTT 优先触发 ASR** | **松开快捷键** 立即截断并识别，优先级 **高于** VAD 句末；按住期间 VAD 句末仅作辅助（长句中间停顿） |
 | 6 | **子开关 OFF：仍写剪贴板** | 子开关只控制 **是否自动粘贴到光标**；OFF = 不粘贴，**仍更新剪贴板** |
-| 7 | **API + Skill（偏代码编辑）** | 任意 OpenAI-compatible API；默认 Skill 将 STT 整理为 **一条代码修改指令**（基于 [code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md)） |
+| 7 | **API + 多 Skill 协同** | Router 判意图 → Specialist 整理；**编程 / 通用 / 调研 / 待办** 四类（见 [`docs/SKILL_PIPELINE.md`](docs/SKILL_PIPELINE.md)） |
 | 8 | **Qwen3-ASR** | **首版不做**；仅文档保留对比，见 [SenseVoice vs Qwen3](#sensevoice-和-qwen3-asr-哪个好) |
 
 ---
@@ -28,7 +28,7 @@
 | 1 | 托盘常驻、用户/设备下拉 | ✅ |
 | 2 | PTT + 离线句末 ASR（SenseVoice） | ✅ |
 | 3 | 说话人门禁（当前用户） | ✅ |
-| 4 | LLM 提示词整理（可选，默认关） | ✅ |
+| 4 | LLM 多 Skill 整理（可选，默认关） | ✅ |
 | 5 | 剪贴板 + 子开关控制粘贴 | ✅ |
 | 6 | 设备可选，MME / WDM / WASAPI | ✅ |
 | 7 | 采样率跟随设备，模型边界再 resample | ✅ |
@@ -45,7 +45,7 @@ flowchart TB
         SW2["子开关：粘贴到光标"]
         AGT["提示词整理（默认关）"]
         APISET["API URL / Key / 模型"]
-        SKILL["Skill：代码编辑指令"]
+        SKILL["Router → Specialist"]
         USER["当前用户"]
         DEV["录音设备"]
         PTT["按住 PTT"]
@@ -64,7 +64,8 @@ flowchart TB
     end
 
     subgraph LLM["提示词整理（可选）"]
-        REF["HTTP API + Skill 系统提示"]
+        RTR["Router 意图 JSON"]
+        REF["Specialist Skill"]
     end
 
     subgraph Out["输出"]
@@ -75,7 +76,7 @@ flowchart TB
     PTT -->|按住| AUDIO
     PTT -->|松开 优先| ASR
     AUDIO --> Gate --> ASR
-    ASR -->|整理开启| LLM --> CB
+    ASR -->|整理开启| RTR --> REF --> CB
     ASR -->|整理关闭| CB
     LLM --> CB
     CB --> PST
@@ -140,21 +141,32 @@ flowchart TB
 - **API Key**（本机 Ollama 可空）
 - **Model**（如 `gpt-4o-mini`、`deepseek-chat`、`qwen-plus`）
 - **启用提示词整理**（checkbox，**默认不勾选**）
-- **Skill 路径**（可选，默认内置 `skills/prompt-refine/SKILL.md`）
+- **整理模式**：自动（Router）/ 强制 编程·通用·调研·待办
+- **Skills 目录**：默认 `skills/`（一般无需改）
 
-### Skill：`prompt-refine`（代码编辑向，GitHub 衍生）
+### 多 Skill 协同（按说话内容，非默认写代码）
 
-**场景**：口述「把登录改成异步、加错误处理」→ 剪贴板一条指令 → 粘贴进 **Cursor / Copilot / Claude** 聊天框。
+```text
+ASR 原文
+  → ① skills/router/SKILL.md     （只输出 JSON intent）
+  → ② skills/intents/{intent}/   （整理成一条可粘贴文本）
+  → 剪贴板
+```
+
+| intent | 何时用 | Specialist |
+|--------|--------|------------|
+| `code-editing` | 讲改代码、接口、组件、框架… | [`intents/code-editing/SKILL.md`](skills/intents/code-editing/SKILL.md) |
+| `general-ai` | 通用问答、写作、解释 | [`intents/general-ai/SKILL.md`](skills/intents/general-ai/SKILL.md) |
+| `research` | 调研、对比、深度检索 | [`intents/research/SKILL.md`](skills/intents/research/SKILL.md) |
+| `task-plan` | 待办、步骤、今日安排 | [`intents/task-plan/SKILL.md`](skills/intents/task-plan/SKILL.md) |
 
 | 文档 | 说明 |
 |------|------|
-| [`skills/prompt-refine/SKILL.md`](skills/prompt-refine/SKILL.md) | 默认 Skill |
-| [`docs/SKILL_RESEARCH.md`](docs/SKILL_RESEARCH.md) | 调研与上游链接 |
-| [`skills/prompt-refine/ATTRIBUTION.md`](skills/prompt-refine/ATTRIBUTION.md) | 出处 |
+| [`skills/README.md`](skills/README.md) | 目录与 C# 接口 |
+| [`docs/SKILL_PIPELINE.md`](docs/SKILL_PIPELINE.md) | 判据、两次 API、设置项 |
+| [`docs/SKILL_RESEARCH.md`](docs/SKILL_RESEARCH.md) | GitHub 调研 |
 
-**主参考**：[Text-Transformation-Prompt-Collection-2/.../code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md) + [Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node) + [STT-Basic-Cleanup](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt)。
-
-调用：`system` = Skill 全文；`user` = ASR 原文。设置页可覆盖 Skill 路径。
+共用 STT 清理：[`skills/shared/stt-base.md`](skills/shared/stt-base.md)。上游见 [danielrosehill/Text-Transformation-Prompt-Collection-2](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2) 与 [Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node)。
 
 ### 隐私（与出网）
 
@@ -206,7 +218,7 @@ ArrayMicRefreshment/
 │   ├── ArrayMicRefreshment.Audio/
 │   ├── ArrayMicRefreshment.Speaker/
 │   ├── ArrayMicRefreshment.Asr/       # SenseVoiceAsr（Sherpa OfflineRecognizer）
-│   ├── ArrayMicRefreshment.Prompt/    # API + code-editing Skill
+│   ├── ArrayMicRefreshment.Prompt/    # Router + Specialist Skills
 │   └── ArrayMicRefreshment.Output/
 ├── skills/
 │   └── prompt-refine/
@@ -242,10 +254,10 @@ ArrayMicRefreshment/
 - [ ] `SenseVoiceAsr` + 纯文本抽取（去掉情感标签等）
 - [ ] `ModelManifest` / `download-models.ps1` 仅 SenseVoice
 
-### Phase 4 — Prompt Skill + 输出
+### Phase 4 — Router + Specialists + 输出
 
-- [ ] `skills/prompt-refine/SKILL.md` + `HttpPromptRefiner`
-- [ ] 剪贴板规则（Agent 开 = 仅优化句；子开关 = 仅控粘贴）
+- [ ] `IntentRouter` + `PromptRefiner`（router + `skills/intents/*`）
+- [ ] 设置：自动 / 强制意图；剪贴板仅优化句
 - [ ] 隐私确认弹窗
 
 ### Phase 5 — 发布
@@ -267,9 +279,15 @@ interface IUtteranceAsr {
     Task<string> RecognizeUtteranceAsync(AudioUtterance utterance, CancellationToken ct);
 }
 
+enum PromptIntent { Auto, CodeEditing, GeneralAi, Research, TaskPlan }
+
+interface IIntentRouter {
+    Task<(PromptIntent Intent, float Confidence)> RouteAsync(string raw, CancellationToken ct);
+}
+
 interface IPromptRefiner {
     bool IsEnabled { get; }
-    Task<string> RefineAsync(string rawTranscript, CancellationToken ct);
+    Task<string> RefineAsync(string raw, PromptIntent intent, CancellationToken ct);
 }
 
 interface ITranscriptSink {
@@ -286,8 +304,9 @@ ptt.PttReleased += async () => {
 
     string output = raw;
     if (settings.PromptRefineEnabled) {
-        output = await promptRefiner.RefineAsync(raw);
-        // 剪贴板仅用 output（优化句）
+        var intent = settings.ForcedIntent
+            ?? (await router.RouteAsync(raw, CancellationToken.None)).Intent;
+        output = await promptRefiner.RefineAsync(raw, intent, CancellationToken.None);
     }
 
     await sink.EmitAsync(output, pasteToCaret: settings.PasteToCaretEnabled);
@@ -326,11 +345,13 @@ dotnet run --project src/ArrayMicRefreshment.App
 |------|------|
 | `README.md` | 架构、已定稿决策、输出逻辑 |
 | `docs/ASR_MODEL.md` | **SenseVoice 定稿**与 manifest |
-| `docs/SKILL_RESEARCH.md` | Skill 调研（**code-editing** 为主） |
-| `skills/prompt-refine/SKILL.md` | 默认 Skill：STT → 代码编辑指令 |
-| `skills/prompt-refine/ATTRIBUTION.md` | Skill 出处 |
+| `docs/SKILL_PIPELINE.md` | Router + 多 Specialist 管线 |
+| `docs/SKILL_RESEARCH.md` | GitHub 调研 |
+| `skills/README.md` | Skills 目录说明 |
+| `skills/router/SKILL.md` | 意图分类 |
+| `skills/intents/*` | 分场景 Specialist |
 | `docs/PRIVACY_COPY.md` | 隐私文案（可选） |
 
 ---
 
-*已定稿：C# + Sherpa-ONNX + SenseVoice int8；Skill 偏代码编辑指令；LLM 整理默认关；PTT 松开优先。*
+*已定稿：SenseVoice；LLM 为 Router + 四 Specialist（按内容判意图）；整理默认关；PTT 松开优先。*

@@ -1,19 +1,21 @@
-# Attribution
+# Attribution（Skills 体系）
 
-`SKILL.md` is a derivative work for **Array Mic Refreshment** — single-line **coding instruction** output for AI IDE chat.
+多 Skill 协同，见 [`skills/README.md`](../README.md) 与 [`docs/SKILL_PIPELINE.md`](../docs/SKILL_PIPELINE.md)。
 
-## Primary sources
+## Router
 
-| Source | What we took |
-|--------|----------------|
-| [Text-Transformation-Prompt-Collection-2/.../code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md) | **Main output style**：口语 → 面向 AI 代码工具的可执行编辑指令 |
-| [Voice-Prompt-Enhancement-Node/prompt.md](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node/blob/main/prompt.md) | STT→prompt 角色、filler/改口、无前后缀交付 |
-| [STT-Basic-Cleanup-System-Prompt/complete-system-prompt.md](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt/blob/main/complete-system-prompt.md) | 标明 STT 来源、标点与错字、保留原意 |
-| [voice-refine/SKILL.md](https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/examples/skills/voice-refine/SKILL.md) | YAML frontmatter 格式 only |
+- 判据参考开源 voice agent 的 intent→tool 模式（如 [voice-controlled-ai-agent](https://github.com/shanttoosh/voice-controlled-ai-agent)）
 
-## Not used as default
+## Specialists
 
-- `general-prompt.md` — 太泛，已让位于 **code-editing**
-- `voice-refine` 多段 Markdown 模板 — 不适合剪贴板单条粘贴
+| Intent | Upstream |
+|--------|----------|
+| code-editing | [code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md) |
+| general-ai | [general-prompt.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/general-prompt.md) |
+| research | [deep-research-prompt.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/deep-research-prompt.md) |
+| task-plan | [to-do-list.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/to-do-list.md) |
 
-Check upstream repos for license terms before redistribution.
+## Shared STT cleanup
+
+- [Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node)
+- [STT-Basic-Cleanup-System-Prompt](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt)
