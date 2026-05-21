@@ -9,6 +9,7 @@
       "src\\ArrayMicRefreshment.Prompt\\ArrayMicRefreshment.Prompt.csproj",
       "src\\ArrayMicRefreshment.Output\\ArrayMicRefreshment.Output.csproj",
       "tests\\ArrayMicRefreshment.Core.Tests\\ArrayMicRefreshment.Core.Tests.csproj",
+      "tests\\ArrayMicRefreshment.Audio.Tests\\ArrayMicRefreshment.Audio.Tests.csproj",
       "tests\\ArrayMicRefreshment.Prompt.Tests\\ArrayMicRefreshment.Prompt.Tests.csproj"
     ]
   }

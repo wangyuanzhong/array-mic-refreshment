@@ -245,8 +245,8 @@ ArrayMicRefreshment/
 
 ### Phase 1 — 音频
 
-- [ ] MME / WDM / WASAPI、设备下拉、原生采样率
-- [ ] PTT 松开 **优先** 截断；VAD 辅助
+- [x] MME / WDM / WASAPI、设备下拉、原生采样率（`IAudioDeviceEnumerator` / `NAudioDeviceEnumerator`）
+- [x] PTT 全局热键 + 松开 **优先** 截断；VAD 辅助（`PttCaptureService` / `SileroVoiceActivityDetector` hook）
 
 ### Phase 2 — 说话人
 
@@ -350,7 +350,12 @@ dotnet run --project src\ArrayMicRefreshment.App -c Release
 dotnet restore ArrayMicRefreshment.CI.slnf
 ./scripts/build-libraries.sh
 dotnet test tests/ArrayMicRefreshment.Core.Tests -c Release
+dotnet test tests/ArrayMicRefreshment.Audio.Tests -c Release
 ```
+
+- `ArrayMicRefreshment.Audio` 为多目标：`net8.0`（Linux CI 占位桩 + 跨平台逻辑）与 `net8.0-windows`（NAudio 采集 / 全局 PTT / Silero VAD hook）。
+- Linux 上 **不会** 构建 `ArrayMicRefreshment.App`（WinForms 托盘）；Windows 实机请用完整 `ArrayMicRefreshment.sln`。
+- 音频相关单元测试在 `tests/ArrayMicRefreshment.Audio.Tests`（热键解析、resample、PTT 优先级；使用 `FakeCaptureStream`，不依赖声卡）。
 
 GitHub Actions：见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（`push` / `pull_request` → `main`）。
 
