@@ -19,6 +19,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly IPushToTalkSource _ptt;
     private readonly PttCaptureService _captureService;
     private VoicePipeline _pipeline;
+    private SherpaPipelineFactory.PipelineComponents? _sherpaComponents;
     private readonly StubTranscriptSink _sink = new();
 
     public TrayApplicationContext()
@@ -76,11 +77,23 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private VoicePipeline BuildPipeline(AppSettings settings)
     {
+        _sherpaComponents?.DisposeOwned();
+        _sherpaComponents = SherpaPipelineFactory.CreateOrFallback(settings, _settingsStore);
+        if (_sherpaComponents.ModelsMissing)
+        {
+            _statusItem.Text = "状态: 模型缺失 — 运行 download-models.ps1";
+            _trayIcon.Text = "Array Mic — 模型缺失";
+        }
+        else
+        {
+            UpdateTrayTooltip();
+        }
+
         var refiner = new StubPromptRefiner(settings.PromptRefineEnabled);
         return new VoicePipeline(
             settings,
-            new StubSpeakerGate { AlwaysPass = true },
-            new StubUtteranceAsr(),
+            _sherpaComponents.Speaker,
+            _sherpaComponents.Asr,
             new StubIntentRouter(),
             refiner,
             _sink);
@@ -216,6 +229,7 @@ public sealed class TrayApplicationContext : ApplicationContext
                 d.Dispose();
             }
 
+            _sherpaComponents?.DisposeOwned();
             _trayIcon.Dispose();
         }
 
