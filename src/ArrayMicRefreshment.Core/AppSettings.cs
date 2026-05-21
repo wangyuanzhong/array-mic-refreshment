@@ -35,4 +35,7 @@ public sealed class AppSettings
     public string SkillsDirectory { get; set; } = "skills";
 
     public string ModelsDirectory { get; set; } = "models";
+
+    /// <summary>Cosine similarity threshold for speaker verification (default 0.5).</summary>
+    public float SpeakerVerifyThreshold { get; set; } = 0.5f;
 }
