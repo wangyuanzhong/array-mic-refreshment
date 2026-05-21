@@ -36,6 +36,9 @@ public sealed class AppSettings
 
     public string ModelsDirectory { get; set; } = "models";
 
+    /// <summary>Cosine similarity threshold for speaker verification (default 0.5).</summary>
+    public float SpeakerVerifyThreshold { get; set; } = 0.5f;
+
     /// <summary>Host user accepted for remote prompt refine (e.g. api.openai.com).</summary>
     public string? PrivacyAcceptedHost { get; set; }
 

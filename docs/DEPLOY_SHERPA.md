@@ -1,22 +1,66 @@
-# Sherpa-ONNX 原生库部署（Phase 0 说明）
+# Sherpa-ONNX 原生库部署（Phase 2+3）
 
-首版 ASR / VAD / Speaker 均通过 **Sherpa-ONNX** C API 调用。Windows 上需随应用分发或首次启动解压 native DLL。
+ASR（SenseVoice）与说话人门禁（Speaker embedding）均通过 NuGet 包 **`org.k2fsa.sherpa.onnx`** 调用 Sherpa-ONNX C API。Windows 托盘应用与 Linux CI 类库共用同一包；native 运行时由配套 runtime 包自动还原。
 
-## 推荐步骤（实现 Phase 3 时落地）
+## NuGet 与 native 运行时
 
-1. 从 [sherpa-onnx releases](https://github.com/k2-fsa/sherpa-onnx/releases) 下载 **win-x64** 预编译包（或自行构建）。
-2. 将 `sherpa-onnx-c-api.dll` 及依赖（`onnxruntime.dll` 等）复制到：
-   - `src/ArrayMicRefreshment.App/runtimes/win-x64/native/`  
-   或安装目录 `native/`.
-3. C# 侧通过 P/Invoke 调用官方 C# 示例中的 `SherpaOnnx` 绑定（与 `ArrayMicRefreshment.Asr` 项目同仓封装）。
-4. 语音模型由 [`scripts/download-models.ps1`](../scripts/download-models.ps1) 下载到 `models/`（见 [`ModelManifest.json`](../scripts/ModelManifest.json)）。
+| 包 | 作用 |
+|----|------|
+| `org.k2fsa.sherpa.onnx` | 托管绑定 `SherpaOnnx`（`OfflineRecognizer`、`SpeakerEmbeddingExtractor` 等） |
+| `org.k2fsa.sherpa.onnx.runtime.win-x64` 等 | 按 RID 附带 `sherpa-onnx-c-api` / `onnxruntime` 等 native DLL |
 
-## 本机开发
+`dotnet build` / `dotnet publish` 后，native 库会出现在输出目录，例如：
+
+```text
+bin/Release/net8.0/runtimes/win-x64/native/
+  sherpa-onnx-c-api.dll
+  onnxruntime.dll
+  ...
+```
+
+Linux CI（`scripts/build-libraries.sh`）在 `linux-x64` 下同样会还原 `runtimes/linux-x64/native/`，**无需**在仓库中提交 DLL。
+
+## 语音模型（ASR + Speaker）
+
+由 [`scripts/download-models.ps1`](../scripts/download-models.ps1) 下载到 `models/`（已 gitignore）：
 
 ```powershell
 .\scripts\download-models.ps1
+.\scripts\download-models.ps1 -Package all
+.\scripts\download-models.ps1 -IncludeSpeaker
+```
+
+| 角色 | 目录 / 文件 |
+|------|-------------|
+| ASR 主包 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/` |
+| ASR 回退 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/` |
+| Speaker | `models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k/*.onnx` |
+
+应用通过 `AppSettings.ModelsDirectory`（默认 `models`）解析上述路径；缺失时托盘回退 stub 并提示运行 `download-models.ps1`。
+
+## 手动拷贝 native DLL（仅当 NuGet 未复制时）
+
+1. 从 [sherpa-onnx releases](https://github.com/k2-fsa/sherpa-onnx/releases) 下载 **win-x64** 预编译包。
+2. 将 `sherpa-onnx-c-api.dll` 及依赖复制到：
+   - `src/ArrayMicRefreshment.App/runtimes/win-x64/native/`，或
+   - 发布目录 `runtimes/win-x64/native/`。
+3. 确保与 `org.k2fsa.sherpa.onnx` 版本匹配（当前仓库锁定 **1.13.2**）。
+
+## 本机开发（Windows）
+
+```powershell
+.\scripts\download-models.ps1
+.\scripts\download-models.ps1 -IncludeSpeaker
 dotnet build src\ArrayMicRefreshment.App\ArrayMicRefreshment.App.csproj -c Release
 dotnet run --project src\ArrayMicRefreshment.App -c Release
 ```
 
-> **说明**：托盘 WinForms 应用需在 **Windows** 上构建运行。Linux CI 仅编译 `ArrayMicRefreshment.Core` 等类库项目。
+## Linux / CI（类库 + 测试）
+
+```bash
+dotnet restore ArrayMicRefreshment.CI.slnf
+./scripts/build-libraries.sh
+dotnet test tests/ArrayMicRefreshment.Core.Tests -c Release
+```
+
+> **说明**：WinForms 托盘应用需在 **Windows** 上运行。CI 不下载模型；单元测试通过 mock recognizer / embedding 后端验证逻辑。
