@@ -20,11 +20,13 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly PttCaptureService _captureService;
     private VoicePipeline _pipeline;
     private SherpaPipelineFactory.PipelineComponents? _sherpaComponents;
-    private readonly StubTranscriptSink _sink = new();
+    private readonly ClipboardTranscriptSink _sink;
+    private nint _settingsWindowHandle;
 
     public TrayApplicationContext()
     {
         _settings = _settingsStore.Load();
+        _sink = new ClipboardTranscriptSink(() => _settingsWindowHandle);
         _pipeline = BuildPipeline(_settings);
 
         _ptt = new NAudioPushToTalkSource(_settings.PttHotkey);
@@ -89,12 +91,19 @@ public sealed class TrayApplicationContext : ApplicationContext
             UpdateTrayTooltip();
         }
 
-        var refiner = new StubPromptRefiner(settings.PromptRefineEnabled);
+        var catalog = SkillsCatalog.Load(SkillsPathResolver.Resolve(settings.SkillsDirectory));
+        if (catalog.MissingFiles.Count > 0)
+        {
+            Log.Warning("Missing skill files: {Files}", string.Join(", ", catalog.MissingFiles));
+        }
+
+        var router = new OpenAiCompatibleIntentRouter(settings, catalog);
+        var refiner = new OpenAiCompatiblePromptRefiner(settings, catalog);
         return new VoicePipeline(
             settings,
             _sherpaComponents.Speaker,
             _sherpaComponents.Asr,
-            new StubIntentRouter(),
+            router,
             refiner,
             _sink);
     }
@@ -115,6 +124,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void OnOpenSettings(object? sender, EventArgs e)
     {
         using var form = new SettingsForm(_settings);
+        form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
         if (form.ShowDialog() == DialogResult.OK)
         {
             _settings = form.Settings;
@@ -126,6 +136,8 @@ public sealed class TrayApplicationContext : ApplicationContext
 
             PersistAndRefresh();
         }
+
+        _settingsWindowHandle = IntPtr.Zero;
     }
 
     private async void OnSimulatePttRelease(object? sender, EventArgs e)
