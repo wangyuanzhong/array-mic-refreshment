@@ -20,7 +20,17 @@
     }
   ],
   "phase2Speaker": {
-    "notes": "Speaker models added in Phase 2; entries will be appended here.",
-    "packages": []
+    "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models",
+    "notes": "3D-Speaker ERes2Net base zh-cn 16 kHz — speaker embedding for enrollment gate",
+    "packages": [
+      {
+        "id": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k",
+        "role": "speaker-primary",
+        "file": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
+        "extractDir": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k",
+        "sha256": null,
+        "notes": "Speaker embedding model (single ONNX file)"
+      }
+    ]
   }
 }

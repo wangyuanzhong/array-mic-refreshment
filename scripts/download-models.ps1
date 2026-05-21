@@ -7,6 +7,7 @@
   Run from repository root on Windows (PowerShell 5.1+):
     .\scripts\download-models.ps1
     .\scripts\download-models.ps1 -ModelsRoot D:\models -Package asr-primary
+    .\scripts\download-models.ps1 -IncludeSpeaker
 
   Extracts archives under models/ by default (gitignored).
 #>
@@ -14,7 +15,8 @@ param(
     [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
     [string]$ModelsRoot = "",
     [ValidateSet("asr-primary", "asr-fallback", "all")]
-    [string]$Package = "asr-primary"
+    [string]$Package = "asr-primary",
+    [switch]$IncludeSpeaker
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,17 +60,19 @@ function Expand-ArchiveFile {
     }
 }
 
-foreach ($pkg in $packages) {
-    $url = "$baseUrl/$($pkg.archive)"
+function Download-PackageArchive {
+    param($pkg, [string]$UrlBase)
+
     $destExtract = Join-Path $ModelsRoot $pkg.extractDir
     if (Test-Path $destExtract) {
         Write-Host "[skip] $($pkg.id) already exists at $destExtract"
-        continue
+        return
     }
 
     $cacheDir = Join-Path $ModelsRoot ".cache"
     New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
     $archivePath = Join-Path $cacheDir $pkg.archive
+    $url = "$UrlBase/$($pkg.archive)"
 
     Write-Host "[download] $url"
     Invoke-WebRequest -Uri $url -OutFile $archivePath -UseBasicParsing
@@ -85,6 +89,50 @@ foreach ($pkg in $packages) {
     Write-Host "[done] $($pkg.id)"
 }
 
+function Download-SpeakerOnnx {
+    param($pkg, [string]$UrlBase)
+
+    $destDir = Join-Path $ModelsRoot $pkg.extractDir
+    $destFile = Join-Path $destDir $pkg.file
+    if (Test-Path $destFile) {
+        Write-Host "[skip] $($pkg.id) already exists at $destFile"
+        return
+    }
+
+    $cacheDir = Join-Path $ModelsRoot ".cache"
+    New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+    $cacheFile = Join-Path $cacheDir $pkg.file
+    $url = "$UrlBase/$($pkg.file)"
+
+    Write-Host "[download] $url"
+    Invoke-WebRequest -Uri $url -OutFile $cacheFile -UseBasicParsing
+
+    if ($pkg.sha256) {
+        $hash = (Get-FileHash -Algorithm SHA256 -Path $cacheFile).Hash.ToLowerInvariant()
+        if ($hash -ne $pkg.sha256.ToLowerInvariant()) {
+            throw "SHA256 mismatch for $($pkg.id): expected $($pkg.sha256), got $hash"
+        }
+    }
+
+    New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+    Copy-Item -Path $cacheFile -Destination $destFile -Force
+    Write-Host "[done] $($pkg.id) -> $destFile"
+}
+
+foreach ($pkg in $packages) {
+    Download-PackageArchive -pkg $pkg -UrlBase $baseUrl
+}
+
+if ($IncludeSpeaker) {
+    $speakerBase = $manifest.phase2Speaker.baseUrl.TrimEnd("/")
+    foreach ($pkg in @($manifest.phase2Speaker.packages)) {
+        Download-SpeakerOnnx -pkg $pkg -UrlBase $speakerBase
+    }
+}
+
 Write-Host ""
 Write-Host "Models root: $ModelsRoot"
 Write-Host "Point AppSettings.ModelsDirectory or Sherpa config to the extracted folder."
+if (-not $IncludeSpeaker) {
+    Write-Host "Speaker model: re-run with -IncludeSpeaker to download phase2Speaker packages."
+}
