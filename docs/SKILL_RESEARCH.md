@@ -1,23 +1,35 @@
-# Skill 调研：STT 原文 → AI 提示词整理
+# Skill 调研：STT 原文 → 代码编辑指令
 
-> 调研日期：2026-05。目标：为「按住说话 → 本地 ASR → LLM 整理成可发给聊天机器人的一句提示词」找**已有**、可复用的 Skill / System Prompt，而非从零编造。
+> 调研日期：2026-05。产品默认场景：**对着 IDE 说修改需求 → 粘贴进 AI 编程助手**。
 
 ---
 
-## 与本产品最相关的上游（推荐优先阅读）
+## 已定稿
+
+| 项 | 选择 |
+|----|------|
+| 默认 Skill | [`skills/prompt-refine/SKILL.md`](../skills/prompt-refine/SKILL.md) |
+| 侧重点 | **代码编辑指令**（非通用聊天、非多段 Markdown 任务书） |
+| 主上游 | `danielrosehill/Text-Transformation-Prompt-Collection-2` → **`code-editing.md`** |
+
+---
+
+## 与本产品最相关的上游
 
 | 仓库 | 文件 | 匹配度 | 说明 |
 |------|------|--------|------|
-| [danielrosehill/Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node) | [`prompt.md`](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node/blob/main/prompt.md) | ⭐⭐⭐⭐⭐ | **专门**把 STT 原文优化成「给推理 Agent 用的 prompt」；去 filler、纠听写错、分段、prompt engineering |
-| [danielrosehill/STT-Basic-Cleanup-System-Prompt](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt) | [`complete-system-prompt.md`](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt/blob/main/complete-system-prompt.md) | ⭐⭐⭐⭐ | 明确写「文本来自 STT」；标点、段落、保留用户声音、**无前后缀输出** |
-| [danielrosehill/Speech-Tech-Index](https://github.com/danielrosehill/Speech-Tech-Index) | README 索引 | ⭐⭐⭐⭐ | **Speech → 清理 → 变换** 全链路索引；`Transcript Processing` / `Voice Automation` 章节 |
-| [danielrosehill/Text-Transformation-Prompt-Collection-2](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2) | [`by-use-case/ai/general-prompt.md`](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/general-prompt.md) 等 | ⭐⭐⭐ | 大量「STT → 某格式」短 prompt；可叠在 basic cleanup 之上 |
-| [FlorianBruniaux/claude-code-ultimate-guide](https://github.com/FlorianBruniaux/claude-code-ultimate-guide) | [`examples/skills/voice-refine/SKILL.md`](https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/examples/skills/voice-refine/SKILL.md) | ⭐⭐⭐ | Claude **Skill 格式**（YAML frontmatter）；dedupe→extract→structure→compress；输出 **Markdown 多段**（Contexte/Objectif…），偏 Claude Code，需改成本产品「单条 user prompt」 |
+| [Text-Transformation-Prompt-Collection-2](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2) | [`by-use-case/ai/development/code-editing.md`](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md) | ⭐⭐⭐⭐⭐ | **口语 → AI 代码编辑工具指令**；实现向、具体变更 |
+| [Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node) | [`prompt.md`](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node/blob/main/prompt.md) | ⭐⭐⭐⭐⭐ | STT→推理 prompt；去 filler、改口、无包装输出 |
+| [STT-Basic-Cleanup-System-Prompt](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt) | [`complete-system-prompt.md`](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt/blob/main/complete-system-prompt.md) | ⭐⭐⭐⭐ | STT 缺陷修复、保留原意 |
+| [Speech-Tech-Index](https://github.com/danielrosehill/Speech-Tech-Index) | README | ⭐⭐⭐⭐ | Transcript Processing / Voice Automation 索引 |
+| [claude-code-ultimate-guide](https://github.com/FlorianBruniaux/claude-code-ultimate-guide) | [`voice-refine/SKILL.md`](https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/examples/skills/voice-refine/SKILL.md) | ⭐⭐⭐ | Skill 格式；输出为多段 Markdown，**未作默认** |
 
-### 本产品与 `voice-refine` 的差异
+### 曾考虑但未作默认
 
-- `voice-refine`：长语音、压到 ~30% token、输出 **结构化 Markdown**（适合 Claude Code 任务）。
-- **本产品**：PTT **短句**、剪贴板 **一条** 给任意 AI 聊天框 → 更需要 **Voice-Prompt-Enhancement-Node** + **general-prompt** 路线，而不是法语四段模板。
+| 文件 | 原因 |
+|------|------|
+| `general-prompt.md` | 太泛，不适合「改代码」主场景 |
+| `voice-refine` 四段模板 | 适合 Claude Code 长任务，不适合单条粘贴进聊天框 |
 
 ---
 
@@ -25,22 +37,16 @@
 
 | 仓库 | 用途 |
 |------|------|
-| [majiayu000/claude-skill-registry/.../dictation-githubnext-gh-aw-2/SKILL.md](https://github.com/majiayu000/claude-skill-registry/blob/main/skills/other/dictation-githubnext-gh-aw-2/SKILL.md) | GitHub gh-aw **听写纠错** Skill：去 filler、专业词汇表、STT 误听替换（偏英文/GitHub 术语） |
-| [danielrosehill/Voice-To-Prompt-Pipeline](https://github.com/danielrosehill/Voice-To-Prompt-Pipeline) | 多模态 Gemini 音频→Summary/Requests/Context；思路可参考，但我们是 **文本 API** 而非音频 multimodal |
-| [danielrosehill/Voice-Cleanup-Prompt-Experiment](https://github.com/danielrosehill/Voice-Cleanup-Prompt-Experiment) | 对比多种 cleanup system prompt 效果 |
-| [danielrosehill/Speech-To-Text-System-Prompt-Library](https://github.com/danielrosehill/Speech-To-Text-System-Prompt-Library) | **Prompt 栈**（basic cleanup + format + tone）；适合「可组合」设置页进阶模式 |
-| [human37/open-wispr](https://github.com/human37/open-wispr) / [yatharthsameer/Wispr-Flow](https://github.com/yatharthsameer/Wispr-Flow) | 商业 Wispr 类：本地 STT + 可选 API 格式化；产品形态接近，prompt 多在应用内未单独开源 |
+| [dictation-githubnext-gh-aw-2/SKILL.md](https://github.com/majiayu000/claude-skill-registry/blob/main/skills/other/dictation-githubnext-gh-aw-2/SKILL.md) | 英文/GitHub 术语 STT 纠错表，可按项目加 glossary |
+| [Voice-To-Prompt-Pipeline](https://github.com/danielrosehill/Voice-To-Prompt-Pipeline) | 多段 Summary/Requests（我们是文本 API + 单条） |
+| [Speech-To-Text-System-Prompt-Library](https://github.com/danielrosehill/Speech-To-Text-System-Prompt-Library) | Prompt 栈；未来可做「邮件 / 文档」第二 Skill |
 
 ---
 
-## 本仓库采用的策略
+## 合成方式
 
-`skills/prompt-refine/SKILL.md` **不是凭空编写**，而是：
+见 [`skills/prompt-refine/ATTRIBUTION.md`](../skills/prompt-refine/ATTRIBUTION.md)：
 
-1. **主骨架**：`Voice-Prompt-Enhancement-Node/prompt.md`（STT→LLM prompt 优化）
-2. **清理规则**：`STT-Basic-Cleanup-System-Prompt`（STT 缺陷、无前后缀、保留原意）
-3. **输出形态**：`Text-Transformation-Prompt-Collection-2/by-use-case/ai/general-prompt.md`（单条 general-purpose AI prompt）
-4. **Skill 封装格式**：参考 `voice-refine` 的 YAML frontmatter（Cursor/Claude Skills 习惯）
-5. **本产品约束**：单条输出、禁止 Markdown 小节（适配微信/Cursor 输入框粘贴）
-
-详见 `skills/prompt-refine/ATTRIBUTION.md`。
+1. **输出形态** ← `code-editing.md`
+2. **STT 清理与改口** ← Voice-Prompt-Enhancement-Node + STT-Basic-Cleanup
+3. **本产品约束** ← 单条、无 Markdown 结构、针对 Cursor/Copilot 聊天框

@@ -1,6 +1,6 @@
 # Array Mic Refreshment
 
-本地 Windows 后台常驻工具：**C# + Sherpa-ONNX**。按住 **PTT 快捷键** 采集音频 → **当前用户** 说话人门禁 → **离线句末 ASR（SenseVoice）** → 可选 **LLM 提示词整理（Skill）** → 剪贴板 / 光标粘贴。
+本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理（代码编辑向 Skill）** → 剪贴板 / 光标粘贴（面向 Cursor 等 AI 编程助手）。
 
 阵列麦已在硬件侧完成降噪/增益；软件侧 `IAudioPreprocessor` 仅预留，首版不实现。
 
@@ -11,13 +11,13 @@
 | # | 决策 | 说明 |
 |---|------|------|
 | 1 | **C# / .NET 8 + Sherpa-ONNX** | 宿主与推理栈确定；通过 Sherpa-ONNX C API / 官方 C# 示例封装 P/Invoke |
-| 2 | **SenseVoice，离线、非流式，优先精准** | 使用 sherpa-onnx 的 **SenseVoice 离线模型**（整段一次识别）；不做流式 Partial 结果 |
+| 2 | **ASR：SenseVoice int8（已定）** | Sherpa-ONNX **离线** SenseVoice；松开 PTT 整段识别；详见 [`docs/ASR_MODEL.md`](docs/ASR_MODEL.md) |
 | 3 | **首版即含 LLM 提示词整理，默认关闭** | 设置项「启用提示词整理」默认 **关**；打开后才调用户配置的 API |
 | 4 | **Agent 开启时，剪贴板只放优化句** | 不写 ASR 原文；优化失败时可配置降级策略（见输出逻辑） |
 | 5 | **松开 PTT 优先触发 ASR** | **松开快捷键** 立即截断并识别，优先级 **高于** VAD 句末；按住期间 VAD 句末仅作辅助（长句中间停顿） |
 | 6 | **子开关 OFF：仍写剪贴板** | 子开关只控制 **是否自动粘贴到光标**；OFF = 不粘贴，**仍更新剪贴板** |
-| 7 | **API 任意厂商 + 设置窗 + Skill** | 提供 API Base URL、Key、模型名等配置界面；内置 **`prompt-refine` Skill**（强提示词优化），可扩展用户自定义 Skill 路径 |
-| 8 | **ASR 模型** | 首版默认 **SenseVoice int8**；设置页可切换 **Qwen3-ASR-0.6B int8**（更准、更慢）；见 [SenseVoice vs Qwen3](#sensevoice-和-qwen3-asr-哪个好) |
+| 7 | **API + Skill（偏代码编辑）** | 任意 OpenAI-compatible API；默认 Skill 将 STT 整理为 **一条代码修改指令**（基于 [code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md)） |
+| 8 | **Qwen3-ASR** | **首版不做**；仅文档保留对比，见 [SenseVoice vs Qwen3](#sensevoice-和-qwen3-asr-哪个好) |
 
 ---
 
@@ -45,7 +45,7 @@ flowchart TB
         SW2["子开关：粘贴到光标"]
         AGT["提示词整理（默认关）"]
         APISET["API URL / Key / 模型"]
-        SKILL["Skill：prompt-refine"]
+        SKILL["Skill：代码编辑指令"]
         USER["当前用户"]
         DEV["录音设备"]
         PTT["按住 PTT"]
@@ -142,18 +142,19 @@ flowchart TB
 - **启用提示词整理**（checkbox，**默认不勾选**）
 - **Skill 路径**（可选，默认内置 `skills/prompt-refine/SKILL.md`）
 
-### Skill：`prompt-refine`（基于 GitHub 调研，非自编）
+### Skill：`prompt-refine`（代码编辑向，GitHub 衍生）
+
+**场景**：口述「把登录改成异步、加错误处理」→ 剪贴板一条指令 → 粘贴进 **Cursor / Copilot / Claude** 聊天框。
 
 | 文档 | 说明 |
 |------|------|
-| [`docs/SKILL_RESEARCH.md`](docs/SKILL_RESEARCH.md) | 上游仓库对比与选用理由 |
-| [`skills/prompt-refine/SKILL.md`](skills/prompt-refine/SKILL.md) | 默认 Skill（衍生自 [Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node) 等） |
-| [`skills/prompt-refine/ATTRIBUTION.md`](skills/prompt-refine/ATTRIBUTION.md) | 出处与许可 |
+| [`skills/prompt-refine/SKILL.md`](skills/prompt-refine/SKILL.md) | 默认 Skill |
+| [`docs/SKILL_RESEARCH.md`](docs/SKILL_RESEARCH.md) | 调研与上游链接 |
+| [`skills/prompt-refine/ATTRIBUTION.md`](skills/prompt-refine/ATTRIBUTION.md) | 出处 |
 
-**主参考**：`danielrosehill/Voice-Prompt-Enhancement-Node`（STT→推理用 prompt）、`STT-Basic-Cleanup-System-Prompt`、`Text-Transformation-Prompt-Collection-2/by-use-case/ai/general-prompt.md`。  
-**未采用**：`FlorianBruniaux/.../voice-refine` 的多段 Markdown 模板（更适合 Claude Code 长任务，不适合本工具「单条粘贴」）。
+**主参考**：[Text-Transformation-Prompt-Collection-2/.../code-editing.md](https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md) + [Voice-Prompt-Enhancement-Node](https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node) + [STT-Basic-Cleanup](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt)。
 
-调用：`system` = Skill 全文；`user` = ASR 原文。设置页可改 Skill 路径覆盖默认。
+调用：`system` = Skill 全文；`user` = ASR 原文。设置页可覆盖 Skill 路径。
 
 ### 隐私（与出网）
 
@@ -165,43 +166,18 @@ flowchart TB
 
 ## SenseVoice 和 Qwen3-ASR 哪个好？
 
-二者都已进入 **Sherpa-ONNX**（`OfflineRecognizer`），和 **C# + 松开 PTT 句末识别** 兼容。差别在 **准确率、方言、速度、体积**。
+**已定：首版只用 SenseVoice int8**（[`docs/ASR_MODEL.md`](docs/ASR_MODEL.md)）。下表供日后是否要加 Qwen3 时参考。
 
-### 一句话结论
+| 维度 | SenseVoice int8 ✅ 首版 | Qwen3-ASR-0.6B int8（后续可选） |
+|------|------------------------|----------------------------------|
+| 准确率 | 很好 | 普通话通常 **更好** |
+| 速度 / CPU | **快** | 更慢 |
+| 体积 | ~230 MB | 更大 |
+| 与 PTT 短句 | **已选** | 准度换延迟 |
 
-| 你的优先级 | 选谁 |
-|------------|------|
-| **识别更准**（能接受更慢、更大模型） | **Qwen3-ASR-0.6B int8**（再往上 1.7B） |
-| **默认安装、PTT 短句、CPU 省心** | **SenseVoice int8**（首版默认） |
-| 两者都要 | 设置 **下拉切换**，manifest 各下载一份 |
+Qwen3 在公开基准上 CER 常更低，但首版不集成第二套模型；若实测 SenseVoice 对代码术语错误太多，再通过 `IUtteranceAsr` 增加 Qwen3 工厂。
 
-公开中文基准上，**Qwen3-ASR-1.7B 的 CER 通常低于 SenseVoice-Small**（例如 AISHELL-1 约 1.5% vs ~3% 量级，见 [Qwen3-ASR Technical Report](https://arxiv.org/abs/2601.21337) 及第三方统一评测）。  
-PTT 多是 **5～30 秒短句**，SenseVoice 往往已够用；是否值得为 1～2 个百分点 CER 换 **数倍推理耗时**，需用你的麦 **实测**。
-
-### 对比表（Sherpa-ONNX 离线、中文）
-
-| 维度 | SenseVoice int8 | Qwen3-ASR-0.6B int8 |
-|------|-----------------|---------------------|
-| **架构** | 非自回归，偏快 | 更强建模，偏准 |
-| **中文普通话** | 很好 | **更好** |
-| **方言** | 普、粤 (yue) 等 | **22 种中文方言**（官方） |
-| **流式** | 不用 ❌ | 支持；本产品用离线即可 |
-| **体积** | ~230 MB | 更大（见 sherpa release） |
-| **CPU 速度** | 快 | 明显更慢 |
-| **Sherpa 文档** | 成熟 | 2026 新并入 |
-| **推荐** | **默认** | **高准确模式** |
-
-### 工程落地
-
-```text
-IUtteranceAsr
-├── SenseVoiceAsr     # 默认：2025-09-09 int8
-└── Qwen3Asr06B       # 设置页切换：sherpa-onnx-qwen3-asr-0.6B-int8-*
-```
-
-Phase 3：自建 20 句测试集（术语、粤语、噪声）双引擎对比后再决定是否改默认。
-
-**LLM Skill 不能替代 ASR**：听错的专有名词要靠更好 ASR 或重说；Skill 只优化表述。
+**LLM Skill 不能替代 ASR**：`ApiService`、`async` 等听错需靠 ASR 或重说；Skill 负责改成清晰 **代码编辑指令**。
 
 ---
 
@@ -229,8 +205,8 @@ ArrayMicRefreshment/
 │   ├── ArrayMicRefreshment.Core/
 │   ├── ArrayMicRefreshment.Audio/
 │   ├── ArrayMicRefreshment.Speaker/
-│   ├── ArrayMicRefreshment.Asr/       # Sherpa SenseVoice 封装
-│   ├── ArrayMicRefreshment.Prompt/    # API + Skill 加载
+│   ├── ArrayMicRefreshment.Asr/       # SenseVoiceAsr（Sherpa OfflineRecognizer）
+│   ├── ArrayMicRefreshment.Prompt/    # API + code-editing Skill
 │   └── ArrayMicRefreshment.Output/
 ├── skills/
 │   └── prompt-refine/
@@ -260,10 +236,11 @@ ArrayMicRefreshment/
 
 - [ ] 多用户 enrollment + 当前用户下拉
 
-### Phase 3 — SenseVoice ASR
+### Phase 3 — SenseVoice ASR（仅此引擎）
 
-- [ ] `OfflineRecognizer` + SenseVoice int8 2025-09（fallback 2024-07）
-- [ ] `IUtteranceAsr` 抽象 + 文本抽取（去掉情感标签等）
+- [ ] `OfflineRecognizer` + **仅** SenseVoice int8 2025-09（fallback 2024-07）
+- [ ] `SenseVoiceAsr` + 纯文本抽取（去掉情感标签等）
+- [ ] `ModelManifest` / `download-models.ps1` 仅 SenseVoice
 
 ### Phase 4 — Prompt Skill + 输出
 
@@ -274,7 +251,7 @@ ArrayMicRefreshment/
 ### Phase 5 — 发布
 
 - [ ] 模型下载 / 可选完整包
-- [ ] 实机 CER 记录表，决定是否试 Qwen3-ASR
+- [ ] 实机记录：代码术语 ASR 错误率（再评估是否加 Qwen3）
 
 ---
 
@@ -347,12 +324,13 @@ dotnet run --project src/ArrayMicRefreshment.App
 
 | 路径 | 内容 |
 |------|------|
-| `README.md` | 架构、已定稿决策、SenseVoice vs Qwen3、输出逻辑 |
-| `docs/SKILL_RESEARCH.md` | GitHub STT→提示词 Skill 调研与出处 |
-| `skills/prompt-refine/SKILL.md` | 默认 Skill（衍生开源 prompt，非自编） |
-| `skills/prompt-refine/ATTRIBUTION.md` | Skill 上游许可与来源 |
-| `docs/PRIVACY_COPY.md` | 隐私文案定稿（可选） |
+| `README.md` | 架构、已定稿决策、输出逻辑 |
+| `docs/ASR_MODEL.md` | **SenseVoice 定稿**与 manifest |
+| `docs/SKILL_RESEARCH.md` | Skill 调研（**code-editing** 为主） |
+| `skills/prompt-refine/SKILL.md` | 默认 Skill：STT → 代码编辑指令 |
+| `skills/prompt-refine/ATTRIBUTION.md` | Skill 出处 |
+| `docs/PRIVACY_COPY.md` | 隐私文案（可选） |
 
 ---
 
-*已定稿：C# + Sherpa-ONNX + SenseVoice 离线；LLM 整理首版可选默认关；PTT 松开优先；Agent 开时剪贴板仅优化句。*
+*已定稿：C# + Sherpa-ONNX + SenseVoice int8；Skill 偏代码编辑指令；LLM 整理默认关；PTT 松开优先。*
