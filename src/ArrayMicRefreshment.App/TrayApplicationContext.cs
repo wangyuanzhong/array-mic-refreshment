@@ -18,11 +18,13 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _statusItem;
     private readonly StubPushToTalkSource _ptt = new();
     private VoicePipeline _pipeline;
-    private readonly StubTranscriptSink _sink = new();
+    private readonly ClipboardTranscriptSink _sink;
+    private nint _settingsWindowHandle;
 
     public TrayApplicationContext()
     {
         _settings = _settingsStore.Load();
+        _sink = new ClipboardTranscriptSink(() => _settingsWindowHandle);
         _pipeline = BuildPipeline(_settings);
 
         _masterSwitchItem = new ToolStripMenuItem("启用语音转写", null, OnToggleMaster)
@@ -67,12 +69,19 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private VoicePipeline BuildPipeline(AppSettings settings)
     {
-        var refiner = new StubPromptRefiner(settings.PromptRefineEnabled);
+        var catalog = SkillsCatalog.Load(SkillsPathResolver.Resolve(settings.SkillsDirectory));
+        if (catalog.MissingFiles.Count > 0)
+        {
+            Log.Warning("Missing skill files: {Files}", string.Join(", ", catalog.MissingFiles));
+        }
+
+        var router = new OpenAiCompatibleIntentRouter(settings, catalog);
+        var refiner = new OpenAiCompatiblePromptRefiner(settings, catalog);
         return new VoicePipeline(
             settings,
             new StubSpeakerGate { AlwaysPass = true },
             new StubUtteranceAsr(),
-            new StubIntentRouter(),
+            router,
             refiner,
             _sink);
     }
@@ -93,12 +102,15 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void OnOpenSettings(object? sender, EventArgs e)
     {
         using var form = new SettingsForm(_settings);
+        form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
         if (form.ShowDialog() == DialogResult.OK)
         {
             _settings = form.Settings;
             _pipeline = BuildPipeline(_settings);
             PersistAndRefresh();
         }
+
+        _settingsWindowHandle = IntPtr.Zero;
     }
 
     private async void OnSimulatePttRelease(object? sender, EventArgs e)
@@ -121,7 +133,6 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnPttReleased(object? sender, EventArgs e)
     {
-        // Phase 1: finalize buffer from audio capture on release.
         Log.Debug("PTT released (audio finalize in Phase 1)");
     }
 
