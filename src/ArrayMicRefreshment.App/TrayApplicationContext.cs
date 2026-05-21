@@ -16,7 +16,8 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _masterSwitchItem;
     private readonly ToolStripMenuItem _pasteSwitchItem;
     private readonly ToolStripMenuItem _statusItem;
-    private readonly StubPushToTalkSource _ptt = new();
+    private readonly IPushToTalkSource _ptt;
+    private readonly PttCaptureService _captureService;
     private VoicePipeline _pipeline;
     private readonly StubTranscriptSink _sink = new();
 
@@ -24,6 +25,15 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         _settings = _settingsStore.Load();
         _pipeline = BuildPipeline(_settings);
+
+        _ptt = new NAudioPushToTalkSource(_settings.PttHotkey);
+        _captureService = new PttCaptureService(
+            _settings,
+            _ptt,
+            new NAudioDeviceEnumerator(),
+            new NAudioCaptureStreamFactory(),
+            new SileroVoiceActivityDetector(_settings.ModelsDirectory));
+        _captureService.UtteranceReady += OnUtteranceReady;
 
         _masterSwitchItem = new ToolStripMenuItem("启用语音转写", null, OnToggleMaster)
         {
@@ -58,7 +68,6 @@ public sealed class TrayApplicationContext : ApplicationContext
         };
         _trayIcon.DoubleClick += (_, _) => OnOpenSettings(null, EventArgs.Empty);
 
-        _ptt.PttReleased += OnPttReleased;
         _sink.Emitted += (_, args) =>
             Log.Information("Transcript emitted (paste={Paste}): {Text}", args.Item2, args.Item1);
 
@@ -97,6 +106,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             _settings = form.Settings;
             _pipeline = BuildPipeline(_settings);
+            if (_ptt is NAudioPushToTalkSource naudioPtt)
+            {
+                naudioPtt.UpdateHotkey(_settings.PttHotkey);
+            }
+
             PersistAndRefresh();
         }
     }
@@ -109,6 +123,53 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
 
         _statusItem.Text = "状态: 识别中…";
+        try
+        {
+            if (_ptt is NAudioPushToTalkSource naudio)
+            {
+                naudio.SimulatePress();
+                await Task.Delay(80).ConfigureAwait(true);
+                naudio.SimulateRelease();
+                await Task.Delay(150).ConfigureAwait(true);
+            }
+            else if (_ptt is StubPushToTalkSource stub)
+            {
+                stub.SimulatePress();
+                stub.SimulateRelease();
+            }
+            else
+            {
+                await RunDevFallbackUtteranceAsync().ConfigureAwait(true);
+            }
+        }
+        catch
+        {
+            await RunDevFallbackUtteranceAsync().ConfigureAwait(true);
+        }
+
+        _statusItem.Text = "状态: 就绪";
+    }
+
+    private async void OnUtteranceReady(object? sender, AudioUtterance utterance)
+    {
+        if (!_settings.MasterEnabled)
+        {
+            return;
+        }
+
+        _statusItem.Text = "状态: 识别中…";
+        try
+        {
+            await _pipeline.ProcessUtteranceAsync(utterance, CancellationToken.None).ConfigureAwait(true);
+        }
+        finally
+        {
+            _statusItem.Text = "状态: 就绪";
+        }
+    }
+
+    private async Task RunDevFallbackUtteranceAsync()
+    {
         var utterance = new AudioUtterance
         {
             Pcm16LeMono = new byte[3200],
@@ -116,13 +177,6 @@ public sealed class TrayApplicationContext : ApplicationContext
             Duration = TimeSpan.FromMilliseconds(200),
         };
         await _pipeline.ProcessUtteranceAsync(utterance, CancellationToken.None).ConfigureAwait(true);
-        _statusItem.Text = "状态: 就绪";
-    }
-
-    private void OnPttReleased(object? sender, EventArgs e)
-    {
-        // Phase 1: finalize buffer from audio capture on release.
-        Log.Debug("PTT released (audio finalize in Phase 1)");
     }
 
     private void PersistAndRefresh()
@@ -141,6 +195,12 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnExit(object? sender, EventArgs e)
     {
+        _captureService.Dispose();
+        if (_ptt is IDisposable d)
+        {
+            d.Dispose();
+        }
+
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
         ExitThread();
@@ -150,6 +210,12 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         if (disposing)
         {
+            _captureService.Dispose();
+            if (_ptt is IDisposable d)
+            {
+                d.Dispose();
+            }
+
             _trayIcon.Dispose();
         }
 
