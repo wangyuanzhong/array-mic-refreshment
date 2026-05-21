@@ -1,0 +1,14 @@
+{
+  "solution": {
+    "path": "ArrayMicRefreshment.sln",
+    "projects": [
+      "src\\ArrayMicRefreshment.Core\\ArrayMicRefreshment.Core.csproj",
+      "src\\ArrayMicRefreshment.Audio\\ArrayMicRefreshment.Audio.csproj",
+      "src\\ArrayMicRefreshment.Speaker\\ArrayMicRefreshment.Speaker.csproj",
+      "src\\ArrayMicRefreshment.Asr\\ArrayMicRefreshment.Asr.csproj",
+      "src\\ArrayMicRefreshment.Prompt\\ArrayMicRefreshment.Prompt.csproj",
+      "src\\ArrayMicRefreshment.Output\\ArrayMicRefreshment.Output.csproj",
+      "tests\\ArrayMicRefreshment.Core.Tests\\ArrayMicRefreshment.Core.Tests.csproj"
+    ]
+  }
+}

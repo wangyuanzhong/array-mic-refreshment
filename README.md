@@ -344,11 +344,15 @@ dotnet build ArrayMicRefreshment.sln -c Release
 dotnet run --project src\ArrayMicRefreshment.App -c Release
 ```
 
-**Linux / CI（仅编译类库）**
+**Linux / CI（类库 + 单元测试，不含 WinForms App）**
 
 ```bash
+dotnet restore ArrayMicRefreshment.CI.slnf
 ./scripts/build-libraries.sh
+dotnet test tests/ArrayMicRefreshment.Core.Tests -c Release
 ```
+
+GitHub Actions：见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（`push` / `pull_request` → `main`）。
 
 ---
 
