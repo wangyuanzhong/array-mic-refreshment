@@ -34,12 +34,11 @@ public sealed class EndToEndPipelineTests
             string? emittedText = null;
             sink.Emitted += (text, _) => emittedText = text;
 
-            await pipeline.ProcessUtteranceAsync(PipelineTestHost.CreateUtterance(), CancellationToken.None)
-                .ConfigureAwait(false);
+            await pipeline.ProcessUtteranceAsync(PipelineTestHost.CreateUtterance(), CancellationToken.None);
 
             Assert.Equal("refined output", emittedText);
             Assert.Equal("refined output", ClipboardAssertions.GetClipboardText());
-        }).ConfigureAwait(false);
+        });
     }
 }
 

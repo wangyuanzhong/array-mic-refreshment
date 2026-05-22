@@ -55,7 +55,7 @@ public sealed class OnRefineFailureMatrixTests
             if (mode == OnRefineFailure.ShowError)
             {
                 await Assert.ThrowsAsync<RefineApiException>(() =>
-                    pipeline.ProcessUtteranceAsync(PipelineTestHost.CreateUtterance(), cts.Token)).ConfigureAwait(false);
+                    pipeline.ProcessUtteranceAsync(PipelineTestHost.CreateUtterance(), cts.Token));
                 Assert.Empty(emitted);
                 Assert.Equal(previous, ClipboardAssertions.GetClipboardText());
                 return;
@@ -64,16 +64,16 @@ public sealed class OnRefineFailureMatrixTests
             if (mode == OnRefineFailure.KeepLast)
             {
                 await Assert.ThrowsAsync<RefineApiException>(() =>
-                    pipeline.ProcessUtteranceAsync(PipelineTestHost.CreateUtterance(), cts.Token)).ConfigureAwait(false);
+                    pipeline.ProcessUtteranceAsync(PipelineTestHost.CreateUtterance(), cts.Token));
                 Assert.Empty(emitted);
                 Assert.Equal(previous, ClipboardAssertions.GetClipboardText());
                 return;
             }
 
-            await pipeline.ProcessUtteranceAsync(PipelineTestHost.CreateUtterance(), cts.Token).ConfigureAwait(false);
+            await pipeline.ProcessUtteranceAsync(PipelineTestHost.CreateUtterance(), cts.Token);
             Assert.Single(emitted);
             Assert.Equal(strippedRaw, emitted[0]);
             Assert.Equal(strippedRaw, ClipboardAssertions.GetClipboardText());
-        }).ConfigureAwait(false);
+        });
     }
 }
