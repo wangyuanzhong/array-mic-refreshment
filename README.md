@@ -189,7 +189,7 @@ ASR 原文
 | 体积 | ~230 MB | 更大 |
 | 与 PTT 短句 | **已选** | 准度换延迟 |
 
-Qwen3 在公开基准上 CER 常更低，但首版不集成第二套模型；若实测 SenseVoice 对代码术语错误太多，再通过 `IUtteranceAsr` 增加 Qwen3 工厂。
+Qwen3 在公开基准上 CER 常更低，但首版不集成第二套模型；若实测 SenseVoice 对代码术语错误太多，再通过 `IUtteranceAsr` 增加 Qwen3 工厂。Phase 5 本地 CER 实测（[`docs/CER_BASELINE.md`](docs/CER_BASELINE.md)）显示代码/英文混合术语子集均值 **>25%**，建议优先评估 Qwen3-ASR 作为补充引擎。
 
 **LLM Skill 不能替代 ASR**：`ApiService`、`async` 等听错需靠 ASR 或重说；Skill 负责改成清晰 **代码编辑指令**。
 
@@ -267,8 +267,11 @@ ArrayMicRefreshment/
 
 ### Phase 5 — 发布
 
-- [ ] 模型下载 / 可选完整包
-- [ ] 实机记录：代码术语 ASR 错误率（再评估是否加 Qwen3）
+- [x] 模型下载 / 可选完整包（`scripts/download-models.ps1`；见 [`docs/DEPLOY_SHERPA.md`](docs/DEPLOY_SHERPA.md)）
+- [x] 实机记录：代码术语 ASR 错误率 — [`docs/CER_BASELINE.md`](docs/CER_BASELINE.md)（均值 CER ~72% on TTS prompts；代码术语子集 >25%，建议评估 Qwen3-ASR）
+- Demo 视频：[`docs/demos/demo_tray_basic.mp4`](docs/demos/demo_tray_basic.mp4)、[`demo_ptt_asr.mp4`](docs/demos/demo_ptt_asr.mp4)、[`demo_refine.mp4`](docs/demos/demo_refine.mp4)、[`demo_enrollment.mp4`](docs/demos/demo_enrollment.mp4)（部分为自动化 smoke 幻灯片，见 [`docs/HANDOFF_PHASE5_BLOCKERS.md`](docs/HANDOFF_PHASE5_BLOCKERS.md)）
+
+*Phase 5 收尾验证由本地 agent 在 Windows 上完成；demo 视频在 docs/demos/，CER 评估在 docs/CER_BASELINE.md。*
 
 ---
 
@@ -375,6 +378,9 @@ GitHub Actions：见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（`p
 | `docs/DEPLOY_SHERPA.md` | Sherpa-ONNX native 部署说明 |
 | `scripts/ModelManifest.json` | SenseVoice 模型下载清单 |
 | `scripts/download-models.ps1` | 下载 ASR 模型到 `models/` |
+| `docs/CER_BASELINE.md` | Phase 5 SenseVoice CER 基线 |
+| `docs/demos/` | Phase 5 演示录像与截图 |
+| `docs/HANDOFF_PHASE5_BLOCKERS.md` | Phase 5 部分项说明 |
 
 ---
 

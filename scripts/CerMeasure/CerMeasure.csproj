@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CerMeasure</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Speech" Version="8.0.0" />
+    <ProjectReference Include="..\..\src\ArrayMicRefreshment.Asr\ArrayMicRefreshment.Asr.csproj" />
+    <ProjectReference Include="..\..\src\ArrayMicRefreshment.Core\ArrayMicRefreshment.Core.csproj" />
+  </ItemGroup>
+</Project>

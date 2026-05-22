@@ -29,7 +29,7 @@ public sealed class SherpaRealModelTests
 
         using var asr = SenseVoiceAsr.CreateFromSettings(new AppSettings { ModelsDirectory = modelsDir });
         var utterance = AudioTestResources.CreateShortUtterance();
-        var text = await asr.RecognizeUtteranceAsync(utterance, CancellationToken.None).ConfigureAwait(false);
+        var text = await asr.RecognizeUtteranceAsync(utterance, CancellationToken.None);
         var plain = SenseVoiceTextExtractor.ExtractPlainText(text);
         Assert.False(string.IsNullOrWhiteSpace(plain));
         Assert.DoesNotContain("<|", plain, StringComparison.Ordinal);

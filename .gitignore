@@ -8,6 +8,12 @@ obj/
 # Models (downloaded locally)
 models/
 
+# Publish test output (Task 1 verification)
+publish-test/
+
+# CER measurement audio (generated locally)
+scripts/cer-audio/
+
 # App data / logs (local dev)
 *.log
 

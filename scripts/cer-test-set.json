@@ -1,0 +1,12 @@
+[
+  {"text": "ApiService 调用 async await 方法", "lang": "zh-en-mix"},
+  {"text": "请帮我创建一个 React 按钮", "lang": "zh"},
+  {"text": "git checkout main and pull latest", "lang": "en"},
+  {"text": "useEffect 依赖数组要写完整", "lang": "zh-en-mix"},
+  {"text": "TypeScript interface vs type alias", "lang": "en"},
+  {"text": "请检查 null reference exception", "lang": "zh-en-mix"},
+  {"text": "Open the settings dialog and save", "lang": "en"},
+  {"text": "数据库迁移用 migration 命令", "lang": "zh-en-mix"},
+  {"text": "this dot props dot children", "lang": "en"},
+  {"text": "异步 promise then catch finally", "lang": "zh-en-mix"}
+]
