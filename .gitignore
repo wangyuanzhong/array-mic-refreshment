@@ -12,6 +12,9 @@ models/
 dist/
 publish-test/
 
+# CER measurement audio (generated locally)
+scripts/cer-audio/
+
 # App data / logs (local dev)
 *.log
 
