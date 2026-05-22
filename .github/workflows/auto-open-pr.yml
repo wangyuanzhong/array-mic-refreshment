@@ -1,0 +1,52 @@
+name: Auto-open PR for cursor/** branches
+
+on:
+  push:
+    branches:
+      - 'cursor/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  open-draft-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Open or update draft PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh pr view "$BRANCH" --json number >/dev/null 2>&1; then
+            echo "PR for $BRANCH already exists; nothing to do."
+            exit 0
+          fi
+
+          LAST_SUBJECT="$(git log -1 --pretty=%s)"
+          LAST_BODY="$(git log -1 --pretty=%b)"
+
+          {
+            echo "Auto-opened by .github/workflows/auto-open-pr.yml on push to \`$BRANCH\`."
+            echo
+            echo "Latest commit:"
+            echo
+            echo "> $LAST_SUBJECT"
+            if [ -n "$LAST_BODY" ]; then
+              echo
+              echo "$LAST_BODY"
+            fi
+          } > /tmp/pr_body.md
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "$LAST_SUBJECT" \
+            --body-file /tmp/pr_body.md \
+            --draft
