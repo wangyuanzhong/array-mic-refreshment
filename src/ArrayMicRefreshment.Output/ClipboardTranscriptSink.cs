@@ -32,36 +32,73 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
 #if WINDOWS
     private static void SetClipboardWithRetry(string text)
     {
-        const int attempts = 3;
-        for (var i = 0; i < attempts; i++)
+        RunOnSta(() =>
         {
-            try
+            const int attempts = 3;
+            for (var i = 0; i < attempts; i++)
             {
-                System.Windows.Forms.Clipboard.SetText(text);
-                return;
+                try
+                {
+                    System.Windows.Forms.Clipboard.SetText(text);
+                    return;
+                }
+                catch (System.Runtime.InteropServices.ExternalException) when (i < attempts - 1)
+                {
+                    Thread.Sleep(50);
+                }
             }
-            catch (System.Runtime.InteropServices.ExternalException) when (i < attempts - 1)
-            {
-                Thread.Sleep(50);
-            }
+        });
+    }
+
+    /// <summary>
+    /// Runs <paramref name="action"/> on an STA thread. Clipboard / SendInput
+    /// require STA; the pipeline calls EmitAsync via ConfigureAwait(false),
+    /// so the continuation often lands on the thread pool (MTA) and crashes.
+    /// </summary>
+    private static void RunOnSta(Action action)
+    {
+        if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
+        {
+            action();
+            return;
+        }
+
+        Exception? error = null;
+        var thread = new Thread(() =>
+        {
+            try { action(); }
+            catch (Exception ex) { error = ex; }
+        })
+        {
+            IsBackground = true,
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (error is not null)
+        {
+            throw error;
         }
     }
 
     private void TryPasteToCaret()
     {
-        var foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero)
+        RunOnSta(() =>
         {
-            return;
-        }
+            var foreground = GetForegroundWindow();
+            if (foreground == IntPtr.Zero)
+            {
+                return;
+            }
 
-        var settingsHandle = _getSettingsWindowHandle?.Invoke() ?? IntPtr.Zero;
-        if (settingsHandle != IntPtr.Zero && foreground == settingsHandle)
-        {
-            return;
-        }
+            var settingsHandle = _getSettingsWindowHandle?.Invoke() ?? IntPtr.Zero;
+            if (settingsHandle != IntPtr.Zero && foreground == settingsHandle)
+            {
+                return;
+            }
 
-        SendCtrlV();
+            SendCtrlV();
+        });
     }
 
     private static void SendCtrlV()
