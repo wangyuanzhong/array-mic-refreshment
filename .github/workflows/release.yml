@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional release tag (e.g. v0.1.0). Leave empty for artifact-only build.'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore ArrayMicRefreshment.sln
+
+      - name: Build framework-dependent (small, requires .NET 8 Desktop Runtime)
+        shell: pwsh
+        run: ./scripts/build-release.ps1 -Mode framework-dep -Zip
+
+      - name: Build self-contained (no runtime needed, larger)
+        shell: pwsh
+        run: ./scripts/build-release.ps1 -Mode self-contained -Zip
+
+      - name: List artifacts
+        shell: pwsh
+        run: Get-ChildItem dist -Recurse -Filter '*.zip' | Select-Object FullName, Length
+
+      - name: Upload framework-dependent zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArrayMicRefreshment-framework-dep
+          path: dist/ArrayMicRefreshment-framework-dep.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload self-contained zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArrayMicRefreshment-self-contained
+          path: dist/ArrayMicRefreshment-self-contained.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/ArrayMicRefreshment-framework-dep.zip
+            dist/ArrayMicRefreshment-self-contained.zip
+          draft: false
+          generate_release_notes: true

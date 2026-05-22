@@ -332,14 +332,43 @@ ptt.PttReleased += async () => {
 
 ---
 
-## 本地开发
+## 安装与使用（普通用户）
 
-**Windows（托盘应用）**
+**最简：从 GitHub Releases 下载 .exe**
+
+1. 打开仓库 [Releases 页面](https://github.com/wangyuanzhong/array-mic-refreshment/releases)，下载最新的：
+   - `ArrayMicRefreshment-framework-dep.zip`（~30 MB，需要先装 .NET 8 Desktop Runtime：`winget install Microsoft.DotNet.DesktopRuntime.8`）
+   - **或** `ArrayMicRefreshment-self-contained.zip`（~150 MB，无需任何运行时）
+2. 解压到任意目录
+3. 在解压后的目录里跑一次：
+   ```powershell
+   ..\scripts\download-models.ps1
+   ```
+   （或者把 `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/` 文件夹手动放到解压目录下）
+4. 双击 `ArrayMicRefreshment.exe` → 系统托盘出现图标
+5. 按住默认 PTT 热键 `Ctrl+Shift+Space` 说话，松开 → 识别文本进剪贴板（或自动粘到光标）
+
+> 暂未发布 Release：用下面「本地编译」自己打 .exe。
+
+## 本地编译 .exe（开发者 / 自己打包）
 
 ```powershell
 git clone https://github.com/wangyuanzhong/array-mic-refreshment.git
 cd array-mic-refreshment
 .\scripts\download-models.ps1
+.\scripts\build-release.ps1 -Mode self-contained -Zip
+# 产出：dist\ArrayMicRefreshment-self-contained\ArrayMicRefreshment.exe
+#       dist\ArrayMicRefreshment-self-contained.zip
+```
+
+参数：
+- `-Mode framework-dep`（默认）：小包，目标机器需 .NET 8 Desktop Runtime
+- `-Mode self-contained`：自带运行时，~150 MB，开箱可跑
+- `-Zip`：额外打 zip
+
+或者 dev 直接跑（不打包）：
+
+```powershell
 dotnet build ArrayMicRefreshment.sln -c Release
 dotnet run --project src\ArrayMicRefreshment.App -c Release
 ```

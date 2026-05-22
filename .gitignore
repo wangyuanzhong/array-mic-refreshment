@@ -8,6 +8,10 @@ obj/
 # Models (downloaded locally)
 models/
 
+# Local release builds
+dist/
+publish-test/
+
 # App data / logs (local dev)
 *.log
 
