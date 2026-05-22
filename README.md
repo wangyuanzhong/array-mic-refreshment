@@ -245,12 +245,12 @@ ArrayMicRefreshment/
 
 ### Phase 1 — 音频
 
-- [x] MME / WDM / WASAPI、设备下拉、原生采样率（`IAudioDeviceEnumerator` / `NAudioDeviceEnumerator`）
+- [x] MME / WDM / WASAPI、设备下拉、原生采样率（`IAudioDeviceEnumerator`；设置窗「录音设备」ComboBox）
 - [x] PTT 全局热键 + 松开 **优先** 截断；VAD 辅助（`PttCaptureService` / `SileroVoiceActivityDetector` hook）
 
 ### Phase 2 — 说话人
 
-- [ ] 多用户 enrollment + 当前用户下拉
+- [x] 多用户 enrollment + 当前用户下拉（`EnrollmentDialog` / 设置窗「当前用户」）
 
 ### Phase 3 — SenseVoice ASR（仅此引擎）
 
@@ -263,7 +263,7 @@ ArrayMicRefreshment/
 - [ ] 读 `skills/manifest.yaml`，拼接 `skills/upstream/*`
 - [ ] `IntentRouter`（shanttoosh 分类 prompt）+ `PromptRefiner`（danielrosehill stack）
 - [ ] 设置：自动 / 强制意图；可选 voice-refine / dictation Skill
-- [ ] 隐私确认弹窗
+- [x] 隐私确认弹窗（`PrivacyConfirmation` + 设置窗 OK / 启用整理时确认）
 
 ### Phase 5 — 发布
 

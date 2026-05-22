@@ -96,5 +96,10 @@ public class SpeakerGateTests
 
         public IReadOnlyList<SpeakerUserInfo> ListUsers() =>
             _users.Select(kv => new SpeakerUserInfo { UserId = kv.Key, DisplayName = kv.Value.Name }).ToArray();
+
+        public IReadOnlyList<EnrolledUser> ListEnrolledUsers() =>
+            ListUsers().Select(u => new EnrolledUser(u.UserId, u.DisplayName)).ToArray();
+
+        public void SetCurrentUser(string userId) => CurrentUserId = userId;
     }
 }
