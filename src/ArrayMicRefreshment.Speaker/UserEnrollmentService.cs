@@ -58,6 +58,19 @@ public sealed class UserEnrollmentService : IUserEnrollmentService
             .ToArray();
     }
 
+    public IReadOnlyList<EnrolledUser> ListEnrolledUsers() =>
+        ListUsers().Select(u => new EnrolledUser(u.UserId, u.DisplayName)).ToArray();
+
+    public void SetCurrentUser(string userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required.", nameof(userId));
+        }
+
+        CurrentUserId = userId;
+    }
+
     public string AddUser(string name, IReadOnlyList<AudioUtterance> enrollmentUtterances)
     {
         if (string.IsNullOrWhiteSpace(name))
