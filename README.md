@@ -25,7 +25,7 @@
 
 | # | 能力 | 首版 |
 |---|------|------|
-| 1 | 托盘常驻、用户/设备下拉 | ✅ |
+| 1 | 托盘常驻、用户/设备下拉 | ❌ UI pending — Agent E |
 | 2 | PTT + 离线句末 ASR（SenseVoice） | ✅ |
 | 3 | 说话人门禁（当前用户） | ✅ |
 | 4 | LLM 多 Skill 整理（可选，默认关） | ✅ |
@@ -245,7 +245,7 @@ ArrayMicRefreshment/
 
 ### Phase 1 — 音频
 
-- [x] MME / WDM / WASAPI、设备下拉、原生采样率（`IAudioDeviceEnumerator`；设置窗「录音设备」ComboBox）
+- [x] MME / WDM / WASAPI、设备下拉、原生采样率（`IAudioDeviceEnumerator` / `NAudioDeviceEnumerator`；设置窗「录音设备」ComboBox）
 - [x] PTT 全局热键 + 松开 **优先** 截断；VAD 辅助（`PttCaptureService` / `SileroVoiceActivityDetector` hook）
 
 ### Phase 2 — 说话人

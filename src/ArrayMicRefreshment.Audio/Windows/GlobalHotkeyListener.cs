@@ -1,4 +1,4 @@
-#if NET8_0_WINDOWS
+#if WINDOWS
 using System.Runtime.InteropServices;
 
 namespace ArrayMicRefreshment.Audio;

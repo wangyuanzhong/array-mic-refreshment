@@ -71,8 +71,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         };
         _trayIcon.DoubleClick += (_, _) => OnOpenSettings(null, EventArgs.Empty);
 
-        _sink.Emitted += (_, args) =>
-            Log.Information("Transcript emitted (paste={Paste}): {Text}", args.Item2, args.Item1);
+        _sink.Emitted += (text, paste) =>
+            Log.Information("Transcript emitted (paste={Paste}): {Text}", paste, text);
 
         UpdateTrayTooltip();
     }
