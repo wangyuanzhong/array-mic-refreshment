@@ -133,6 +133,8 @@ public sealed class SettingsForm : Form
         ReloadOptionalSkillsList();
         LoadDeviceCombo();
         ReloadSpeakerUsers();
+
+        Shown += (_, _) => LoadDeviceCombo();
     }
 
     private void LoadDeviceCombo()

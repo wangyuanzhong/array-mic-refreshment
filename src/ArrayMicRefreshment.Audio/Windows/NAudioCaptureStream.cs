@@ -73,7 +73,24 @@ public sealed class NAudioCaptureStream : IAudioCaptureStream
         {
             var mmId = _device.Id["wasapi:".Length..];
             using var enumerator = new MMDeviceEnumerator();
-            var mm = enumerator.GetDevice(mmId);
+            MMDevice mm;
+            try
+            {
+                mm = enumerator.GetDevice(mmId);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException(
+                    $"无法打开录音设备「{_device.DisplayName}」。请在 Windows 声音设置中启用该设备，或改选其它设备。",
+                    ex);
+            }
+
+            if (mm.State is DeviceState.Disabled or DeviceState.Unplugged or DeviceState.NotPresent)
+            {
+                throw new InvalidOperationException(
+                    $"录音设备「{_device.DisplayName}」当前不可用（{mm.State}）。请插入/启用后重试。");
+            }
+
             var capture = new WasapiCapture(mm)
             {
                 ShareMode = AudioClientShareMode.Shared,
