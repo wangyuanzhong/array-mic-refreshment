@@ -1,26 +1,33 @@
+using ArrayMicRefreshment.Core;
+
 namespace ArrayMicRefreshment.App;
 
 internal static class PrivacyConsent
 {
-    public static bool EnsureAccepted(Core.AppSettings settings, string apiBaseUrl, IWin32Window? owner)
+    public static bool EnsureAccepted(AppSettings settings, string apiBaseUrl, IWin32Window? owner)
     {
         if (!settings.PromptRefineEnabled)
         {
             return true;
         }
 
-        if (!TryGetRemoteHost(apiBaseUrl, out var host))
+        if (!PrivacyConfirmation.TryResolveHost(apiBaseUrl, out var host))
         {
             return true;
         }
 
-        if (string.Equals(settings.PrivacyAcceptedHost, host, StringComparison.OrdinalIgnoreCase))
+        if (PrivacyConfirmation.IsLoopbackHost(host))
+        {
+            settings.PrivacyAcceptedHost = host;
+            return true;
+        }
+
+        if (!PrivacyConfirmation.ShouldPromptForHost(apiBaseUrl, settings.PrivacyAcceptedHost))
         {
             return true;
         }
 
-        var message =
-            $"启用提示词整理后，识别文字将发送到远程 API：\n{host}\n\n是否继续？";
+        var message = $"提示词整理将把识别文本发送到 {host}。继续？";
         var result = MessageBox.Show(
             owner,
             message,
@@ -36,24 +43,4 @@ internal static class PrivacyConsent
 
         return false;
     }
-
-    public static bool TryGetRemoteHost(string apiBaseUrl, out string host)
-    {
-        host = string.Empty;
-        if (!Uri.TryCreate(apiBaseUrl.Trim(), UriKind.Absolute, out var uri))
-        {
-            return false;
-        }
-
-        if (uri.IsLoopback || IsLocalHost(uri.Host))
-        {
-            return false;
-        }
-
-        host = uri.Host;
-        return true;
-    }
-
-    private static bool IsLocalHost(string name) =>
-        name.Equals("localhost", StringComparison.OrdinalIgnoreCase);
 }

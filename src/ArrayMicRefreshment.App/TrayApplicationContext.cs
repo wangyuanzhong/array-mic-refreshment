@@ -124,7 +124,23 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnOpenSettings(object? sender, EventArgs e)
     {
-        using var form = new SettingsForm(_settings);
+        IAudioDeviceEnumerator? deviceEnumerator = null;
+        IEnrollmentUtteranceSource? enrollmentCapture = null;
+#if WINDOWS
+        deviceEnumerator = new NAudioDeviceEnumerator();
+        enrollmentCapture = new EnrollmentUtteranceCapture(
+            _settings,
+            deviceEnumerator,
+            new NAudioCaptureStreamFactory());
+#endif
+
+        IUserEnrollmentService? enrollment = null;
+        if (_sherpaComponents?.Speaker is SpeakerGate gate)
+        {
+            enrollment = gate.Enrollment;
+        }
+
+        using var form = new SettingsForm(_settings, deviceEnumerator, enrollment, enrollmentCapture);
         form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
         if (form.ShowDialog() == DialogResult.OK)
         {
@@ -137,6 +153,13 @@ public sealed class TrayApplicationContext : ApplicationContext
 
             PersistAndRefresh();
         }
+
+#if WINDOWS
+        if (enrollmentCapture is IDisposable disposableCapture)
+        {
+            disposableCapture.Dispose();
+        }
+#endif
 
         _settingsWindowHandle = IntPtr.Zero;
     }
