@@ -17,7 +17,7 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
     public Task EmitAsync(string textToClipboard, bool pasteToCaret, CancellationToken cancellationToken)
     {
         Emitted?.Invoke(textToClipboard, pasteToCaret);
-#if NET8_0_WINDOWS
+#if WINDOWS
         SetClipboardWithRetry(textToClipboard);
         if (pasteToCaret)
         {
@@ -29,7 +29,7 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
         return Task.CompletedTask;
     }
 
-#if NET8_0_WINDOWS
+#if WINDOWS
     private static void SetClipboardWithRetry(string text)
     {
         const int attempts = 3;
