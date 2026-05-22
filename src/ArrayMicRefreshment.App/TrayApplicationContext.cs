@@ -27,16 +27,6 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         _settings = _settingsStore.Load();
         _sink = new ClipboardTranscriptSink(() => _settingsWindowHandle);
-        _pipeline = BuildPipeline(_settings);
-
-        _ptt = new NAudioPushToTalkSource(_settings.PttHotkey);
-        _captureService = new PttCaptureService(
-            _settings,
-            _ptt,
-            new NAudioDeviceEnumerator(),
-            new NAudioCaptureStreamFactory(),
-            new SileroVoiceActivityDetector(_settings.ModelsDirectory));
-        _captureService.UtteranceReady += OnUtteranceReady;
 
         _masterSwitchItem = new ToolStripMenuItem("启用语音转写", null, OnToggleMaster)
         {
@@ -73,6 +63,17 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _sink.Emitted += (text, paste) =>
             Log.Information("Transcript emitted (paste={Paste}): {Text}", paste, text);
+
+        _pipeline = BuildPipeline(_settings);
+
+        _ptt = new NAudioPushToTalkSource(_settings.PttHotkey);
+        _captureService = new PttCaptureService(
+            _settings,
+            _ptt,
+            new NAudioDeviceEnumerator(),
+            new NAudioCaptureStreamFactory(),
+            new SileroVoiceActivityDetector(_settings.ModelsDirectory));
+        _captureService.UtteranceReady += OnUtteranceReady;
 
         UpdateTrayTooltip();
     }
