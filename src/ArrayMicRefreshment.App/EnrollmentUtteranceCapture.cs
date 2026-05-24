@@ -58,6 +58,7 @@ public sealed class EnrollmentUtteranceCapture : IEnrollmentUtteranceSource, IDi
 
         var duration = DateTimeOffset.UtcNow - _startedUtc;
         var sampleRate = _stream.SampleRate;
+        var channels = _stream.Channels;
         StopInternal();
 
         if (_buffer.Count == 0)
@@ -65,10 +66,16 @@ public sealed class EnrollmentUtteranceCapture : IEnrollmentUtteranceSource, IDi
             return null;
         }
 
+        var pcm16kMono = PcmResampler.To16kHzMono16Le(_buffer.ToArray(), sampleRate, channels);
+        if (pcm16kMono.Length == 0)
+        {
+            return null;
+        }
+
         return new AudioUtterance
         {
-            Pcm16LeMono = _buffer.ToArray(),
-            SampleRate = sampleRate,
+            Pcm16LeMono = pcm16kMono,
+            SampleRate = PcmResampler.TargetSampleRate,
             Duration = duration,
         };
     }

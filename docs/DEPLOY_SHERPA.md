@@ -1,4 +1,4 @@
-# Sherpa-ONNX 原生库部署（Phase 2+3）
+# Sherpa-ONNX 原生库部署（v0.1）
 
 ASR（SenseVoice）与说话人门禁（Speaker embedding）均通过 NuGet 包 **`org.k2fsa.sherpa.onnx`** 调用 Sherpa-ONNX C API。Windows 托盘应用与 Linux CI 类库共用同一包；native 运行时由配套 runtime 包自动还原。
 
@@ -64,3 +64,13 @@ dotnet test tests/ArrayMicRefreshment.Core.Tests -c Release
 ```
 
 > **说明**：WinForms 托盘应用需在 **Windows** 上运行。CI 不下载模型；单元测试通过 mock recognizer / embedding 后端验证逻辑。
+
+## 完整离线包（v0.1）
+
+在已下载 `models/` 的机器上：
+
+```powershell
+.\scripts\build-release.ps1 -Mode self-contained -IncludeModels -Zip
+```
+
+将 `dist\ArrayMicRefreshment-self-contained\` 与 `models\`、`skills\` 一并打包为可分发的 `ArrayMicRefreshment-ready.zip`（约 2.7 GB，含三套 SenseVoice + 声纹模型）。用户解压后无需再运行 `download-models.ps1`。

@@ -25,7 +25,7 @@ internal static class AudioTestResources
         var root = Path.IsPathRooted(modelsDirectory)
             ? modelsDirectory
             : Path.GetFullPath(Path.Combine(RepoRoot.Find(), modelsDirectory));
-        var primary = Path.Combine(root, SenseVoiceModelResolver.PrimaryModelId);
+        var primary = Path.Combine(root, AsrModelInfo.All[0].Id);
         return Directory.Exists(primary) ? primary : null;
     }
 

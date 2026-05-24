@@ -34,14 +34,7 @@ public class VoicePipelineRefineFailureTests
             refiner,
             sink);
 
-        await pipeline.ProcessUtteranceAsync(
-            new AudioUtterance
-            {
-                Pcm16LeMono = new byte[320],
-                SampleRate = 16000,
-                Duration = TimeSpan.FromMilliseconds(20),
-            },
-            CancellationToken.None);
+        await pipeline.ProcessUtteranceAsync(TestAudioHelper.CreateUtterance(), CancellationToken.None);
 
         var (text, _) = Assert.Single(sink.Emitted);
         Assert.Contains("ASR stub", text, StringComparison.Ordinal);

@@ -1,5 +1,7 @@
 # Phase 5 — Blockers / partial completion notes
 
+> **v0.1（2026-05-24）** 已合并至 `main`：完整离线包、LLM 三预设、设置崩溃修复、纯文本整理。下文为 Phase 5 收尾时的遗留说明。
+
 ## Tasks 5–8 (GUI demos) — partial
 
 Automated capture (`scripts/record-phase5-demos.ps1`) produced tray smoke screenshots and slideshow MP4s under `docs/demos/`. **Live** requirements were not fully met in this agent session:

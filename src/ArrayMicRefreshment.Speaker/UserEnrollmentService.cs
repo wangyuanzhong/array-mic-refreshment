@@ -17,6 +17,7 @@ public sealed class UserEnrollmentService : IUserEnrollmentService
     private readonly ISettingsStore _settingsStore;
     private readonly string _speakersDirectory;
     private AppSettings _settings;
+    private readonly Dictionary<string, SpeakerEnrollmentRecord> _recordCache = new(StringComparer.Ordinal);
 
     public UserEnrollmentService(
         AppSettings settings,
@@ -78,23 +79,55 @@ public sealed class UserEnrollmentService : IUserEnrollmentService
             throw new ArgumentException("Speaker name is required.", nameof(name));
         }
 
-        if (enrollmentUtterances.Count == 0)
+        if (enrollmentUtterances.Count < 3)
         {
-            throw new ArgumentException("At least one enrollment utterance is required.", nameof(enrollmentUtterances));
+            throw new ArgumentException("至少需要 3 段录音来注册说话人。", nameof(enrollmentUtterances));
         }
 
-        var embedding = ComputeMeanEmbedding(enrollmentUtterances);
+        // P0: Multi-template enrollment — compute embedding for each utterance
+        var templates = new List<float[]>();
+        foreach (var utterance in enrollmentUtterances)
+        {
+            var embedding = ComputeSingleEmbedding(utterance);
+            templates.Add(embedding);
+        }
+
+        // P1: Z-Norm cohort stats — compute template-to-template score distribution
+        var cohortScores = new List<float>();
+        for (var i = 0; i < templates.Count; i++)
+        {
+            for (var j = i + 1; j < templates.Count; j++)
+            {
+                var score = SpeakerEmbeddingMath.CosineSimilarity(templates[i], templates[j]);
+                cohortScores.Add(score);
+            }
+        }
+
+        var (cohortMean, cohortStd) = SpeakerEmbeddingMath.ComputeMeanAndStd(
+            cohortScores.Count > 0 ? cohortScores.ToArray() : new[] { 0.5f });
+
+        // Legacy: compute mean embedding for backward compatibility
+        var meanEmbedding = ComputeMeanEmbeddingFromTemplates(templates);
+
         var userId = Guid.NewGuid().ToString("N");
         var record = new SpeakerEnrollmentRecord
         {
             UserId = userId,
             DisplayName = name.Trim(),
-            Embedding = embedding,
+            Embedding = meanEmbedding,
+            Templates = templates,
+            RecentScores = new List<float>(),
+            CohortMean = cohortMean,
+            CohortStd = cohortStd,
+            EnrolledAt = DateTimeOffset.UtcNow,
         };
 
         SaveRecord(record);
+        _recordCache[userId] = record;
         CurrentUserId = userId;
-        Log.Information("Enrolled speaker {Name} as {UserId}", record.DisplayName, userId);
+        Log.Information(
+            "Enrolled speaker {Name} as {UserId} with {Count} templates, cohort μ={Mean:F3} σ={Std:F3}",
+            record.DisplayName, userId, templates.Count, cohortMean, cohortStd);
         return userId;
     }
 
@@ -106,6 +139,8 @@ public sealed class UserEnrollmentService : IUserEnrollmentService
             File.Delete(path);
         }
 
+        _recordCache.Remove(userId);
+
         if (string.Equals(CurrentUserId, userId, StringComparison.Ordinal))
         {
             CurrentUserId = null;
@@ -114,46 +149,141 @@ public sealed class UserEnrollmentService : IUserEnrollmentService
 
     public float[]? GetStoredEmbedding(string userId)
     {
-        var record = LoadRecord(GetRecordPath(userId));
-        return record?.Embedding;
+        var record = GetRecord(userId);
+        if (record?.Embedding is { Length: > 0 } embedding)
+        {
+            var normalized = (float[])embedding.Clone();
+            SpeakerEmbeddingMath.L2NormalizeInPlace(normalized);
+            return normalized;
+        }
+
+        return null;
     }
 
-    private float[] ComputeMeanEmbedding(IReadOnlyList<AudioUtterance> utterances)
+    /// <summary>P0: Get all enrollment templates for multi-template verification.</summary>
+    public IReadOnlyList<float[]>? GetTemplates(string userId)
     {
-        float[]? sum = null;
-        var count = 0;
+        var record = GetRecord(userId);
+        return record?.Templates?.Select(t => (float[])t.Clone()).ToArray();
+    }
 
-        foreach (var utterance in utterances)
+    /// <summary>P1: Get cohort stats for Z-Normalization.</summary>
+    public (float Mean, float Std)? GetCohortStats(string userId)
+    {
+        var record = GetRecord(userId);
+        if (record?.CohortMean is float mean && record?.CohortStd is float std)
         {
-            var pcm = PcmConverters.Ensure16KHzMonoPcm16Le(utterance.Pcm16LeMono, utterance.SampleRate);
-            var floats = PcmConverters.Pcm16LeToFloat(pcm);
-            var embedding = _embeddingBackend.ComputeEmbedding(floats, PcmConverters.TargetSampleRate);
+            return (mean, std);
+        }
+        return null;
+    }
 
-            if (sum is null)
+    /// <summary>P1: Get recent verification scores for adaptive threshold.</summary>
+    public IReadOnlyList<float> GetRecentScores(string userId)
+    {
+        var record = GetRecord(userId);
+        return record?.RecentScores?.ToArray() ?? Array.Empty<float>();
+    }
+
+    /// <summary>P1: Append a verification score to history (keeps last 20).</summary>
+    public void AppendScore(string userId, float score)
+    {
+        var record = GetRecord(userId);
+        if (record is null)
+        {
+            return;
+        }
+
+        var scores = record.RecentScores ?? new List<float>();
+        scores.Add(score);
+        // Keep last 20 scores
+        while (scores.Count > 20)
+        {
+            scores.RemoveAt(0);
+        }
+
+        var updated = new SpeakerEnrollmentRecord
+        {
+            UserId = record.UserId,
+            DisplayName = record.DisplayName,
+            Embedding = record.Embedding,
+            Templates = record.Templates,
+            RecentScores = scores,
+            CohortMean = record.CohortMean,
+            CohortStd = record.CohortStd,
+            EnrolledAt = record.EnrolledAt,
+        };
+
+        SaveRecord(updated);
+        _recordCache[userId] = updated;
+    }
+
+    /// <summary>P1: Compute adaptive threshold based on user's historical scores.</summary>
+    public float GetAdaptiveThreshold(string userId, float baseThreshold)
+    {
+        var scores = GetRecentScores(userId);
+        if (scores.Count < 3)
+        {
+            // Not enough history — use base threshold with slight leniency
+            return baseThreshold * 0.95f;
+        }
+
+        var median = SpeakerEmbeddingMath.Median(scores.ToArray());
+        // Threshold = median * 0.80, but not lower than base * 0.70
+        var adaptive = median * 0.80f;
+        var floor = baseThreshold * 0.70f;
+        return Math.Max(adaptive, floor);
+    }
+
+    private SpeakerEnrollmentRecord? GetRecord(string userId)
+    {
+        if (_recordCache.TryGetValue(userId, out var cached))
+        {
+            return cached;
+        }
+
+        var record = LoadRecord(GetRecordPath(userId));
+        if (record is not null)
+        {
+            _recordCache[userId] = record;
+        }
+        return record;
+    }
+
+    private float[] ComputeSingleEmbedding(AudioUtterance utterance)
+    {
+        // P2: Volume normalization before embedding computation
+        var normalizedPcm = SpeakerEmbeddingMath.NormalizeVolume(utterance.Pcm16LeMono);
+        var pcm = PcmConverters.Ensure16KHzMonoPcm16Le(normalizedPcm, utterance.SampleRate);
+        var floats = PcmConverters.Pcm16LeToFloat(pcm);
+        var embedding = _embeddingBackend.ComputeEmbedding(floats, PcmConverters.TargetSampleRate);
+        SpeakerEmbeddingMath.L2NormalizeInPlace(embedding);
+        return embedding;
+    }
+
+    private float[] ComputeMeanEmbeddingFromTemplates(List<float[]> templates)
+    {
+        if (templates.Count == 0)
+        {
+            throw new InvalidOperationException("No templates to compute mean embedding.");
+        }
+
+        var dim = templates[0].Length;
+        var sum = new float[dim];
+        foreach (var t in templates)
+        {
+            for (var i = 0; i < dim; i++)
             {
-                sum = (float[])embedding.Clone();
+                sum[i] += t[i];
             }
-            else
-            {
-                for (var i = 0; i < sum.Length; i++)
-                {
-                    sum[i] += embedding[i];
-                }
-            }
-
-            count++;
         }
 
-        if (sum is null || count == 0)
+        for (var i = 0; i < dim; i++)
         {
-            throw new InvalidOperationException("Failed to compute enrollment embedding.");
+            sum[i] /= templates.Count;
         }
 
-        for (var i = 0; i < sum.Length; i++)
-        {
-            sum[i] /= count;
-        }
-
+        SpeakerEmbeddingMath.L2NormalizeInPlace(sum);
         return sum;
     }
 

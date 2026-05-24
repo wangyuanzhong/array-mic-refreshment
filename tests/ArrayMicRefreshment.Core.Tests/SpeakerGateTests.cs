@@ -16,7 +16,7 @@ public class SpeakerGateTests
             backend);
 
         var ok = await gate.VerifyCurrentUserAsync(CreateUtterance(), CancellationToken.None);
-        Assert.True(ok);
+        Assert.True(ok.Allowed);
     }
 
     [Fact]
@@ -31,11 +31,11 @@ public class SpeakerGateTests
 
         var settings = new AppSettings { SpeakerVerifyThreshold = 1f };
         var gate = new SpeakerGate(settings, enrollment, backend);
-        Assert.True(await gate.VerifyCurrentUserAsync(CreateUtterance(), CancellationToken.None));
+        Assert.True((await gate.VerifyCurrentUserAsync(CreateUtterance(), CancellationToken.None)).Allowed);
 
         settings.SpeakerVerifyThreshold = 1.01f;
         var strictGate = new SpeakerGate(settings, enrollment, backend);
-        Assert.False(await strictGate.VerifyCurrentUserAsync(CreateUtterance(), CancellationToken.None));
+        Assert.False((await strictGate.VerifyCurrentUserAsync(CreateUtterance(), CancellationToken.None)).Allowed);
     }
 
     [Fact]
@@ -48,7 +48,9 @@ public class SpeakerGateTests
         enrollment.SetEmbedding(userId, new float[] { 1f, 0f });
 
         var gate = new SpeakerGate(new AppSettings { SpeakerVerifyThreshold = 0.5f }, enrollment, backend);
-        Assert.False(await gate.VerifyCurrentUserAsync(CreateUtterance(), CancellationToken.None));
+        var result = await gate.VerifyCurrentUserAsync(CreateUtterance(), CancellationToken.None);
+        Assert.False(result.Allowed);
+        Assert.True(result.Score < 0.5f);
     }
 
     private static AudioUtterance CreateUtterance() => new()

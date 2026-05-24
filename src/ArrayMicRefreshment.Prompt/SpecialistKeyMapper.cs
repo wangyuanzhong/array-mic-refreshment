@@ -22,6 +22,7 @@ public static class SpecialistKeyMapper
     public static PromptIntent FromSpecialistKey(string? specialistKey) =>
         specialistKey?.Trim().ToLowerInvariant() switch
         {
+            "plain-text" => PromptIntent.PlainText,
             "code-editing" => PromptIntent.CodeEditing,
             "general-ai" => PromptIntent.GeneralAi,
             "research" => PromptIntent.Research,
@@ -32,6 +33,7 @@ public static class SpecialistKeyMapper
     public static string ToSpecialistKey(PromptIntent intent) =>
         intent switch
         {
+            PromptIntent.PlainText => "plain-text",
             PromptIntent.CodeEditing => "code-editing",
             PromptIntent.GeneralAi => "general-ai",
             PromptIntent.Research => "research",

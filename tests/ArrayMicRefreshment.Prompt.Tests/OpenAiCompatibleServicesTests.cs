@@ -16,6 +16,7 @@ public class OpenAiCompatibleServicesTests
         ApiKey = "test-key",
         ApiModel = "test-model",
         PromptRefineEnabled = true,
+        ForcedIntent = PromptIntent.Auto,
     };
 
     [Fact]

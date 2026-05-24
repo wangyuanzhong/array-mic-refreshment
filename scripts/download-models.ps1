@@ -16,10 +16,18 @@ param(
     [string]$ModelsRoot = "",
     [ValidateSet("asr-primary", "asr-fallback", "all")]
     [string]$Package = "asr-primary",
-    [switch]$IncludeSpeaker
+    [switch]$IncludeSpeaker,
+    [switch]$SkipSpeaker
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $PSBoundParameters.ContainsKey('IncludeSpeaker') -and -not $SkipSpeaker) {
+    $IncludeSpeaker = $true
+}
+if ($SkipSpeaker) {
+    $IncludeSpeaker = $false
+}
 
 if ([string]::IsNullOrWhiteSpace($ModelsRoot)) {
     $ModelsRoot = Join-Path $RepoRoot "models"
@@ -134,5 +142,5 @@ Write-Host ""
 Write-Host "Models root: $ModelsRoot"
 Write-Host "Point AppSettings.ModelsDirectory or Sherpa config to the extracted folder."
 if (-not $IncludeSpeaker) {
-    Write-Host "Speaker model: re-run with -IncludeSpeaker to download phase2Speaker packages."
+    Write-Host "Speaker model: omitted. Re-run without -SkipSpeaker (default downloads speaker ONNX)."
 }

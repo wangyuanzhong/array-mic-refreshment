@@ -7,7 +7,11 @@ namespace ArrayMicRefreshment.App;
 
 internal static class SherpaPipelineFactory
 {
-    public sealed record PipelineComponents(IUtteranceAsr Asr, ISpeakerGate Speaker, bool ModelsMissing)
+    public sealed record PipelineComponents(
+        IUtteranceAsr Asr,
+        ISpeakerGate Speaker,
+        bool AsrModelsMissing,
+        bool SpeakerModelMissing)
     {
         public void DisposeOwned()
         {
@@ -25,25 +29,46 @@ internal static class SherpaPipelineFactory
 
     public static PipelineComponents CreateOrFallback(AppSettings settings, ISettingsStore settingsStore)
     {
+        IUtteranceAsr asr;
+        var asrMissing = false;
         try
         {
-            var asr = SenseVoiceAsr.CreateFromSettings(settings);
-            var speaker = SpeakerGate.CreateFromSettings(settings, settingsStore);
-            Log.Information("Sherpa SenseVoice ASR and speaker gate loaded.");
-            return new PipelineComponents(asr, speaker, ModelsMissing: false);
+            asr = SenseVoiceAsr.CreateFromSettings(settings);
+            Log.Information("Sherpa SenseVoice ASR loaded.");
         }
         catch (ModelNotFoundException ex)
         {
-            Log.Warning(ex, "Sherpa models missing; using pipeline stubs.");
-            return CreateStubs(modelsMissing: true);
+            Log.Warning(ex, "SenseVoice ASR model missing; using stub.");
+            asr = new StubUtteranceAsr();
+            asrMissing = true;
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to initialize Sherpa pipeline; using stubs.");
-            return CreateStubs(modelsMissing: true);
+            Log.Error(ex, "Failed to initialize SenseVoice ASR; using stub.");
+            asr = new StubUtteranceAsr();
+            asrMissing = true;
         }
-    }
 
-    private static PipelineComponents CreateStubs(bool modelsMissing) =>
-        new(new StubUtteranceAsr(), new StubSpeakerGate { AlwaysPass = true }, modelsMissing);
+        ISpeakerGate speaker;
+        var speakerMissing = false;
+        try
+        {
+            speaker = SpeakerGate.CreateFromSettings(settings, settingsStore);
+            Log.Information("Sherpa speaker gate loaded.");
+        }
+        catch (ModelNotFoundException ex)
+        {
+            Log.Warning(ex, "Speaker embedding model missing; verification disabled.");
+            speaker = new UnavailableSpeakerGate();
+            speakerMissing = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to initialize speaker gate; verification disabled.");
+            speaker = new UnavailableSpeakerGate();
+            speakerMissing = true;
+        }
+
+        return new PipelineComponents(asr, speaker, asrMissing, speakerMissing);
+    }
 }

@@ -1,16 +1,40 @@
-# Build
+# Build outputs
 bin/
 obj/
+[Bb]uild/
+[Ll]og/
+[Ll]ogs/
+TestResults/
+coverage/
+*.trx
+*.coverage
+*.coveragexml
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
 *.user
 *.suo
-.vs/
+*.userosscache
+*.sln.docstates
+*.rsuser
 
-# Models (downloaded locally)
+# NuGet
+packages/
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Downloaded ONNX models (large; use scripts/download-models.ps1)
 models/
 
-# Local release builds
+# Local release / publish outputs (do not commit)
 dist/
+publish_output/
 publish-test/
+*.zip
 
 # CER measurement audio (generated locally)
 scripts/cer-audio/
@@ -21,3 +45,8 @@ scripts/cer-audio/
 # OS
 .DS_Store
 Thumbs.db
+Desktop.ini
+
+# Cursor / agent (local only)
+.cursor/
+agent-transcripts/

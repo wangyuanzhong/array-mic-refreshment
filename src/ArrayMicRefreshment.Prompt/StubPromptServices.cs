@@ -7,6 +7,8 @@ public sealed class StubIntentRouter : IIntentRouter
 {
     public Task<(PromptIntent Intent, float Confidence)> RouteAsync(string raw, CancellationToken cancellationToken) =>
         Task.FromResult((PromptIntent.GeneralAi, 1f));
+
+    public void ApplySettings(AppSettings settings) { }
 }
 
 public sealed class StubPromptRefiner : IPromptRefiner
@@ -19,4 +21,6 @@ public sealed class StubPromptRefiner : IPromptRefiner
 
     public Task<string> RefineAsync(string raw, PromptIntent intent, CancellationToken cancellationToken) =>
         Task.FromResult($"[refined:{intent}] {raw}");
+
+    public void ApplySettings(AppSettings settings) { }
 }

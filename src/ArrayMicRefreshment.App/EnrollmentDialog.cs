@@ -5,17 +5,20 @@ namespace ArrayMicRefreshment.App;
 
 public sealed class EnrollmentDialog : Form
 {
+    // P0: Increased from 3 to 5 phrases for better multi-template coverage
     private static readonly string[] Phrases =
     [
-        "请说：今天天气很好",
-        "请说：打开代码编辑器",
-        "请说：我要写一封邮件",
+        "请说：今天天气很好，适合出去散步",
+        "请说：打开代码编辑器，开始编写程序",
+        "请说：我要写一封邮件，通知大家开会",
+        "请说：语音识别技术正在快速发展",
+        "请说：人工智能改变了很多行业的工作方式",
     ];
 
     private readonly IUserEnrollmentService _enrollment;
     private readonly IEnrollmentUtteranceSource? _capture;
-    private readonly TextBox _nameBox = new() { Width = 280 };
-    private readonly Label _phraseLabel = new() { AutoSize = true, MaximumSize = new Size(360, 0) };
+    private readonly TextBox _nameBox = new() { Width = 360 };
+    private readonly Label _phraseLabel = new() { AutoSize = true, MaximumSize = new Size(420, 0) };
     private readonly Label _progressLabel = new() { AutoSize = true };
     private readonly Button _recordButton = new() { Text = "开始录音", Width = 100 };
     private readonly Button _finishButton = new() { Text = "完成注册", Width = 100, Enabled = false };
@@ -32,7 +35,7 @@ public sealed class EnrollmentDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(400, 220);
+        ClientSize = new Size(480, 280);
 
         var layout = new TableLayoutPanel
         {
@@ -72,7 +75,7 @@ public sealed class EnrollmentDialog : Form
             _phraseLabel.Text = "全部完成，可点击「完成注册」。";
             _progressLabel.Text = string.Join(" ", Enumerable.Range(0, Phrases.Length).Select(i => "✓"));
             _recordButton.Enabled = false;
-            _finishButton.Enabled = _utterances.Count == Phrases.Length && !string.IsNullOrWhiteSpace(_nameBox.Text);
+            _finishButton.Enabled = _utterances.Count >= 3 && !string.IsNullOrWhiteSpace(_nameBox.Text);
             return;
         }
 
@@ -123,7 +126,7 @@ public sealed class EnrollmentDialog : Form
             return;
         }
 
-        if (utterance.Duration > TimeSpan.FromSeconds(8))
+        if (utterance.Duration > TimeSpan.FromSeconds(10))
         {
             MessageBox.Show(this, "录音较长，已接受本段。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
@@ -141,9 +144,9 @@ public sealed class EnrollmentDialog : Form
             return;
         }
 
-        if (_utterances.Count < Phrases.Length)
+        if (_utterances.Count < 3)
         {
-            MessageBox.Show(this, "请完成全部 3 段录音。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, "请至少完成 3 段录音。", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 

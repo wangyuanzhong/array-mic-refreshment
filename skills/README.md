@@ -1,4 +1,6 @@
-# Skills — 只用第三方原文，不自写正文
+# Skills — 只用第三方原文，不自写正文（v0.1）
+
+应用内置 **纯文本整理** 不经过本目录；仅「自动 / 编程 / 通用 / 调研 / 待办」等模式使用下方 manifest 与 upstream 栈。
 
 本目录 **不包含自研 Skill 正文**。流程由 [`manifest.yaml`](manifest.yaml) 配置，正文来自 [`upstream/`](upstream/) 下复制的第三方 prompt / SKILL。
 

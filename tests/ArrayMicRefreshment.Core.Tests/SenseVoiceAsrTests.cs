@@ -27,7 +27,7 @@ public class SenseVoiceAsrTests
     public async Task RecognizeUtteranceAsync_uses_backend_and_strips_tags()
     {
         var backend = new FakeSenseVoiceBackend("<|en|><|NEUTRAL|><|Speech|>hello");
-        using var asr = new SenseVoiceAsr(backend);
+        using var asr = new SenseVoiceAsr(backend, "test-model");
         var text = await asr.RecognizeUtteranceAsync(
             new AudioUtterance
             {

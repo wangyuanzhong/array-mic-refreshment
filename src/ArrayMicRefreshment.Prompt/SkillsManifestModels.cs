@@ -25,6 +25,8 @@ public sealed class RouterSection
 
 public sealed class SpecialistSection
 {
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public List<string> Stack { get; set; } = new();
 }
 

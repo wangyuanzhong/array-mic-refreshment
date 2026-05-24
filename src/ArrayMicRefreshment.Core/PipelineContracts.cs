@@ -16,23 +16,30 @@ public interface IPushToTalkSource
 
 public interface IUtteranceAsr
 {
+    /// <summary>Identifier of the currently loaded ASR model (for diagnostics).</summary>
+    string ModelId { get; }
+
     Task<string> RecognizeUtteranceAsync(AudioUtterance utterance, CancellationToken cancellationToken);
 }
 
 public interface ISpeakerGate
 {
-    Task<bool> VerifyCurrentUserAsync(AudioUtterance utterance, CancellationToken cancellationToken);
+    Task<SpeakerVerificationResult> VerifyCurrentUserAsync(
+        AudioUtterance utterance,
+        CancellationToken cancellationToken);
 }
 
 public interface IIntentRouter
 {
     Task<(PromptIntent Intent, float Confidence)> RouteAsync(string raw, CancellationToken cancellationToken);
+    void ApplySettings(AppSettings settings);
 }
 
 public interface IPromptRefiner
 {
     bool IsEnabled { get; }
     Task<string> RefineAsync(string raw, PromptIntent intent, CancellationToken cancellationToken);
+    void ApplySettings(AppSettings settings);
 }
 
 public interface ITranscriptSink

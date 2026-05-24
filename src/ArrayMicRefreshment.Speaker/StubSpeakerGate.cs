@@ -7,6 +7,8 @@ public sealed class StubSpeakerGate : ISpeakerGate
 {
     public bool AlwaysPass { get; set; } = true;
 
-    public Task<bool> VerifyCurrentUserAsync(AudioUtterance utterance, CancellationToken cancellationToken) =>
-        Task.FromResult(AlwaysPass);
+    public Task<SpeakerVerificationResult> VerifyCurrentUserAsync(
+        AudioUtterance utterance,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(new SpeakerVerificationResult(AlwaysPass, Score: 1f, VerificationSkipped: false));
 }

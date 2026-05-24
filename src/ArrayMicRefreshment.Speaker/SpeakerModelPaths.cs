@@ -41,13 +41,6 @@ public static class SpeakerModelResolver
             $"Speaker embedding model not found under '{root}'. Run scripts/download-models.ps1 -IncludeSpeaker.");
     }
 
-    private static string ResolveModelsRoot(string modelsDirectory)
-    {
-        if (Path.IsPathRooted(modelsDirectory))
-        {
-            return modelsDirectory;
-        }
-
-        return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, modelsDirectory));
-    }
+    private static string ResolveModelsRoot(string modelsDirectory) =>
+        ModelsPathResolver.Resolve(modelsDirectory);
 }

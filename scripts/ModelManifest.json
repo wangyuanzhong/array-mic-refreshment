@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models",
   "packages": [
     {
@@ -8,7 +8,7 @@
       "archive": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09.tar.bz2",
       "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
       "sha256": null,
-      "notes": "SenseVoice int8 — primary ASR model (see docs/ASR_MODEL.md)"
+      "notes": "SenseVoice int8 粤语微调版 — 粤语识别优化，但不支持标点"
     },
     {
       "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
@@ -16,7 +16,15 @@
       "archive": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2",
       "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
       "sha256": null,
-      "notes": "SenseVoice int8 — fallback if 2025-09 package unavailable"
+      "notes": "SenseVoice int8 通用版 — 支持中英日韩粤，有标点，适合办公"
+    },
+    {
+      "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+      "role": "asr-high-precision",
+      "archive": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
+      "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+      "sha256": null,
+      "notes": "SenseVoice float32 高精度版 — 无精度损失，准确率最高，但体积大速度慢"
     }
   ],
   "phase2Speaker": {
@@ -27,7 +35,7 @@
         "id": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k",
         "role": "speaker-primary",
         "file": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx",
-        "extractDir": "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k",
+        "extractDir": "3dspeaker_speech_eres2net_base_sv_zh-cn_3speaker_16k",
         "sha256": null,
         "notes": "Speaker embedding model (single ONNX file)"
       }

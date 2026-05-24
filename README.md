@@ -1,6 +1,8 @@
 # Array Mic Refreshment
 
-本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 多 Skill 整理（先识别意图再改写）** → 剪贴板 / 光标粘贴。
+**当前版本：v0.1**
+
+本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理**（纯文本润色或多 Skill 意图改写）→ 剪贴板 / 光标粘贴。
 
 阵列麦已在硬件侧完成降噪/增益；软件侧 `IAudioPreprocessor` 仅预留，首版不实现。
 
@@ -25,7 +27,7 @@
 
 | # | 能力 | 首版 |
 |---|------|------|
-| 1 | 托盘常驻、用户/设备下拉 | ❌ UI pending — Agent E |
+| 1 | 托盘常驻、设置窗（设备/用户/API/预设） | ✅ |
 | 2 | PTT + 离线句末 ASR（SenseVoice） | ✅ |
 | 3 | 说话人门禁（当前用户） | ✅ |
 | 4 | LLM 多 Skill 整理（可选，默认关） | ✅ |
@@ -135,13 +137,13 @@ flowchart TB
 
 ### 设置界面（API 配置窗）
 
-用户可填（不限厂商）：
-
+- **LLM 预设 ×3**：可分别保存名称、API Base URL、Key、Model，一键切换（如本地 Ollama / DeepSeek / OpenAI）
 - **API Base URL**（如 `https://api.openai.com/v1`、`https://api.deepseek.com/v1`、本机 `http://127.0.0.1:11434/v1`）
 - **API Key**（本机 Ollama 可空）
-- **Model**（如 `gpt-4o-mini`、`deepseek-chat`、`qwen-plus`）
+- **Model**（如 `gpt-4o-mini`、`deepseek-chat`）
 - **启用提示词整理**（checkbox，**默认不勾选**）
-- **整理模式**：自动（Router）/ 强制 编程·通用·调研·待办
+- **整理风格**：自动 / **纯文本整理** / 编程·通用·调研·待办
+- **测试连接**：在设置内验证 API 是否可用
 - **Skills 目录**：默认 `skills/`（一般无需改）
 
 ### 多 Skill 协同（**仅用他人 prompt**，见 `skills/upstream/`）
@@ -337,21 +339,30 @@ ptt.PttReleased += async () => {
 
 ## 安装与使用（普通用户）
 
-**最简：从 GitHub Releases 下载 .exe**
+### 方式 A：完整离线包（推荐，含全部模型）
 
-1. 打开仓库 [Releases 页面](https://github.com/wangyuanzhong/array-mic-refreshment/releases)，下载最新的：
-   - `ArrayMicRefreshment-framework-dep.zip`（~30 MB，需要先装 .NET 8 Desktop Runtime：`winget install Microsoft.DotNet.DesktopRuntime.8`）
-   - **或** `ArrayMicRefreshment-self-contained.zip`（~150 MB，无需任何运行时）
-2. 解压到任意目录
-3. 在解压后的目录里跑一次：
+本地构建产出（约 2.7 GB 压缩包）：
+
+```text
+dist\ArrayMicRefreshment-ready.zip
+```
+
+解压后目录需同时包含 `ArrayMicRefreshment.exe`、`models\`、`skills\`。双击 exe，托盘图标出现后：
+
+1. 右键托盘 → **设置**
+2. 可选：勾选「启用提示词整理」→ 选择 LLM 预设 → 填写 API → **测试连接** → **确定**
+3. 按住 PTT 热键（默认 `Ctrl+Alt+Space`，可在设置中改）说话，松开即识别
+
+### 方式 B：GitHub Releases（小包 + 自行下载模型）
+
+1. 打开 [Releases](https://github.com/wangyuanzhong/array-mic-refreshment/releases)，下载：
+   - `ArrayMicRefreshment-framework-dep.zip`（需 [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0)）
+   - 或 `ArrayMicRefreshment-self-contained.zip`（自带运行时）
+2. 解压后在目录内运行：
    ```powershell
-   ..\scripts\download-models.ps1
+   .\scripts\download-models.ps1 -Package all -IncludeSpeaker
    ```
-   （或者把 `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/` 文件夹手动放到解压目录下）
-4. 双击 `ArrayMicRefreshment.exe` → 系统托盘出现图标
-5. 按住默认 PTT 热键 `Ctrl+Shift+Space` 说话，松开 → 识别文本进剪贴板（或自动粘到光标）
-
-> 暂未发布 Release：用下面「本地编译」自己打 .exe。
+3. 双击 `ArrayMicRefreshment.exe` 使用
 
 ## 本地编译 .exe（开发者 / 自己打包）
 
@@ -359,9 +370,9 @@ ptt.PttReleased += async () => {
 git clone https://github.com/wangyuanzhong/array-mic-refreshment.git
 cd array-mic-refreshment
 .\scripts\download-models.ps1
-.\scripts\build-release.ps1 -Mode self-contained -Zip
-# 产出：dist\ArrayMicRefreshment-self-contained\ArrayMicRefreshment.exe
-#       dist\ArrayMicRefreshment-self-contained.zip
+.\scripts\build-release.ps1 -Mode self-contained -IncludeModels -Zip
+# 产出：dist\ArrayMicRefreshment-self-contained\（含 models、skills）
+# 完整离线包可再打包为 dist\ArrayMicRefreshment-ready.zip（见 CHANGELOG.md）
 ```
 
 参数：
@@ -410,7 +421,9 @@ GitHub Actions：见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（`p
 | `docs/CER_BASELINE.md` | Phase 5 SenseVoice CER 基线 |
 | `docs/demos/` | Phase 5 演示录像与截图 |
 | `docs/HANDOFF_PHASE5_BLOCKERS.md` | Phase 5 部分项说明 |
+| `CHANGELOG.md` | 版本变更记录 |
+| `VERSION.txt` | 当前版本号 |
 
 ---
 
-*已定稿：SenseVoice；LLM 使用第三方 prompt 栈（manifest 配置）；整理默认关；PTT 松开优先。*
+*v0.1：SenseVoice + 声纹门禁 + LLM 三预设 + 纯文本整理；整理默认关；PTT 松开优先。*

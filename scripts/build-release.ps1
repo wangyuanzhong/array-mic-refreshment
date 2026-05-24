@@ -5,7 +5,9 @@ param(
 
     [string]$OutputDir = 'dist',
 
-    [switch]$Zip
+    [switch]$Zip,
+
+    [switch]$IncludeModels
 )
 
 # scripts/build-release.ps1 — produce a runnable Array Mic Refreshment build.
@@ -17,8 +19,11 @@ param(
 #   .\scripts\build-release.ps1 -Mode self-contained
 #       → dist\ArrayMicRefreshment-self-contained\ (no runtime needed on target, ~150 MB)
 #
-#   .\scripts\build-release.ps1 -Mode self-contained -Zip
-#       → also produces dist\ArrayMicRefreshment-self-contained.zip
+#   .\scripts\build-release.ps1 -Mode self-contained -IncludeModels -Zip
+#       → bundles models/ + skills/ into output; also dist\ArrayMicRefreshment-self-contained.zip
+#
+#   Full offline zip (~2.7 GB) is typically named ArrayMicRefreshment-ready.zip
+#   (self-contained + all ASR/speaker models). See README.md and CHANGELOG.md.
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -57,10 +62,30 @@ if ($Mode -eq 'framework-dep') {
     Write-Host "  1. On the target machine install .NET 8 Desktop Runtime:" -ForegroundColor Yellow
     Write-Host "     winget install Microsoft.DotNet.DesktopRuntime.8" -ForegroundColor Yellow
 }
-Write-Host "  2. Download the SenseVoice model (once):" -ForegroundColor Yellow
-Write-Host "     cd <unzipped folder>; ..\\scripts\\download-models.ps1" -ForegroundColor Yellow
+Write-Host "  2. Download ASR + speaker models (once):" -ForegroundColor Yellow
+Write-Host "     cd <repo root>; .\\scripts\\download-models.ps1" -ForegroundColor Yellow
 Write-Host "     (or place the model under <unzipped folder>\\models\\ manually)" -ForegroundColor Yellow
 Write-Host "  3. Double-click ArrayMicRefreshment.exe" -ForegroundColor Yellow
+
+$skillsSrc = Join-Path $repoRoot 'skills'
+$skillsDst = Join-Path $outDir 'skills'
+if (Test-Path $skillsSrc) {
+    Write-Host "→ Copying skills to $skillsDst ..." -ForegroundColor Cyan
+    if (Test-Path $skillsDst) { Remove-Item $skillsDst -Recurse -Force }
+    robocopy $skillsSrc $skillsDst /E /NFL /NDL /NJH /NJS | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "robocopy skills failed (exit $LASTEXITCODE)" }
+    Write-Host "✔ Bundled skills into release folder" -ForegroundColor Green
+}
+
+$modelsSrc = Join-Path $repoRoot 'models'
+$modelsDst = Join-Path $outDir 'models'
+if ($IncludeModels -and (Test-Path $modelsSrc)) {
+    Write-Host "→ Copying models to $modelsDst ..." -ForegroundColor Cyan
+    if (Test-Path $modelsDst) { Remove-Item $modelsDst -Recurse -Force }
+    robocopy $modelsSrc $modelsDst /E /NFL /NDL /NJH /NJS | Out-Null
+    if ($LASTEXITCODE -ge 8) { throw "robocopy models failed (exit $LASTEXITCODE)" }
+    Write-Host "✔ Bundled models into release folder" -ForegroundColor Green
+}
 
 if ($Zip) {
     $zipPath = "$outDir.zip"

@@ -12,7 +12,9 @@ public sealed class NAudioCaptureStreamFactory : IAudioCaptureStreamFactory
 public sealed class NAudioCaptureStream : IAudioCaptureStream
 {
     private readonly AudioDeviceInfo _device;
+    private readonly ManualResetEventSlim _recordingStopped = new(false);
     private IWaveIn? _waveIn;
+    private WaveFormat? _waveFormat;
     private bool _started;
 
     public NAudioCaptureStream(AudioDeviceInfo device)
@@ -24,8 +26,8 @@ public sealed class NAudioCaptureStream : IAudioCaptureStream
     }
 
     public int SampleRate { get; private set; }
-    public int Channels { get; }
-    public int BitsPerSample { get; }
+    public int Channels { get; private set; }
+    public int BitsPerSample { get; private set; }
 
     public event EventHandler<ReadOnlyMemory<byte>>? DataAvailable;
 
@@ -36,15 +38,15 @@ public sealed class NAudioCaptureStream : IAudioCaptureStream
             return;
         }
 
+        _recordingStopped.Reset();
         _waveIn = CreateWaveIn();
-        _waveIn.DataAvailable += (_, e) =>
-        {
-            var buffer = new byte[e.BytesRecorded];
-            Array.Copy(e.Buffer, buffer, e.BytesRecorded);
-            DataAvailable?.Invoke(this, buffer);
-        };
-        _waveIn.RecordingStopped += (_, _) => { };
-        SampleRate = _waveIn.WaveFormat.SampleRate;
+        _waveFormat = _waveIn.WaveFormat;
+        SampleRate = _waveFormat.SampleRate;
+        Channels = _waveFormat.Channels;
+        BitsPerSample = 16;
+
+        _waveIn.DataAvailable += OnWaveInDataAvailable;
+        _waveIn.RecordingStopped += OnWaveInRecordingStopped;
         _waveIn.StartRecording();
         _started = true;
     }
@@ -57,14 +59,41 @@ public sealed class NAudioCaptureStream : IAudioCaptureStream
         }
 
         _waveIn.StopRecording();
+        _recordingStopped.Wait(TimeSpan.FromMilliseconds(800));
         _started = false;
+    }
+
+    private void OnWaveInDataAvailable(object? sender, WaveInEventArgs e)
+    {
+        if (_waveFormat is null || e.BytesRecorded <= 0)
+        {
+            return;
+        }
+
+        var pcm16 = WaveBufferConverter.ToPcm16Le(e.Buffer, e.BytesRecorded, _waveFormat);
+        if (pcm16.Length > 0)
+        {
+            DataAvailable?.Invoke(this, pcm16);
+        }
+    }
+
+    private void OnWaveInRecordingStopped(object? sender, StoppedEventArgs e)
+    {
+        _recordingStopped.Set();
     }
 
     public void Dispose()
     {
+        if (_waveIn is not null)
+        {
+            _waveIn.DataAvailable -= OnWaveInDataAvailable;
+            _waveIn.RecordingStopped -= OnWaveInRecordingStopped;
+        }
+
         Stop();
         _waveIn?.Dispose();
         _waveIn = null;
+        _recordingStopped.Dispose();
     }
 
     private IWaveIn CreateWaveIn()

@@ -80,4 +80,23 @@ public static class PcmConverters
 
         return output;
     }
+
+    public static double ComputeRms16Le(ReadOnlySpan<byte> pcm16LeMono)
+    {
+        if (pcm16LeMono.Length < 2)
+        {
+            return 0;
+        }
+
+        var samples = pcm16LeMono.Length / 2;
+        double sumSq = 0;
+        for (var i = 0; i < samples; i++)
+        {
+            var s = BitConverter.ToInt16(pcm16LeMono.Slice(i * 2, 2));
+            var n = s / 32768.0;
+            sumSq += n * n;
+        }
+
+        return Math.Sqrt(sumSq / samples);
+    }
 }

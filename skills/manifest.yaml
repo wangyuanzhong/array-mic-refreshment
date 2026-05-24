@@ -1,49 +1,63 @@
-# Array Mic Refreshment — 仅配置映射，不定义 prompt 正文
+# Array Mic Refreshment — Skill manifest
 # 正文一律读 skills/upstream/ 下第三方原文
 
-version: 1
+version: 2
 
 # LLM #1：意图分类（上游 prompt）
+# 仅当用户选择「自动判断」时启用
 router:
   system_prompt_file: upstream/shanttoosh/voice-controlled-ai-agent.intent-classification.md
-  # 将上游 intent 映射到本应用 specialist（C# 读取此表）
   intent_map:
     write_code: code-editing
     general_chat: general-ai
     summarize: research
     create_file: task-plan
 
-# LLM #2：按 specialist 拼接 system prompt（顺序 = prompt stack）
+# LLM #2：Skill stack（用户在下拉框中选择）
 specialists:
+  plain-text:
+    name: "纯文本整理"
+    description: "去除口误、加标点、修正语序，输出适合人类阅读的书面语"
+    stack:
+      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
+
+  general-ai:
+    name: "通用 AI Prompt"
+    description: "把语音变成通用 AI 提示词"
+    stack:
+      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
+      - upstream/danielrosehill/voice-prompt-enhancement-node.prompt.md
+      - upstream/danielrosehill/text-transform/general-prompt.md
+
   code-editing:
+    name: "代码编辑指令"
+    description: "把语音变成代码编辑 AI 的精确指令"
     stack:
       - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
       - upstream/danielrosehill/voice-prompt-enhancement-node.prompt.md
       - upstream/danielrosehill/text-transform/code-editing.md
 
-  general-ai:
-    stack:
-      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
-      - upstream/danielrosehill/text-transform/general-prompt.md
-
   research:
+    name: "深度研究 Prompt"
+    description: "把语音变成深度研究工具的精确提示词"
     stack:
       - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
       - upstream/danielrosehill/text-transform/deep-research-prompt.md
 
   task-plan:
+    name: "待办列表"
+    description: "把语音变成清晰的待办事项列表"
     stack:
-      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
       - upstream/danielrosehill/text-transform/to-do-list.md
 
-# 可选：完整 Claude Skill 格式（非默认；输出为多段 Markdown）
+# 可选叠加 skill（设置页勾选）
 optional_skills:
   voice_refine:
     file: upstream/florianbruniaux/voice-refine.SKILL.md
-    note: "FlorianBruniaux/claude-code-ultimate-guide — 适合 Claude Code 长任务，非默认剪贴板模式"
+    note: "FlorianBruniaux/claude-code-ultimate-guide — 适合 Claude Code 长任务"
 
   dictation_cleanup:
     file: upstream/majiayu000/dictation-githubnext-gh-aw-2.SKILL.md
-    note: "GitHub gh-aw 听写纠错 Skill — 可选叠加在 stack 前，偏 GitHub/英文术语"
+    note: "GitHub gh-aw 听写纠错 Skill — 偏 GitHub/英文术语"
 
-# 设置页「强制意图」时跳过 router，直接选 specialists 键名
+# 设置页选择 skill 时直接按 specialists 键名匹配

@@ -30,7 +30,14 @@ public sealed class JsonSettingsStore : ISettingsStore
         try
         {
             var json = File.ReadAllText(_path);
-            return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+            var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+            if (!settings.PasteToCaretEnabled)
+            {
+                settings.PasteToCaretEnabled = true;
+            }
+
+            settings.MigrateLegacyApiSettings();
+            return settings;
         }
         catch
         {

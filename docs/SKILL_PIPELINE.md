@@ -1,4 +1,6 @@
-# 多 Skill 协同管线（仅第三方 prompt）
+# 多 Skill 协同管线（v0.1）
+
+除下方「第三方 prompt 栈」外，设置页可选 **纯文本整理**（`PromptIntent.PlainText`）：使用应用内置中文润色 prompt，不读 `skills/upstream/`，适合仅需去口误、加标点的场景。
 
 ## 原则
 

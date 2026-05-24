@@ -14,7 +14,7 @@ public class VoicePipelineTests
         var sink = new RecordingSink();
         var pipeline = CreatePipeline(new AppSettings { MasterEnabled = false }, sink);
 
-        await pipeline.ProcessUtteranceAsync(CreateUtterance(), CancellationToken.None);
+        await pipeline.ProcessUtteranceAsync(TestAudioHelper.CreateUtterance(), CancellationToken.None);
 
         Assert.Empty(sink.Emitted);
     }
@@ -31,7 +31,7 @@ public class VoicePipelineTests
             new StubPromptRefiner(enabled: false),
             sink);
 
-        await pipeline.ProcessUtteranceAsync(CreateUtterance(), CancellationToken.None);
+        await pipeline.ProcessUtteranceAsync(TestAudioHelper.CreateUtterance(), CancellationToken.None);
 
         Assert.Empty(sink.Emitted);
     }
@@ -50,7 +50,7 @@ public class VoicePipelineTests
             sink,
             refinerEnabled: true);
 
-        await pipeline.ProcessUtteranceAsync(CreateUtterance(), CancellationToken.None);
+        await pipeline.ProcessUtteranceAsync(TestAudioHelper.CreateUtterance(), CancellationToken.None);
 
         var (text, _) = Assert.Single(sink.Emitted);
         Assert.StartsWith("[refined:CodeEditing]", text, StringComparison.Ordinal);
@@ -65,7 +65,7 @@ public class VoicePipelineTests
             new AppSettings { MasterEnabled = true, PromptRefineEnabled = false },
             sink);
 
-        await pipeline.ProcessUtteranceAsync(CreateUtterance(), CancellationToken.None);
+        await pipeline.ProcessUtteranceAsync(TestAudioHelper.CreateUtterance(), CancellationToken.None);
 
         var (text, _) = Assert.Single(sink.Emitted);
         Assert.Contains("ASR stub", text, StringComparison.Ordinal);
@@ -82,13 +82,6 @@ public class VoicePipelineTests
             new StubIntentRouter(),
             new StubPromptRefiner(refinerEnabled),
             sink);
-
-    private static AudioUtterance CreateUtterance() => new()
-    {
-        Pcm16LeMono = new byte[320],
-        SampleRate = 16000,
-        Duration = TimeSpan.FromMilliseconds(20),
-    };
 
     private sealed class RecordingSink : ITranscriptSink
     {

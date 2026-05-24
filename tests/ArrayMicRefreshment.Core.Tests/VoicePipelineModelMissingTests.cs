@@ -23,14 +23,7 @@ public class VoicePipelineModelMissingTests
             new StubPromptRefiner(enabled: false),
             sink);
 
-        await pipeline.ProcessUtteranceAsync(
-            new AudioUtterance
-            {
-                Pcm16LeMono = new byte[320],
-                SampleRate = 16000,
-                Duration = TimeSpan.FromMilliseconds(10),
-            },
-            CancellationToken.None);
+        await pipeline.ProcessUtteranceAsync(TestAudioHelper.CreateUtterance(), CancellationToken.None);
 
         Assert.Single(sink.Emitted);
     }

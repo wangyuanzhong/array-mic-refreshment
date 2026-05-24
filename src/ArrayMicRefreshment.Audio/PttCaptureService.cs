@@ -24,12 +24,19 @@ public sealed class PttCaptureService : IDisposable
     private readonly object _gate = new();
 
     private IAudioCaptureStream? _stream;
+    private string? _activeDeviceId;
     private bool _pttHeld;
+    private bool _drainingCapture;
+    private bool _captureRunning;
     private DateTimeOffset _pressUtc;
     private int _releaseCount;
     private System.Threading.Timer? _vadPollTimer;
 
     public event EventHandler<AudioUtterance>? UtteranceReady;
+
+    public event EventHandler<Exception>? CaptureFailed;
+
+    public event EventHandler<string>? CaptureEmpty;
 
     public PttCaptureService(
         AppSettings settings,
@@ -55,6 +62,17 @@ public sealed class PttCaptureService : IDisposable
     }
 
     public int ReleaseEventCount => _releaseCount;
+
+    public bool IsPttHeld
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _pttHeld;
+            }
+        }
+    }
 
     public void SimulateReleaseForDev()
     {
@@ -82,22 +100,21 @@ public sealed class PttCaptureService : IDisposable
             _ring.Clear();
             _vad.Reset();
 
-            StopStream();
             try
             {
                 var device = _deviceEnumerator.ResolveDevice(_settings.SelectedDeviceId)
                     ?? throw new InvalidOperationException("No capture device available.");
 
-                _stream = _captureFactory.Open(device);
-                _stream.DataAvailable += OnCaptureData;
-                _stream.Start();
+                EnsureCaptureStream(device);
+                _stream!.Start();
+                _captureRunning = true;
                 StartVadPolling();
             }
-            catch
+            catch (Exception ex)
             {
                 _pttHeld = false;
-                StopStream();
-                throw;
+                StopCaptureOnly();
+                CaptureFailed?.Invoke(this, ex);
             }
         }
     }
@@ -111,15 +128,27 @@ public sealed class PttCaptureService : IDisposable
                 return;
             }
 
-            _pttHeld = false;
             _releaseCount++;
             StopVadPolling();
 
-            var utterance = FinalizeUtterance();
-            StopStream();
-            if (utterance is not null)
+            _drainingCapture = true;
+            _pttHeld = false;
+            try
             {
-                UtteranceReady?.Invoke(this, utterance);
+                StopCaptureOnly();
+                var utterance = FinalizeUtterance();
+                if (utterance is not null)
+                {
+                    UtteranceReady?.Invoke(this, utterance);
+                }
+                else
+                {
+                    CaptureEmpty?.Invoke(this, "未录到音频数据。请检查录音设备是否选对、麦克风是否静音。");
+                }
+            }
+            finally
+            {
+                _drainingCapture = false;
             }
         }
     }
@@ -128,7 +157,7 @@ public sealed class PttCaptureService : IDisposable
     {
         lock (_gate)
         {
-            if (!_pttHeld)
+            if (!_pttHeld && !_drainingCapture)
             {
                 return;
             }
@@ -204,17 +233,90 @@ public sealed class PttCaptureService : IDisposable
         };
     }
 
+    /// <summary>Prime WASAPI/MME so the first PTT press is not limited to one ~50ms buffer.</summary>
+    public void WarmCaptureDevice()
+    {
+        lock (_gate)
+        {
+            if (_pttHeld)
+            {
+                return;
+            }
+
+            try
+            {
+                var device = _deviceEnumerator.ResolveDevice(_settings.SelectedDeviceId);
+                if (device is null)
+                {
+                    return;
+                }
+
+                EnsureCaptureStream(device);
+                if (!_captureRunning)
+                {
+                    _stream!.Start();
+                    _captureRunning = true;
+                }
+
+                StopCaptureOnly();
+            }
+            catch
+            {
+                StopStream();
+            }
+        }
+    }
+
+    public void InvalidateCaptureDevice()
+    {
+        lock (_gate)
+        {
+            if (_pttHeld)
+            {
+                return;
+            }
+
+            StopStream();
+        }
+    }
+
+    private void EnsureCaptureStream(AudioDeviceInfo device)
+    {
+        if (_stream is not null && _activeDeviceId == device.Id)
+        {
+            return;
+        }
+
+        StopStream();
+        _activeDeviceId = device.Id;
+        _stream = _captureFactory.Open(device);
+        _stream.DataAvailable += OnCaptureData;
+        _captureRunning = false;
+    }
+
+    private void StopCaptureOnly()
+    {
+        if (_stream is null || !_captureRunning)
+        {
+            return;
+        }
+
+        _stream.Stop();
+        _captureRunning = false;
+    }
+
     private void StopStream()
     {
+        StopCaptureOnly();
         if (_stream is null)
         {
             return;
         }
 
         _stream.DataAvailable -= OnCaptureData;
-        _stream.Stop();
         _stream.Dispose();
         _stream = null;
+        _activeDeviceId = null;
     }
 
     public void Dispose()

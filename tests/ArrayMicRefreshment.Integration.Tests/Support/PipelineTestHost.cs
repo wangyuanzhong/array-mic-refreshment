@@ -1,4 +1,5 @@
 using ArrayMicRefreshment.Asr;
+using ArrayMicRefreshment.Audio;
 using ArrayMicRefreshment.Core;
 using ArrayMicRefreshment.Output;
 using ArrayMicRefreshment.Prompt;
@@ -19,7 +20,7 @@ internal static class PipelineTestHost
         settings.ApiBaseUrl = server.ApiBaseUrl;
         var router = new OpenAiCompatibleIntentRouter(settings, catalog);
         var refiner = new OpenAiCompatiblePromptRefiner(settings, catalog);
-        var asr = new SenseVoiceAsr(new FakeSenseVoiceBackend { RawText = asrRaw });
+        var asr = new SenseVoiceAsr(new FakeSenseVoiceBackend { RawText = asrRaw }, "test-model");
         var sink = new ClipboardTranscriptSink();
         var pipeline = new VoicePipeline(
             settings,
@@ -31,10 +32,14 @@ internal static class PipelineTestHost
         return (pipeline, sink, StripAsrTags(asrRaw));
     }
 
-    public static AudioUtterance CreateUtterance() => new()
+    public static AudioUtterance CreateUtterance()
     {
-        Pcm16LeMono = new byte[3200],
-        SampleRate = 16000,
-        Duration = TimeSpan.FromMilliseconds(200),
-    };
+        var pcm = PcmResampler.GenerateSineWavePcm16(16000, channels: 1, frequencyHz: 440, duration: TimeSpan.FromMilliseconds(200));
+        return new AudioUtterance
+        {
+            Pcm16LeMono = pcm,
+            SampleRate = 16000,
+            Duration = TimeSpan.FromMilliseconds(200),
+        };
+    }
 }

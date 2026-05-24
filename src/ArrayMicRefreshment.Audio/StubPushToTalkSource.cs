@@ -8,7 +8,7 @@ public sealed class StubPushToTalkSource : IPushToTalkSource
     public event EventHandler? PttPressed;
     public event EventHandler? PttReleased;
 
-    public string HotkeyDisplay { get; set; } = "Ctrl+Shift+Space";
+    public string HotkeyDisplay { get; set; } = "Ctrl+Alt+Space";
 
     public void SimulatePress() => PttPressed?.Invoke(this, EventArgs.Empty);
 

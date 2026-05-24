@@ -27,6 +27,7 @@ public sealed class EndToEndPipelineTests
                 MasterEnabled = true,
                 PromptRefineEnabled = true,
                 PasteToCaretEnabled = false,
+                ForcedIntent = PromptIntent.Auto,
                 SkillsDirectory = SkillsPathResolver.Resolve("skills"),
             };
 
