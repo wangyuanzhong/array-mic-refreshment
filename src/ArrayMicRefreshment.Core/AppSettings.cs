@@ -25,6 +25,16 @@ public enum OnRefineFailure
     KeepLast,
 }
 
+/// <summary>How voice capture is triggered. Wake-word listening is configured here; detection is implemented separately.</summary>
+public enum VoiceTriggerMode
+{
+    /// <summary>Hold a global hotkey to record (default, backward compatible).</summary>
+    Ptt,
+
+    /// <summary>Hands-free activation via a spoken wake phrase.</summary>
+    WakeWord,
+}
+
 /// <summary>A single LLM API preset (URL + Key + Model).</summary>
 public sealed class LlmPreset
 {
@@ -46,6 +56,12 @@ public sealed class AppSettings
     public string? CurrentSpeakerUserId { get; set; }
 
     public string PttHotkey { get; set; } = "Ctrl+Alt+Space";
+
+    /// <summary>PTT hotkey or wake-word hands-free mode. Missing in old JSON defaults to <see cref="VoiceTriggerMode.Ptt"/>.</summary>
+    public VoiceTriggerMode TriggerMode { get; set; } = VoiceTriggerMode.Ptt;
+
+    /// <summary>Wake phrase text when <see cref="TriggerMode"/> is <see cref="VoiceTriggerMode.WakeWord"/>.</summary>
+    public string WakeWordPhrase { get; set; } = "小助手";
 
     public string SkillsDirectory { get; set; } = "skills";
     public string ModelsDirectory { get; set; } = "models";

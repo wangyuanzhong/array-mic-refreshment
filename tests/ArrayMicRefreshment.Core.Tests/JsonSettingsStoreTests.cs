@@ -39,4 +39,64 @@ public class JsonSettingsStoreTests
             }
         }
     }
+
+    [Fact]
+    public void SaveAndLoad_round_trips_trigger_mode_and_wake_word_phrase()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"amr-test-{Guid.NewGuid():N}.json");
+        try
+        {
+            var store = new JsonSettingsStore(path);
+            var original = new AppSettings
+            {
+                TriggerMode = VoiceTriggerMode.WakeWord,
+                WakeWordPhrase = "开始听写",
+                PttHotkey = "Ctrl+Alt+Space",
+            };
+
+            store.Save(original);
+            var loaded = store.Load();
+
+            Assert.Equal(VoiceTriggerMode.WakeWord, loaded.TriggerMode);
+            Assert.Equal("开始听写", loaded.WakeWordPhrase);
+            Assert.Equal("Ctrl+Alt+Space", loaded.PttHotkey);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
+    public void Load_without_trigger_fields_defaults_to_ptt_and_default_wake_phrase()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"amr-test-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(
+                path,
+                """
+                {
+                  "masterEnabled": true,
+                  "pttHotkey": "Ctrl+Shift+Space"
+                }
+                """);
+
+            var loaded = new JsonSettingsStore(path).Load();
+
+            Assert.Equal(VoiceTriggerMode.Ptt, loaded.TriggerMode);
+            Assert.Equal("小助手", loaded.WakeWordPhrase);
+            Assert.Equal("Ctrl+Shift+Space", loaded.PttHotkey);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
 }
