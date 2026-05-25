@@ -14,6 +14,28 @@ public interface IPushToTalkSource
     string HotkeyDisplay { get; }
 }
 
+/// <summary>
+/// Produces <see cref="AudioUtterance"/> after wake-word detection and dictation session end.
+/// </summary>
+public interface IWakeWordCaptureService : IDisposable
+{
+    event EventHandler<UtteranceCaptureEventArgs>? UtteranceReady;
+
+    event EventHandler<Exception>? CaptureFailed;
+
+    event EventHandler<string>? CaptureEmpty;
+
+    event EventHandler<string>? StatusChanged;
+
+    bool IsListening { get; }
+
+    bool IsDictationActive { get; }
+
+    void StartListening();
+
+    void StopListening();
+}
+
 public interface IUtteranceAsr
 {
     /// <summary>Identifier of the currently loaded ASR model (for diagnostics).</summary>
