@@ -17,8 +17,11 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _pasteSwitchItem;
     private readonly ToolStripMenuItem _statusItem;
     private readonly IPushToTalkSource _ptt;
-    private readonly PttCaptureService _captureService;
+    private readonly PttCaptureService _pttCaptureService;
+    private readonly VoiceCaptureOrchestrator _voiceOrchestrator;
+    private readonly StubWakeWordDetector _wakeDetector;
     private VoicePipeline _pipeline;
+    private VoiceTriggerMode _voiceTriggerMode = VoiceTriggerMode.PttOnly;
     private SherpaPipelineFactory.PipelineComponents? _sherpaComponents;
     private readonly ClipboardTranscriptSink _sink;
     private nint _settingsWindowHandle;
@@ -51,6 +54,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripMenuItem("注册说话人…", null, OnEnrollSpeaker));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("强制结束录音（卡住时用）", null, OnSimulatePttRelease));
+        menu.Items.Add(BuildTriggerModeMenu());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("退出", null, OnExit));
 
@@ -92,17 +96,38 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         _pipeline = BuildPipeline(_settings);
 
-        _captureService = new PttCaptureService(
+        var deviceEnumerator = new NAudioDeviceEnumerator();
+        var captureFactory = new NAudioCaptureStreamFactory();
+        var vad = new SileroVoiceActivityDetector(_settings.ModelsDirectory);
+
+        _pttCaptureService = new PttCaptureService(
             _settings,
             _ptt,
-            new NAudioDeviceEnumerator(),
-            new NAudioCaptureStreamFactory(),
-            new SileroVoiceActivityDetector(_settings.ModelsDirectory));
-        _captureService.UtteranceReady += OnUtteranceReady;
-        _captureService.CaptureFailed += OnCaptureFailed;
-        _captureService.CaptureEmpty += OnCaptureEmpty;
+            deviceEnumerator,
+            captureFactory,
+            vad);
+
+        _wakeDetector = new StubWakeWordDetector();
+        var wakeCapture = new WakeWordCaptureService(
+            _settings,
+            _wakeDetector,
+            deviceEnumerator,
+            captureFactory,
+            vad);
+
+        _voiceOrchestrator = new VoiceCaptureOrchestrator(
+            _pttCaptureService,
+            wakeCapture,
+            _voiceTriggerMode);
+
+        _voiceOrchestrator.UtteranceReady += OnUtteranceReady;
+        _voiceOrchestrator.CaptureFailed += OnCaptureFailed;
+        _voiceOrchestrator.CaptureEmpty += OnCaptureEmpty;
+        _voiceOrchestrator.WakeStatusChanged += OnWakeStatusChanged;
         _ptt.PttPressed += OnPttPressed;
         _ptt.PttReleased += OnPttReleased;
+
+        Log.Information("Voice capture orchestrator started (mode={Mode})", _voiceTriggerMode);
 
 #if WINDOWS
         if (_ptt is NAudioPushToTalkSource { IsRegistered: false })
@@ -123,7 +148,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             warmTimer.Stop();
             warmTimer.Dispose();
-            _captureService.WarmCaptureDevice();
+            _pttCaptureService.WarmCaptureDevice();
         };
         warmTimer.Start();
 #endif
@@ -283,10 +308,10 @@ public sealed class TrayApplicationContext : ApplicationContext
                 }
             }
 
-            _captureService.InvalidateCaptureDevice();
+            _pttCaptureService.InvalidateCaptureDevice();
             PersistAndRefresh();
 #if WINDOWS
-            _captureService.WarmCaptureDevice();
+            _pttCaptureService.WarmCaptureDevice();
 #endif
         }
 
@@ -311,6 +336,118 @@ public sealed class TrayApplicationContext : ApplicationContext
         _sink.SetPasteTarget(hwnd, focus);
     }
 
+    private ToolStripMenuItem BuildTriggerModeMenu()
+    {
+        var root = new ToolStripMenuItem("触发模式（运行时）");
+        root.DropDownItems.Add(CreateModeItem("仅 PTT", VoiceTriggerMode.PttOnly));
+        root.DropDownItems.Add(CreateModeItem("仅唤醒词", VoiceTriggerMode.WakeWordOnly));
+        root.DropDownItems.Add(CreateModeItem("PTT + 唤醒词", VoiceTriggerMode.Both));
+        root.DropDownItems.Add(new ToolStripSeparator());
+        root.DropDownItems.Add(new ToolStripMenuItem(
+            "模拟唤醒（Stub 检测器）",
+            null,
+            OnSimulateWakeWord));
+        return root;
+    }
+
+    private ToolStripMenuItem CreateModeItem(string label, VoiceTriggerMode mode)
+    {
+        return new ToolStripMenuItem(label, null, (_, _) => SetVoiceTriggerMode(mode))
+        {
+            Checked = _voiceTriggerMode == mode,
+        };
+    }
+
+    /// <summary>Runtime mode switch (settings UI will persist this later).</summary>
+    public void SetVoiceTriggerMode(VoiceTriggerMode mode)
+    {
+        if (_voiceTriggerMode == mode)
+        {
+            return;
+        }
+
+        _voiceTriggerMode = mode;
+        _voiceOrchestrator.SetMode(mode);
+        RefreshTriggerModeMenuChecks();
+        UpdateTrayTooltip();
+
+        var status = mode switch
+        {
+            VoiceTriggerMode.PttOnly => "状态: 就绪（PTT）",
+            VoiceTriggerMode.WakeWordOnly => "状态: 监听唤醒词…",
+            VoiceTriggerMode.Both => "状态: PTT + 监听唤醒词",
+            _ => "状态: 就绪",
+        };
+        _statusItem.Text = status;
+        Log.Information("Voice trigger mode changed to {Mode}", mode);
+    }
+
+    private void RefreshTriggerModeMenuChecks()
+    {
+        if (_trayIcon.ContextMenuStrip is null)
+        {
+            return;
+        }
+
+        foreach (ToolStripItem item in _trayIcon.ContextMenuStrip.Items)
+        {
+            if (item is not ToolStripMenuItem { Text: "触发模式（运行时）" } root)
+            {
+                continue;
+            }
+
+            foreach (ToolStripItem sub in root.DropDownItems)
+            {
+                if (sub is not ToolStripMenuItem mi || mi.Text.StartsWith("模拟", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                mi.Checked = mi.Text switch
+                {
+                    "仅 PTT" => _voiceTriggerMode == VoiceTriggerMode.PttOnly,
+                    "仅唤醒词" => _voiceTriggerMode == VoiceTriggerMode.WakeWordOnly,
+                    "PTT + 唤醒词" => _voiceTriggerMode == VoiceTriggerMode.Both,
+                    _ => false,
+                };
+            }
+        }
+    }
+
+    private void OnSimulateWakeWord(object? sender, EventArgs e)
+    {
+        if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
+        {
+            _trayIcon.ShowBalloonTip(
+                4000,
+                "Array Mic",
+                "当前为「仅 PTT」模式。请先在「触发模式」中切换到唤醒词相关模式。",
+                ToolTipIcon.Info);
+            return;
+        }
+
+        if (!_settings.MasterEnabled)
+        {
+            return;
+        }
+
+        Log.Information("Simulating wake-word detection (stub detector)");
+        _wakeDetector.SimulateDetection();
+    }
+
+    private void OnWakeStatusChanged(object? sender, string status)
+    {
+        if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
+        {
+            return;
+        }
+
+        if (!_pttCaptureService.IsPttHeld)
+        {
+            _statusItem.Text = $"状态: {status}";
+        }
+    }
+
     private void OnPttPressed(object? sender, EventArgs e)
     {
         _statusItem.Text = "状态: 录音中…";
@@ -331,7 +468,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         try
         {
-            if (_captureService.IsPttHeld)
+            if (_pttCaptureService.IsPttHeld)
             {
                 _statusItem.Text = "状态: 识别中…";
                 Log.Information("Simulate PTT release (finalize held recording)");
@@ -345,7 +482,7 @@ public sealed class TrayApplicationContext : ApplicationContext
                 }
                 else
                 {
-                    _captureService.SimulateReleaseForDev();
+                    _pttCaptureService.SimulateReleaseForDev();
                 }
 
                 await Task.Delay(300).ConfigureAwait(true);
@@ -389,15 +526,17 @@ public sealed class TrayApplicationContext : ApplicationContext
         Log.Warning("PTT capture empty: {Message}", message);
     }
 
-    private async void OnUtteranceReady(object? sender, AudioUtterance utterance)
+    private async void OnUtteranceReady(object? sender, UtteranceCaptureEventArgs e)
     {
         if (!_settings.MasterEnabled)
         {
             return;
         }
 
+        var utterance = e.Utterance;
         Log.Information(
-            "Utterance ready: {Ms} ms, {Bytes} bytes",
+            "Utterance ready ({Trigger}): {Ms} ms, {Bytes} bytes",
+            e.TriggerKind,
             utterance.Duration.TotalMilliseconds,
             utterance.Pcm16LeMono.Length);
 
@@ -535,12 +674,18 @@ public sealed class TrayApplicationContext : ApplicationContext
         var pttOk = _ptt is not NAudioPushToTalkSource naudio || naudio.IsRegistered;
         var pttLabel = _ptt.HotkeyDisplay;
         var ptt = pttOk ? pttLabel : $"{pttLabel}?";
+        var modeLabel = _voiceTriggerMode switch
+        {
+            VoiceTriggerMode.WakeWordOnly => "唤醒",
+            VoiceTriggerMode.Both => "PTT+唤醒",
+            _ => "PTT",
+        };
         var models = _sherpaComponents?.AsrModelsMissing == true
             ? " ASR缺失"
             : _sherpaComponents?.SpeakerModelMissing == true
                 ? " 无声纹"
                 : string.Empty;
-        _trayIcon.Text = $"Array Mic — PTT:{ptt} 转写:{master}{models}";
+        _trayIcon.Text = $"Array Mic — {modeLabel} {ptt} 转写:{master}{models}";
         if (_trayIcon.Text.Length > 63)
         {
             _trayIcon.Text = _trayIcon.Text[..63];
@@ -549,7 +694,8 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnExit(object? sender, EventArgs e)
     {
-        _captureService.Dispose();
+        _voiceOrchestrator.Dispose();
+        _pttCaptureService.Dispose();
         if (_ptt is IDisposable d)
         {
             d.Dispose();
@@ -574,7 +720,8 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         if (disposing)
         {
-            _captureService.Dispose();
+            _voiceOrchestrator.Dispose();
+            _pttCaptureService.Dispose();
             if (_ptt is IDisposable d)
             {
                 d.Dispose();
