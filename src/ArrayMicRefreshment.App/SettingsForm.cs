@@ -22,6 +22,29 @@ public sealed class SkillOption
     public override string ToString() => Label;
 }
 
+public sealed class TriggerModeOption
+{
+    public string Label { get; }
+    public VoiceTriggerMode Value { get; }
+
+    public TriggerModeOption(string label, VoiceTriggerMode value)
+    {
+        Label = label;
+        Value = value;
+    }
+
+    public override string ToString() => Label;
+}
+
+public static class TriggerModeOptions
+{
+    public static readonly IReadOnlyList<TriggerModeOption> All = new List<TriggerModeOption>
+    {
+        new("PTT（按住热键）", VoiceTriggerMode.Ptt),
+        new("唤醒词", VoiceTriggerMode.WakeWord),
+    };
+}
+
 public static class SkillOptions
 {
     public static readonly IReadOnlyList<SkillOption> All = new List<SkillOption>
@@ -85,6 +108,17 @@ public sealed class SettingsForm : Form
     private readonly TextBox _apiKey = new() { Width = 360, UseSystemPasswordChar = true };
     private readonly TextBox _apiModel = new() { Width = 360 };
     private readonly TextBox _skillsDir = new() { Width = 360 };
+    private readonly ComboBox _triggerMode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
+    private readonly TextBox _wakeWordPhrase = new() { Width = 360 };
+    private readonly Label _wakeWordHint = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(360, 0),
+        ForeColor = SystemColors.GrayText,
+        Text = "唤醒词检测尚未启用；保存后供后续版本使用。",
+    };
+    private Label? _wakeWordLabel;
+    private Control? _wakeWordPanel;
     private readonly HotkeyCaptureTextBox _pttHotkey = new() { Width = 200 };
     private readonly ComboBox _forcedIntent = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
     private readonly ComboBox _onRefineFailure = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
@@ -118,7 +152,12 @@ public sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(520, 820);
+        ClientSize = new Size(540, 860);
+
+        foreach (var opt in TriggerModeOptions.All)
+        {
+            _triggerMode.Items.Add(opt);
+        }
 
         foreach (var opt in SkillOptions.All)
         {
@@ -158,7 +197,7 @@ public sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 19,
+            RowCount = 21,
             Padding = new Padding(12),
             AutoScroll = true,
         };
@@ -169,7 +208,7 @@ public sealed class SettingsForm : Form
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
 
-        layout.RowStyles[18] = new RowStyle(SizeType.Absolute, 56);
+        layout.RowStyles[20] = new RowStyle(SizeType.Absolute, 56);
 
         void AddRow(int row, string label, Control control)
         {
@@ -213,6 +252,19 @@ public sealed class SettingsForm : Form
         AddRow(11, "", _refineEnabled);
         layout.SetColumnSpan(_refineEnabled, 2);
         AddRow(12, "Skills 目录", _skillsDir);
+        AddRow(13, "触发模式", _triggerMode);
+        var wakeWordPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+        };
+        wakeWordPanel.Controls.Add(_wakeWordPhrase);
+        wakeWordPanel.Controls.Add(_wakeWordHint);
+        _wakeWordLabel = new Label { Text = "唤醒词文本", AutoSize = true, Anchor = AnchorStyles.Left };
+        _wakeWordPanel = wakeWordPanel;
+        layout.Controls.Add(_wakeWordLabel, 0, 14);
+        layout.Controls.Add(wakeWordPanel, 1, 14);
         var hotkeyPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         hotkeyPanel.Controls.Add(_pttHotkey);
         hotkeyPanel.Controls.Add(new Label
@@ -222,15 +274,16 @@ public sealed class SettingsForm : Form
             ForeColor = SystemColors.GrayText,
             MaximumSize = new Size(360, 0),
         });
-        AddRow(13, "PTT 热键", hotkeyPanel);
-        AddRow(14, "整理风格", _forcedIntent);
-        AddRow(15, "整理失败时", _onRefineFailure);
-        AddRow(16, "附加叠加 skill", _optionalOverlaySkills);
-        AddRow(17, "", _testConnection);
+        AddRow(15, "PTT 热键", hotkeyPanel);
+        AddRow(16, "整理风格", _forcedIntent);
+        AddRow(17, "整理失败时", _onRefineFailure);
+        AddRow(18, "附加叠加 skill", _optionalOverlaySkills);
+        AddRow(19, "", _testConnection);
         layout.SetColumnSpan(_testConnection, 2);
-        AddRow(18, "", _testResult);
+        AddRow(20, "", _testResult);
         layout.SetColumnSpan(_testResult, 2);
 
+        _triggerMode.SelectedIndexChanged += (_, _) => UpdateWakeWordUiVisibility();
         _refineEnabled.CheckedChanged += OnRefineEnabledChanged;
         _testConnection.Click += OnTestConnectionClick;
         _currentUserCombo.SelectedIndexChanged += OnCurrentUserChanged;
@@ -288,6 +341,7 @@ public sealed class SettingsForm : Form
         CancelButton = cancel;
 
         LoadFromSettings();
+        UpdateWakeWordUiVisibility();
         ReloadOptionalSkillsList();
         LoadDeviceCombo();
         ReloadSpeakerUsers();
@@ -623,6 +677,19 @@ public sealed class SettingsForm : Form
                 return false;
             }
 
+            var triggerMode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.Ptt;
+            if (triggerMode == VoiceTriggerMode.WakeWord && string.IsNullOrWhiteSpace(_wakeWordPhrase.Text))
+            {
+                MessageBox.Show(
+                    this,
+                    "已选择「唤醒词」触发模式，请填写唤醒词文本。",
+                    "唤醒词",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                _wakeWordPhrase.Focus();
+                return false;
+            }
+
             // Block saving if user selected a model that is not installed
             if (_asrModelCombo.SelectedItem is AsrModelInfo selectedModel)
             {
@@ -703,11 +770,31 @@ public sealed class SettingsForm : Form
         }
     }
 
+    private void UpdateWakeWordUiVisibility()
+    {
+        var wake = (_triggerMode.SelectedItem as TriggerModeOption)?.Value == VoiceTriggerMode.WakeWord;
+        if (_wakeWordLabel is not null)
+        {
+            _wakeWordLabel.Visible = wake;
+        }
+
+        if (_wakeWordPanel is not null)
+        {
+            _wakeWordPanel.Visible = wake;
+        }
+
+        _wakeWordPhrase.Enabled = wake;
+    }
+
     private void LoadFromSettings()
     {
         LoadCurrentPresetIntoUi();
         _refineEnabled.Checked = Settings.PromptRefineEnabled;
         _skillsDir.Text = Settings.SkillsDirectory;
+        var trigger = TriggerModeOptions.All.FirstOrDefault(x => x.Value == Settings.TriggerMode)
+            ?? TriggerModeOptions.All.First(x => x.Value == VoiceTriggerMode.Ptt);
+        _triggerMode.SelectedItem = trigger;
+        _wakeWordPhrase.Text = Settings.WakeWordPhrase;
         _pttHotkey.HotkeyExpression = Settings.PttHotkey;
         var forced = SkillOptions.All.FirstOrDefault(x => x.Value == Settings.ForcedIntent)
             ?? SkillOptions.All.First(x => x.Value == PromptIntent.PlainText);
@@ -888,6 +975,8 @@ public sealed class SettingsForm : Form
             SelectedDeviceId = deviceId,
             CurrentSpeakerUserId = speakerUserId,
             PttHotkey = _pttHotkey.HotkeyExpression,
+            TriggerMode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.Ptt,
+            WakeWordPhrase = _wakeWordPhrase.Text.Trim(),
             SkillsDirectory = _skillsDir.Text.Trim(),
             ModelsDirectory = Settings.ModelsDirectory,
             SpeakerVerifyThreshold = (float)_speakerThreshold.Value,

@@ -14,6 +14,8 @@ internal static class SettingsCopier
         target.SelectedDeviceId = source.SelectedDeviceId;
         target.CurrentSpeakerUserId = source.CurrentSpeakerUserId;
         target.PttHotkey = source.PttHotkey;
+        target.TriggerMode = source.TriggerMode;
+        target.WakeWordPhrase = source.WakeWordPhrase;
         target.SkillsDirectory = source.SkillsDirectory;
         target.ModelsDirectory = source.ModelsDirectory;
         target.SelectedAsrModelId = source.SelectedAsrModelId;
