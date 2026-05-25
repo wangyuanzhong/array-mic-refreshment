@@ -99,7 +99,6 @@ public sealed class VoicePipeline
         Log.Information("ASR raw transcript: {Raw}", raw);
 
         var output = raw;
-        var refineAttempted = false;
         string? refineSkipReason = null;
 
         // DIAGNOSTIC: log the exact values that determine whether refine runs
@@ -112,7 +111,6 @@ public sealed class VoicePipeline
 
         if (_settings.PromptRefineEnabled && _promptRefiner.IsEnabled)
         {
-            refineAttempted = true;
             Log.Information("Prompt refine enabled. Starting refine pipeline...");
 
             try
@@ -137,7 +135,7 @@ public sealed class VoicePipeline
                 var refined = await _promptRefiner.RefineAsync(raw, intent, cancellationToken).ConfigureAwait(false);
                 Log.Information("Prompt refined completed. Input={RawLen} chars, Output={RefinedLen} chars", raw.Length, refined?.Length ?? 0);
 
-                // Guard: if LLM returns empty/whitespace, treat as failure and fallback to raw
+                // Failure only when the LLM returned no usable text (not when output equals raw).
                 if (string.IsNullOrWhiteSpace(refined))
                 {
                     Log.Warning("Prompt refine returned empty/whitespace. Falling back to raw text.");
@@ -147,11 +145,24 @@ public sealed class VoicePipeline
                         VoicePipelineStatus.EmittedRawFallback,
                         $"[整理返回空，使用原文] {output}",
                         _asr.ModelId,
-                        true,
+                        false,
                         "返回空内容");
                 }
 
                 output = refined;
+                var unchanged = string.Equals(output, raw, StringComparison.Ordinal);
+                if (unchanged)
+                {
+                    Log.Debug("Prompt refine succeeded: LLM returned non-empty text identical to ASR raw.");
+                }
+
+                await _sink.EmitAsync(output, _settings.PasteToCaretEnabled, cancellationToken).ConfigureAwait(false);
+                return new VoicePipelineOutcome(
+                    VoicePipelineStatus.Emitted,
+                    output,
+                    _asr.ModelId,
+                    RefineApplied: true,
+                    RefineStatus: "成功");
             }
             catch (Exception ex)
             {
@@ -168,8 +179,8 @@ public sealed class VoicePipeline
                         VoicePipelineStatus.EmittedRawFallback,
                         $"[整理失败，使用原文] {output}",
                         _asr.ModelId,
-                        true,
-                        $"失败: {errorDetail}");
+                        RefineApplied: false,
+                        RefineStatus: $"失败: {errorDetail}");
                 }
 
                 throw;
@@ -190,14 +201,11 @@ public sealed class VoicePipeline
 
         await _sink.EmitAsync(output, _settings.PasteToCaretEnabled, cancellationToken).ConfigureAwait(false);
 
-        var refineStatus = refineAttempted
-            ? (output == raw ? "失败-使用原文" : "成功")
-            : refineSkipReason ?? "未启用";
         return new VoicePipelineOutcome(
             VoicePipelineStatus.Emitted,
             output,
             _asr.ModelId,
-            refineAttempted,
-            refineStatus);
+            RefineApplied: false,
+            RefineStatus: refineSkipReason ?? "未启用");
     }
 }

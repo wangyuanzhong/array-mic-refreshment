@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.1 — 2026-05-25
+
+### Fixed
+- 语音整理成功/失败改为依据 LLM 是否返回非空文本（与 ASR 原文相同也算成功）
+- 纯文本整理使用短 prompt（`plain-text-polish.md`）并附带 `/no_think`（Qwen3 / LM Studio）
+
+### Build
+- 重新打包 `dist\ArrayMicRefreshment-self-contained` 与 `dist\ArrayMicRefreshment-ready-new`（含最新 skills + models）
+
 ## v0.1 — 2026-05-24
 
 ### Added

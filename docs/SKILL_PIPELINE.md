@@ -1,6 +1,8 @@
 # 多 Skill 协同管线（v0.1）
 
-除下方「第三方 prompt 栈」外，设置页可选 **纯文本整理**（`PromptIntent.PlainText`）：使用应用内置中文润色 prompt，不读 `skills/upstream/`，适合仅需去口误、加标点的场景。
+设置页 **纯文本整理**（`PromptIntent.PlainText`）使用精简 prompt：`skills/upstream/array-mic/plain-text-polish.md`（与代码内 `DefaultPolishPrompt` 同步）。为兼容 **Qwen3 / Qwen3.5** 本地推理，system 与 user 消息末尾均附加官方软开关 **`/no_think`**（禁用 thinking，避免占满 Max Tokens 导致 `content` 为空）。不加载 danielrosehill 长栈。
+
+其他整理风格仍走下方「第三方 prompt 栈」。
 
 ## 原则
 

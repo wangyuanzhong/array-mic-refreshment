@@ -58,6 +58,32 @@ public class VoicePipelineTests
     }
 
     [Fact]
+    public async Task RefineSucceeded_when_llm_returns_same_as_raw()
+    {
+        var sink = new RecordingSink();
+        var pipeline = new VoicePipeline(
+            new AppSettings
+            {
+                MasterEnabled = true,
+                PromptRefineEnabled = true,
+                ForcedIntent = PromptIntent.PlainText,
+            },
+            new StubSpeakerGate { AlwaysPass = true },
+            new StubUtteranceAsr(),
+            new StubIntentRouter(),
+            new EchoPromptRefiner(),
+            sink);
+
+        var outcome = await pipeline.ProcessUtteranceAsync(TestAudioHelper.CreateUtterance(), CancellationToken.None);
+
+        Assert.Equal(VoicePipelineStatus.Emitted, outcome.Status);
+        Assert.True(outcome.RefineApplied);
+        Assert.Equal("成功", outcome.RefineStatus);
+        var (text, _) = Assert.Single(sink.Emitted);
+        Assert.Contains("ASR stub", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task RefineDisabled_emits_raw_transcript()
     {
         var sink = new RecordingSink();
@@ -92,5 +118,16 @@ public class VoicePipelineTests
             Emitted.Add((textToClipboard, pasteToCaret));
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>Returns LLM text unchanged (non-empty) to simulate polish-with-no-edits.</summary>
+    private sealed class EchoPromptRefiner : IPromptRefiner
+    {
+        public bool IsEnabled => true;
+
+        public Task<string> RefineAsync(string raw, PromptIntent intent, CancellationToken cancellationToken) =>
+            Task.FromResult(raw);
+
+        public void ApplySettings(AppSettings settings) { }
     }
 }

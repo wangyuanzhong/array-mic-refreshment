@@ -14,17 +14,22 @@ public sealed class OpenAiCompatiblePromptRefiner : IPromptRefiner
     /// transcript cleaner — remove filler words, fix grammar, add punctuation —
     /// and *never* answer the user's question.
     /// </summary>
+    /// <summary>
+    /// Keep in sync with <c>skills/upstream/array-mic/plain-text-polish.md</c> (prompt-only; not program logic).
+    /// </summary>
     private const string DefaultPolishPrompt =
-        "你是一位语音转写文本整理专家。你的唯一任务是将用户通过语音识别输入的口语化文本，整理成通顺、规范、适合直接使用的书面语。\n\n" +
-        "整理规则（按优先级执行）：\n" +
-        "1. 去除所有口误、重复词、口头禅和语气词（例如：嗯、啊、呃、那个、就是、然后然后）。\n" +
-        "2. 修正语法错误，调整语序，使句子通顺流畅。\n" +
-        "3. 添加适当的标点符号（逗号、句号、顿号、问号、感叹号等）。\n" +
-        "4. 保持原文的核心意思和信息完整性，严禁添加原文没有的新内容，严禁删减原文包含的重要信息。\n" +
-        "5. 将过长或结构混乱的句子适当分段，提高可读性。\n" +
-        "6. 如果原文包含代码片段、技术术语、专有名词、人名地名，保持其原样不变，不要翻译或改写。\n" +
-        "7. 去除语音中常见的自我修正（例如：\"不对，我是说……\"），直接保留最终表达的意思。\n\n" +
-        "【极其重要】你只输出整理后的纯文本内容。不要回答用户的问题，不要提供解释、建议、评论或任何额外内容。不要加引号包裹输出。";
+        "You clean speech-to-text transcripts.\n\n" +
+        "Rules:\n" +
+        "- Remove fillers, repetitions, and false starts (e.g. 嗯/啊/那个/就是).\n" +
+        "- Fix punctuation and obvious ASR/word errors; keep grammar natural.\n" +
+        "- Preserve meaning, tone, language, names, numbers, and code—do not translate or add facts.\n" +
+        "- For short input (one sentence or a few words), change only what is necessary—no headings, no bullet lists, no expansion.\n" +
+        "- Do not reason, plan, or explain. Output the cleaned line directly.\n\n" +
+        "Output ONLY the cleaned text. No quotes, labels, markdown, or commentary.\n\n" +
+        "/no_think";
+
+    /// <summary>Qwen3 hybrid models: per-turn soft switch to skip reasoning (official).</summary>
+    private const string QwenNoThinkSuffix = "\n/no_think";
 
     public OpenAiCompatiblePromptRefiner(AppSettings settings, SkillsCatalog catalog, HttpMessageHandler? handler = null)
     {
@@ -107,10 +112,16 @@ public sealed class OpenAiCompatiblePromptRefiner : IPromptRefiner
         Log.Debug("PromptRefiner systemPromptLength={SysLen}, rawLength={RawLen}",
             systemPrompt?.Length ?? 0, raw?.Length ?? 0);
 
+        // Qwen3 / Qwen3.5: /no_think on the user turn is the most reliable way to disable thinking
+        // in LM Studio (see QwenLM/Qwen3 discussions). PlainText always appends it.
+        var userContent = intent == PromptIntent.PlainText
+            ? raw.TrimEnd() + QwenNoThinkSuffix
+            : raw;
+
         var messages = new List<(string Role, string Content)>
         {
             ("system", systemPrompt),
-            ("user", raw),
+            ("user", userContent),
         };
 
         var refined = await _client.CompleteAsync(messages, cancellationToken).ConfigureAwait(false);

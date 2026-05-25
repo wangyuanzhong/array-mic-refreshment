@@ -17,9 +17,9 @@ router:
 specialists:
   plain-text:
     name: "纯文本整理"
-    description: "去除口误、加标点、修正语序，输出适合人类阅读的书面语"
+    description: "去除口误、加标点、修正语序，输出适合人类阅读的书面语（短 prompt，省 token）"
     stack:
-      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
+      - upstream/array-mic/plain-text-polish.md
 
   general-ai:
     name: "通用 AI Prompt"
