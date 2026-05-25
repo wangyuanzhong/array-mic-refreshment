@@ -49,7 +49,7 @@ public class JsonSettingsStoreTests
             var store = new JsonSettingsStore(path);
             var original = new AppSettings
             {
-                TriggerMode = VoiceTriggerMode.WakeWord,
+                TriggerMode = VoiceTriggerMode.WakeWordOnly,
                 WakeWordPhrase = "开始听写",
                 PttHotkey = "Ctrl+Alt+Space",
             };
@@ -57,7 +57,7 @@ public class JsonSettingsStoreTests
             store.Save(original);
             var loaded = store.Load();
 
-            Assert.Equal(VoiceTriggerMode.WakeWord, loaded.TriggerMode);
+            Assert.Equal(VoiceTriggerMode.WakeWordOnly, loaded.TriggerMode);
             Assert.Equal("开始听写", loaded.WakeWordPhrase);
             Assert.Equal("Ctrl+Alt+Space", loaded.PttHotkey);
         }
@@ -87,7 +87,7 @@ public class JsonSettingsStoreTests
 
             var loaded = new JsonSettingsStore(path).Load();
 
-            Assert.Equal(VoiceTriggerMode.Ptt, loaded.TriggerMode);
+            Assert.Equal(VoiceTriggerMode.PttOnly, loaded.TriggerMode);
             Assert.Equal("小助手", loaded.WakeWordPhrase);
             Assert.Equal("Ctrl+Shift+Space", loaded.PttHotkey);
         }

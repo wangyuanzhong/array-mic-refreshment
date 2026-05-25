@@ -30,6 +30,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     public TrayApplicationContext()
     {
         _settings = _settingsStore.Load();
+        _voiceTriggerMode = NormalizePersistedMode(_settings.TriggerMode);
         _sink = new ClipboardTranscriptSink(() => _settingsWindowHandle, SynchronizationContext.Current);
 
         _masterSwitchItem = new ToolStripMenuItem("启用语音转写", null, OnToggleMaster)
@@ -308,6 +309,12 @@ public sealed class TrayApplicationContext : ApplicationContext
                 }
             }
 
+            var persistedMode = NormalizePersistedMode(_settings.TriggerMode);
+            if (_voiceTriggerMode != persistedMode)
+            {
+                SetVoiceTriggerMode(persistedMode);
+            }
+
             _pttCaptureService.InvalidateCaptureDevice();
             PersistAndRefresh();
 #if WINDOWS
@@ -381,6 +388,14 @@ public sealed class TrayApplicationContext : ApplicationContext
         _statusItem.Text = status;
         Log.Information("Voice trigger mode changed to {Mode}", mode);
     }
+
+    private static VoiceTriggerMode NormalizePersistedMode(VoiceTriggerMode mode) =>
+        mode switch
+        {
+            VoiceTriggerMode.WakeWordOnly => VoiceTriggerMode.WakeWordOnly,
+            VoiceTriggerMode.Both => VoiceTriggerMode.Both,
+            _ => VoiceTriggerMode.PttOnly,
+        };
 
     private void RefreshTriggerModeMenuChecks()
     {

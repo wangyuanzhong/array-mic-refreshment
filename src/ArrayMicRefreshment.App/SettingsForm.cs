@@ -40,8 +40,8 @@ public static class TriggerModeOptions
 {
     public static readonly IReadOnlyList<TriggerModeOption> All = new List<TriggerModeOption>
     {
-        new("PTT（按住热键）", VoiceTriggerMode.Ptt),
-        new("唤醒词", VoiceTriggerMode.WakeWord),
+        new("PTT（按住热键）", VoiceTriggerMode.PttOnly),
+        new("唤醒词", VoiceTriggerMode.WakeWordOnly),
     };
 }
 
@@ -677,8 +677,8 @@ public sealed class SettingsForm : Form
                 return false;
             }
 
-            var triggerMode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.Ptt;
-            if (triggerMode == VoiceTriggerMode.WakeWord && string.IsNullOrWhiteSpace(_wakeWordPhrase.Text))
+            var triggerMode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.PttOnly;
+            if (triggerMode == VoiceTriggerMode.WakeWordOnly && string.IsNullOrWhiteSpace(_wakeWordPhrase.Text))
             {
                 MessageBox.Show(
                     this,
@@ -772,7 +772,7 @@ public sealed class SettingsForm : Form
 
     private void UpdateWakeWordUiVisibility()
     {
-        var wake = (_triggerMode.SelectedItem as TriggerModeOption)?.Value == VoiceTriggerMode.WakeWord;
+        var wake = (_triggerMode.SelectedItem as TriggerModeOption)?.Value == VoiceTriggerMode.WakeWordOnly;
         if (_wakeWordLabel is not null)
         {
             _wakeWordLabel.Visible = wake;
@@ -792,7 +792,7 @@ public sealed class SettingsForm : Form
         _refineEnabled.Checked = Settings.PromptRefineEnabled;
         _skillsDir.Text = Settings.SkillsDirectory;
         var trigger = TriggerModeOptions.All.FirstOrDefault(x => x.Value == Settings.TriggerMode)
-            ?? TriggerModeOptions.All.First(x => x.Value == VoiceTriggerMode.Ptt);
+            ?? TriggerModeOptions.All.First(x => x.Value == VoiceTriggerMode.PttOnly);
         _triggerMode.SelectedItem = trigger;
         _wakeWordPhrase.Text = Settings.WakeWordPhrase;
         _pttHotkey.HotkeyExpression = Settings.PttHotkey;
@@ -975,7 +975,7 @@ public sealed class SettingsForm : Form
             SelectedDeviceId = deviceId,
             CurrentSpeakerUserId = speakerUserId,
             PttHotkey = _pttHotkey.HotkeyExpression,
-            TriggerMode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.Ptt,
+            TriggerMode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.PttOnly,
             WakeWordPhrase = _wakeWordPhrase.Text.Trim(),
             SkillsDirectory = _skillsDir.Text.Trim(),
             ModelsDirectory = Settings.ModelsDirectory,

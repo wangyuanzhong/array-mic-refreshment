@@ -151,7 +151,7 @@ public sealed class VoiceCaptureOrchestratorTests
         detector.SimulateDetection();
         await Task.Delay(120);
         vad.TriggerEndOfSpeech = true;
-        await Task.Delay(200);
+        await Task.Delay(500);
 
         Assert.NotNull(captured);
         Assert.Equal(VoiceTriggerKind.WakeWord, captured!.TriggerKind);

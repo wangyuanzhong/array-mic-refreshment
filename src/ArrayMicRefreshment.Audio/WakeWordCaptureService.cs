@@ -10,7 +10,7 @@ namespace ArrayMicRefreshment.Audio;
 /// </summary>
 public sealed class WakeWordCaptureService : IWakeWordCaptureService
 {
-    public static readonly TimeSpan DefaultPostWakeSilenceTimeout = TimeSpan.FromSeconds(8);
+    public static readonly TimeSpan DefaultPostWakeSilenceTimeout = TimeSpan.FromSeconds(3);
     public static readonly TimeSpan DefaultPostWakeMaxSession = TimeSpan.FromSeconds(60);
 
     private readonly AppSettings _settings;
@@ -30,6 +30,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     private readonly List<byte> _dictationBuffer = new();
     private DateTimeOffset _dictationStartedUtc;
     private DateTimeOffset _lastSpeechUtc;
+    private DateTimeOffset? _vadEndCandidateUtc;
     private System.Threading.Timer? _sessionTimer;
 
     public WakeWordCaptureService(
@@ -172,6 +173,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _vad.Reset();
         _dictationStartedUtc = DateTimeOffset.UtcNow;
         _lastSpeechUtc = _dictationStartedUtc;
+        _vadEndCandidateUtc = null;
         _dictationActive = true;
         _dictationStream!.Start();
 
@@ -223,11 +225,22 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
                 _dictationStream.Channels,
                 _dictationStream.BitsPerSample);
             var samples = MemoryMarshal.Cast<byte, short>(mono16k.AsSpan());
-            if (_vad.IsEndOfSpeech(samples, PcmResampler.TargetSampleRate))
+            var vadDetectedEnd = _vad.IsEndOfSpeech(samples, PcmResampler.TargetSampleRate);
+            if (vadDetectedEnd)
             {
-                Log.Information("Wake dictation VAD end-of-speech");
-                EndDictationSession();
-                return;
+                _vadEndCandidateUtc ??= now;
+                if (now - _vadEndCandidateUtc >= _silenceTimeout)
+                {
+                    Log.Information(
+                        "Wake dictation VAD end confirmed after {SilenceSeconds}s",
+                        _silenceTimeout.TotalSeconds);
+                    EndDictationSession();
+                    return;
+                }
+            }
+            else
+            {
+                _vadEndCandidateUtc = null;
             }
 
             var rms = ComputeRms16Le(mono16k);
@@ -235,10 +248,13 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             {
                 _lastSpeechUtc = now;
             }
-            else if (now - _lastSpeechUtc >= _silenceTimeout)
+            else
             {
-                Log.Information("Wake dictation silence timeout after speech");
-                EndDictationSession();
+                if (now - _lastSpeechUtc >= _silenceTimeout)
+                {
+                    Log.Information("Wake dictation silence timeout after speech ({SilenceSeconds}s)", _silenceTimeout.TotalSeconds);
+                    EndDictationSession();
+                }
             }
         }
     }
@@ -253,6 +269,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _sessionTimer?.Dispose();
         _sessionTimer = null;
         _dictationActive = false;
+        _vadEndCandidateUtc = null;
 
         if (_dictationStream is not null)
         {
@@ -311,6 +328,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _sessionTimer?.Dispose();
         _sessionTimer = null;
         _dictationActive = false;
+        _vadEndCandidateUtc = null;
         _dictationBuffer.Clear();
         StopDictationStream();
     }
