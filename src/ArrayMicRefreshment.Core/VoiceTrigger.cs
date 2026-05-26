@@ -67,4 +67,10 @@ public interface IWakeWordDetector : IDisposable
 
     /// <summary>Adjust streaming AGC + KWS threshold for quiet/loud environments.</summary>
     void ApplyWakeSensitivity(WakeWordSensitivity sensitivity);
+
+    /// <summary>Re-open the KWS stream after post-wake dictation (default: <see cref="Start"/>).</summary>
+    void RearmAfterDictation() => Start();
+
+    /// <summary>Emit a periodic listen-path diagnostic snapshot (no-op for test doubles).</summary>
+    void FlushPeriodicDiagnostics(WakeWordListenStats listenStats) { }
 }

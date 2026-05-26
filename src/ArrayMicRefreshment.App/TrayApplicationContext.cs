@@ -95,27 +95,6 @@ public sealed class TrayApplicationContext : ApplicationContext
             winPtt.ForegroundAtRelease += RememberPasteTarget;
         }
 
-        _ptt.PttPressed += OnPttPressed;
-        _ptt.PttReleased += OnPttReleased;
-
-        var pttRegistered = _ptt is NAudioPushToTalkSource { IsRegistered: true };
-        Log.Information(
-            "PTT hotkey loaded from settings: {Saved} → registered as {Active} (ok={Ok})",
-            _settings.PttHotkey,
-            _ptt.HotkeyDisplay,
-            pttRegistered);
-
-        var startupPreset = _settings.CurrentPreset;
-        Log.Information(
-            "[DIAGNOSTIC] Startup settings: PromptRefineEnabled={RefineEnabled}, " +
-            "Preset={PresetName}, Url={ApiUrl}, Model={ApiModel}",
-            _settings.PromptRefineEnabled,
-            startupPreset.Name,
-            startupPreset.ApiBaseUrl,
-            startupPreset.ApiModel);
-
-        _pipeline = BuildPipeline(_settings);
-
         var deviceEnumerator = new NAudioDeviceEnumerator();
         var captureFactory = new NAudioCaptureStreamFactory();
         var vad = new SileroVoiceActivityDetector(_settings.ModelsDirectory);
@@ -128,6 +107,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             vad,
             pttCaptureAllowed: IsPttCaptureEnabled,
             keepStandbyCaptureBetweenSessions: () => _voiceTriggerMode == VoiceTriggerMode.PttOnly,
+            tryCaptureHandoffOnPress: TryHandoffWakeStreamForPtt,
             takePreRollOnPress: TakeWakePreRollForPtt,
             beforeCaptureStarts: PauseWakeListeningForPtt,
             afterCaptureEnds: ResumeWakeListeningAfterPtt);
@@ -154,6 +134,28 @@ public sealed class TrayApplicationContext : ApplicationContext
         _voiceOrchestrator.CaptureEmpty += OnCaptureEmpty;
         _voiceOrchestrator.WakeStatusChanged += OnWakeStatusChanged;
         _voiceOrchestrator.WakeWordActivated += OnWakeWordActivated;
+
+        // Subscribe after PttCaptureService so capture starts before UI phase updates.
+        _ptt.PttPressed += OnPttPressed;
+        _ptt.PttReleased += OnPttReleased;
+
+        var pttRegistered = _ptt is NAudioPushToTalkSource { IsRegistered: true };
+        Log.Information(
+            "PTT hotkey loaded from settings: {Saved} → registered as {Active} (ok={Ok})",
+            _settings.PttHotkey,
+            _ptt.HotkeyDisplay,
+            pttRegistered);
+
+        var startupPreset = _settings.CurrentPreset;
+        Log.Information(
+            "[DIAGNOSTIC] Startup settings: PromptRefineEnabled={RefineEnabled}, " +
+            "Preset={PresetName}, Url={ApiUrl}, Model={ApiModel}",
+            _settings.PromptRefineEnabled,
+            startupPreset.Name,
+            startupPreset.ApiBaseUrl,
+            startupPreset.ApiModel);
+
+        _pipeline = BuildPipeline(_settings);
 
         Log.Information("Voice capture orchestrator started (mode={Mode})", _voiceTriggerMode);
 
@@ -573,34 +575,48 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void WarmAudioCaptureIfNeeded()
     {
-        if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
+        if (!IsPttCaptureEnabled())
         {
-            _pttCaptureService.WarmCaptureDevice();
+            return;
         }
+
+        _pttCaptureService.WarmCaptureDevice();
     }
 
     private void RefreshAudioCaptureAfterSettings()
     {
-        if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
+        if (IsPttCaptureEnabled())
         {
             _pttCaptureService.StartStandbyListeningIfNeeded();
-            return;
-        }
-
-        _pttCaptureService.StopStandbyListening();
-        if (_voiceOrchestrator.WakeCapture is WakeWordCaptureService wakeCapture)
-        {
-            wakeCapture.RestartListening();
         }
         else
         {
-            _voiceOrchestrator.WakeCapture.StopListening();
-            _voiceOrchestrator.WakeCapture.StartListening();
+            _pttCaptureService.StopStandbyListening();
+        }
+
+        if (_voiceTriggerMode is VoiceTriggerMode.WakeWordOnly or VoiceTriggerMode.Both)
+        {
+            if (_voiceOrchestrator.WakeCapture is WakeWordCaptureService wakeCapture)
+            {
+                wakeCapture.RestartListening();
+            }
+            else
+            {
+                _voiceOrchestrator.WakeCapture.StopListening();
+                _voiceOrchestrator.WakeCapture.StartListening();
+            }
         }
     }
 
     private void PauseWakeListeningForPtt()
     {
+        if (_voiceTriggerMode == VoiceTriggerMode.Both
+            && _voiceOrchestrator.WakeCapture is WakeWordCaptureService { IsListening: false })
+        {
+            // Stream already transferred via TryHandoffStreamForPtt.
+            return;
+        }
+
         var wake = _voiceOrchestrator.WakeCapture;
         if (!wake.IsListening && !wake.IsDictationActive)
         {
@@ -610,6 +626,28 @@ public sealed class TrayApplicationContext : ApplicationContext
         Log.Information("Releasing wake mic for PTT (mode={Mode})", _voiceTriggerMode);
         wake.ReleaseMicForPtt();
         _wakePausedForPtt = _voiceTriggerMode == VoiceTriggerMode.Both;
+    }
+
+    private PttCaptureHandoff? TryHandoffWakeStreamForPtt()
+    {
+        if (_voiceTriggerMode != VoiceTriggerMode.Both)
+        {
+            return null;
+        }
+
+        if (_voiceOrchestrator.WakeCapture is WakeWordCaptureService wakeCapture)
+        {
+            var handoff = wakeCapture.TryHandoffStreamForPtt();
+            if (handoff is not null)
+            {
+                _wakePausedForPtt = true;
+                Log.Information("Wake listen stream handed off to PTT (preRoll={Bytes} bytes)", handoff.PreRollNativePcm.Length);
+            }
+
+            return handoff;
+        }
+
+        return null;
     }
 
     private byte[]? TakeWakePreRollForPtt()
@@ -756,6 +794,11 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void ApplyWakeStatusFeedback(string status)
     {
+        if (_pttCaptureService.IsPttHeld)
+        {
+            return;
+        }
+
         switch (status)
         {
             case "识别中…":
@@ -796,8 +839,13 @@ public sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        RunOnUiSync(() =>
+        RunOnUi(() =>
         {
+            if (!_pttCaptureService.IsPttHeld)
+            {
+                return;
+            }
+
             _statusItem.Text = "状态: 录音中…";
             _feedback.SetPhase(VoiceActivityPhase.Recording, "录音中…");
         });
@@ -924,6 +972,11 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         RunOnUi(() =>
         {
+            if (_pttCaptureService.IsPttHeld)
+            {
+                return;
+            }
+
             _statusItem.Text = "状态: 识别中…";
             _feedback.SetPhase(VoiceActivityPhase.Recognizing, "识别中…");
         });
@@ -963,7 +1016,16 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         var capturedOutcome = outcome;
         var capturedTrigger = e.TriggerKind;
-        RunOnUi(() => ApplyUtteranceOutcome(capturedOutcome, capturedTrigger));
+        RunOnUi(() =>
+        {
+            if (_pttCaptureService.IsPttHeld)
+            {
+                Log.Debug("Skipping utterance outcome UI — PTT held for a new recording");
+                return;
+            }
+
+            ApplyUtteranceOutcome(capturedOutcome, capturedTrigger);
+        });
     }
 
     private void ApplyUtteranceOutcome(VoicePipelineOutcome outcome, VoiceTriggerKind triggerKind)

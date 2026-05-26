@@ -17,7 +17,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     public static readonly TimeSpan DefaultPostWakeMaxCommand = TimeSpan.FromSeconds(12);
 
     private const int SessionPollMs = 25;
-    private const int PreRollBytes = 96_000;
+    private const int PreRollBytes = 288_000;
     private const int VadEndPollsRequired = 3;
     private const int MinSilenceBeforeVadEndMs = 600;
     private const double ExtendSpeechThresholdFactor = 0.30;
@@ -114,6 +114,37 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         }
     }
 
+    /// <summary>
+    /// Transfer the live listen capture stream to PTT without closing/reopening the mic (Both mode).
+    /// </summary>
+    public PttCaptureHandoff? TryHandoffStreamForPtt()
+    {
+        lock (_gate)
+        {
+            if (!_listening || _dictationActive || _stream is null)
+            {
+                return null;
+            }
+
+            _detector.Stop();
+            _listening = false;
+            var preRoll = _preRoll.Snapshot();
+            var stream = _stream;
+            var deviceId = _activeDeviceId ?? string.Empty;
+            stream.DataAvailable -= OnCaptureData;
+            _stream = null;
+            _activeDeviceId = null;
+            _preRoll.Clear();
+            _totalListenBytes = 0;
+
+            Log.Information(
+                "[WAKE-DIAG] capture stream handoff to PTT (preRoll={PreRollBytes} bytes, device={Device})",
+                preRoll.Length,
+                deviceId);
+            return new PttCaptureHandoff(stream, deviceId, preRoll);
+        }
+    }
+
     private static TimeSpan ResolveSilenceTimeout(AppSettings settings)
     {
         var ms = Math.Clamp(settings.WakeCommandSilenceMs, 800, 8000);
@@ -152,11 +183,29 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
 
                 _preRoll.Clear();
                 _totalListenBytes = 0;
+                _diagChunksFed = 0;
+                _diagChunksSkippedNotListening = 0;
+                _diagChunksSkippedDictation = 0;
+                _diagWindowCaptureBytes = 0;
+                _listenPeakRms = 0;
+                _listenSessionStartedUtc = DateTimeOffset.UtcNow;
+                _diagDeviceName = device.DisplayName;
+                _diagDeviceSampleRate = device.DefaultSampleRate;
+                _diagDeviceChannels = device.Channels;
                 EnsureCaptureStream(device);
                 _stream!.Start();
                 _detector.Start();
                 _listening = true;
                 RaiseStatus("监听唤醒词…");
+                Log.Information(
+                    "[WAKE-DIAG] listen session started (detector={DetectorId}, phrase={Phrase}, sensitivity={Sensitivity}, device={Device}, deviceRate={Rate}Hz, streamRate={StreamRate}Hz, channels={Channels})",
+                    _detector.DetectorId,
+                    _settings.WakeWordPhrase,
+                    _settings.WakeWordSensitivity,
+                    device.DisplayName,
+                    device.DefaultSampleRate,
+                    _stream.SampleRate,
+                    _stream.Channels);
                 Log.Information(
                     "Wake-word listening started (detector={DetectorId}, device={Device})",
                     _detector.DetectorId,
@@ -198,6 +247,11 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             _listening = false;
             _preRoll.Clear();
             _totalListenBytes = 0;
+            Log.Information(
+                "[WAKE-DIAG] wake mic released for PTT (dictationActive={Dictation}, listenBytes={Bytes}, chunksFed={Chunks})",
+                _dictationActive,
+                _totalListenBytes,
+                _diagChunksFed);
             Log.Information("Wake mic released for PTT (dictation discarded)");
         }
     }
@@ -267,6 +321,15 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         StopCaptureStream();
         _listening = false;
         _preRoll.Clear();
+        var listenDuration = _listenSessionStartedUtc == default
+            ? TimeSpan.Zero
+            : DateTimeOffset.UtcNow - _listenSessionStartedUtc;
+        Log.Information(
+            "[WAKE-DIAG] listen session stopped (finalizeDictation={Finalize}, duration={Duration:F1}s, bytes={Bytes}, chunksFed={Chunks})",
+            finalizeDictation,
+            listenDuration.TotalSeconds,
+            _totalListenBytes,
+            _diagChunksFed);
         _totalListenBytes = 0;
         RaiseStatus("唤醒监听已停止");
         Log.Information("Wake-word listening stopped");
@@ -279,10 +342,20 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         {
             if (!_listening || _dictationActive)
             {
+                Log.Debug(
+                    "[WAKE-DIAG] wake event ignored (listening={Listening}, dictation={Dictation}, keyword={Keyword})",
+                    _listening,
+                    _dictationActive,
+                    e.Keyword);
                 return;
             }
 
             Log.Information("Wake word detected: {Keyword} at {Utc}", e.Keyword, e.DetectedAtUtc);
+            Log.Information(
+                "[WAKE-DIAG] wake hit (keyword={Keyword}, listenBytesBeforeDictation={Bytes}, chunksFed={Chunks})",
+                e.Keyword,
+                _totalListenBytes,
+                _diagChunksFed);
             _pendingWakeActivated = e;
             shouldBeginDictation = true;
         }
@@ -343,6 +416,11 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             "Post-wake dictation started (silenceTimeout={SilenceMs}ms, echoIgnore={EchoMs}ms)",
             (int)_silenceTimeout.TotalMilliseconds,
             (int)_echoIgnore.TotalMilliseconds);
+        Log.Information(
+            "[WAKE-DIAG] dictation started (echoIgnore={EchoMs}ms, startGrace={Grace}s, silenceTimeout={SilenceMs}ms)",
+            (int)_echoIgnore.TotalMilliseconds,
+            _startGrace.TotalSeconds,
+            (int)_silenceTimeout.TotalMilliseconds);
     }
 
     private void PollDictationSession()
@@ -368,6 +446,12 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
                     "Wake dictation: no command speech within {Grace}s (bytes={Bytes})",
                     _startGrace.TotalSeconds,
                     _dictationBuffer.Count);
+                Log.Warning(
+                    "[WAKE-DIAG] post-wake failure: no command speech within {Grace}s (bytes={Bytes}, peakSessionRms={PeakRms:F4}). " +
+                    "User may think wake failed; wake actually succeeded but command was too quiet/late.",
+                    _startGrace.TotalSeconds,
+                    _dictationBuffer.Count,
+                    _sessionPeakRms);
                 EndDictationSessionInternal(empty: true);
                 return;
             }
@@ -428,13 +512,13 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _commandBaseIndex = 0;
         _commandSpeechStartedUtc = null;
 
-        // Restart detector IMMEDIATELY
+        // Restart KWS immediately with a fresh stream so the next wake phrase can fire right away.
         if (shouldResumeListening)
         {
             try
             {
                 _preRoll.Clear();
-                _detector.Start();
+                _detector.RearmAfterDictation();
                 RaiseStatus("监听唤醒词…");
             }
             catch (Exception ex)
@@ -459,6 +543,10 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         else
         {
             CaptureEmpty?.Invoke(this, "唤醒后未录到有效语音，请重试。");
+            Log.Warning(
+                "[WAKE-DIAG] post-wake failure: empty utterance (heardPostWakeSpeech={Heard}, dictationBytes={Bytes})",
+                _heardPostWakeSpeech,
+                dictationBytes);
             RaiseStatus("唤醒后无有效语音");
         }
     }
@@ -511,6 +599,16 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
 
     private long _totalListenBytes;
     private DateTimeOffset _lastProcessAudioLog;
+    private double _listenPeakRms;
+    private DateTimeOffset _listenPeakRmsWindowStart;
+    private DateTimeOffset _listenSessionStartedUtc;
+    private long _diagChunksFed;
+    private long _diagChunksSkippedNotListening;
+    private long _diagChunksSkippedDictation;
+    private string? _diagDeviceName;
+    private int _diagDeviceSampleRate;
+    private int _diagDeviceChannels;
+    private long _diagWindowCaptureBytes;
 
     private void OnCaptureData(object? sender, ReadOnlyMemory<byte> chunk)
     {
@@ -539,6 +637,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             {
                 _preRoll.Write(chunk.Span);
                 _totalListenBytes += chunk.Length;
+                _diagWindowCaptureBytes += chunk.Length;
 
                 var mono16k = PcmResampler.To16kHzMono16Le(
                     chunk.Span,
@@ -547,10 +646,16 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
                     _stream.BitsPerSample);
                 if (mono16k.Length >= 2)
                 {
+                    TrackListenPeakRms(mono16k);
                     // Copy samples out of the lock — detector work must not block the gate.
                     samplesToProcess = new short[mono16k.Length / 2];
                     MemoryMarshal.Cast<byte, short>(mono16k.AsSpan()).CopyTo(samplesToProcess);
+                    _diagChunksFed++;
                 }
+            }
+            else
+            {
+                _diagChunksSkippedNotListening++;
             }
         }
 
@@ -564,11 +669,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             if (now - _lastProcessAudioLog >= TimeSpan.FromSeconds(5))
             {
                 _lastProcessAudioLog = now;
-                Log.Information(
-                    "[DIAG] Wake listening active (detector={Detector}, running={Running}, bytes={Bytes})",
-                    _detector.DetectorId,
-                    _detector.IsRunning,
-                    _totalListenBytes);
+                FlushWakeDiagnostics();
             }
         }
 
@@ -770,7 +871,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
 
         // Same contract as PttCaptureService.FinalizeUtterance — resample only, no trim/gain/RMS gate.
         // Slice to detected speech so trailing silence (3s end delay) does not dilute pipeline RMS.
-        byte[] pcm;
+        byte[] asrPcm;
         if (_speechStartByteIndex >= 0 && _speechEndByteIndex > _speechStartByteIndex)
         {
             var start = Math.Max(_speechStartByteIndex, _commandBaseIndex);
@@ -781,24 +882,54 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
                 return null;
             }
 
-            pcm = new byte[length];
-            _dictationBuffer.CopyTo(start, pcm, 0, length);
+            asrPcm = new byte[length];
+            _dictationBuffer.CopyTo(start, asrPcm, 0, length);
             Log.Information("Wake utterance slice: start={Start} end={End} bytes={Bytes}", start, end, length);
         }
         else
         {
-            pcm = _dictationBuffer.ToArray();
+            asrPcm = _dictationBuffer.ToArray();
+        }
+
+        byte[]? verifyPcm = null;
+        if (_commandWindowOpen && _commandBaseIndex < _dictationBuffer.Count)
+        {
+            var verifyStart = _speechStartByteIndex >= 0
+                ? Math.Max(_speechStartByteIndex, _commandBaseIndex)
+                : _commandBaseIndex;
+            var verifyEnd = _speechEndByteIndex > verifyStart
+                ? Math.Min(_speechEndByteIndex, _dictationBuffer.Count)
+                : _dictationBuffer.Count;
+            var verifyLength = verifyEnd - verifyStart;
+            if (verifyLength > 0)
+            {
+                verifyPcm = new byte[verifyLength];
+                _dictationBuffer.CopyTo(verifyStart, verifyPcm, 0, verifyLength);
+                Log.Information(
+                    "Wake speaker-verify slice: start={Start} end={End} bytes={Bytes}",
+                    verifyStart,
+                    verifyEnd,
+                    verifyLength);
+            }
         }
 
         var resampled = PcmResampler.To16kHzMono16Le(
-            pcm,
+            asrPcm,
             _stream.SampleRate,
             _stream.Channels,
             _stream.BitsPerSample);
+        byte[]? verifyResampled = verifyPcm is null
+            ? null
+            : PcmResampler.To16kHzMono16Le(
+                verifyPcm,
+                _stream.SampleRate,
+                _stream.Channels,
+                _stream.BitsPerSample);
         var duration = TimeSpan.FromSeconds((double)resampled.Length / (2 * PcmResampler.TargetSampleRate));
         return new AudioUtterance
         {
             Pcm16LeMono = resampled,
+            SpeakerVerifyPcm16LeMono = verifyResampled,
             SampleRate = PcmResampler.TargetSampleRate,
             Duration = duration,
         };
@@ -836,6 +967,52 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _stream.DataAvailable -= OnCaptureData;
         _stream.Dispose();
         _stream = null;
+    }
+
+    private void FlushWakeDiagnostics()
+    {
+        WakeWordListenStats stats;
+        lock (_gate)
+        {
+            stats = new WakeWordListenStats
+            {
+                Listening = _listening,
+                DictationActive = _dictationActive,
+                DeviceDisplayName = _diagDeviceName,
+                DeviceSampleRate = _stream?.SampleRate ?? _diagDeviceSampleRate,
+                DeviceChannels = _stream?.Channels ?? _diagDeviceChannels,
+                CaptureBytes = _diagWindowCaptureBytes,
+                ChunksFed = _diagChunksFed,
+                ChunksSkippedNotListening = _diagChunksSkippedNotListening,
+                ChunksSkippedDictation = _diagChunksSkippedDictation,
+                CapturePeakRms = _listenPeakRms,
+                ListenDuration = _listenSessionStartedUtc == default
+                    ? TimeSpan.Zero
+                    : DateTimeOffset.UtcNow - _listenSessionStartedUtc,
+                WakePhrase = _settings.WakeWordPhrase,
+                Sensitivity = _settings.WakeWordSensitivity,
+            };
+
+            _diagWindowCaptureBytes = 0;
+            _diagChunksFed = 0;
+            _diagChunksSkippedNotListening = 0;
+            _diagChunksSkippedDictation = 0;
+            _listenPeakRms = 0;
+            _listenPeakRmsWindowStart = DateTimeOffset.UtcNow;
+        }
+
+        _detector.FlushPeriodicDiagnostics(stats);
+    }
+
+    private void TrackListenPeakRms(byte[] mono16k)
+    {
+        var rms = ComputeRms16Le(mono16k);
+        if (_listenPeakRmsWindowStart == default)
+        {
+            _listenPeakRmsWindowStart = DateTimeOffset.UtcNow;
+        }
+
+        _listenPeakRms = Math.Max(_listenPeakRms, rms);
     }
 
     private void RaiseStatus(string message) => StatusChanged?.Invoke(this, message);

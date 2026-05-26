@@ -1,4 +1,5 @@
 using ArrayMicRefreshment.Core;
+using Serilog;
 
 namespace ArrayMicRefreshment.Audio;
 
@@ -14,6 +15,8 @@ public sealed class StubWakeWordDetector : IWakeWordDetector
     private readonly int _chunksBeforeAutoFire;
     private int _chunkCount;
     private bool _running;
+    private bool _stubWarned;
+    private long _windowChunks;
 
     public StubWakeWordDetector(
         string keyword = DefaultKeyword,
@@ -48,11 +51,33 @@ public sealed class StubWakeWordDetector : IWakeWordDetector
             return;
         }
 
+        if (!_stubWarned)
+        {
+            _stubWarned = true;
+            Log.Warning(
+                "[WAKE-DIAG] stub detector received audio but cannot recognize wake phrase '{Phrase}' from speech. " +
+                "Install models/sherpa-kws to enable real wake-word detection.",
+                _keyword);
+        }
+
         _chunkCount++;
+        _windowChunks++;
         if (_chunksBeforeAutoFire > 0 && _chunkCount >= _chunksBeforeAutoFire)
         {
             FireDetection();
         }
+    }
+
+    public void FlushPeriodicDiagnostics(WakeWordListenStats listen)
+    {
+        Log.Warning(
+            "[WAKE-DIAG] stub detector window: phrase={Phrase} listen={Listening} chunks={Chunks} peakRms={PeakRms:F4}. " +
+            "analysis: KWS 模型未加载，无法从真实语音唤醒。",
+            _keyword,
+            listen.Listening,
+            _windowChunks,
+            listen.CapturePeakRms);
+        _windowChunks = 0;
     }
 
     /// <summary>Manual trigger for integration tests and tray dev actions.</summary>

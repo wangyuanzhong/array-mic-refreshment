@@ -4,4 +4,6 @@ namespace ArrayMicRefreshment.Core;
 public readonly record struct SpeakerVerificationResult(
     bool Allowed,
     float Score,
-    bool VerificationSkipped);
+    bool VerificationSkipped,
+    float EffectiveThreshold = 0f,
+    float WindowAverage = 0f);

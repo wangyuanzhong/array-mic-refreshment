@@ -15,27 +15,44 @@ internal static class WakeWordKeywordEncoder
         WakeWordModelPaths paths,
         string phrase,
         string outputPath,
-        float score = 2.5f,
-        float threshold = 0.30f)
+        float score,
+        float threshold)
     {
         var trimmed = string.IsNullOrWhiteSpace(phrase) ? "小助手" : phrase.Trim();
         var modelRoot = Path.GetDirectoryName(paths.TokensPath) ?? paths.TokensPath;
 
-        if (WakeWordKeywordEncodings.TryGetEncodedLine(modelRoot, trimmed, out var cached))
-        {
-            WriteLine(outputPath, cached);
-            return true;
-        }
-
+        // Always regenerate with the active score/threshold — cached model encodings use #0.30
+        // which makes wake far harder than KeywordsThreshold in spotter config suggests.
         if (TryGenerateViaPython(paths.TokensPath, trimmed, score, threshold, out var generated))
         {
             WakeWordKeywordEncodings.SaveEncodings(
                 modelRoot,
                 new Dictionary<string, string> { [trimmed] = generated });
             WriteLine(outputPath, generated);
+            Log.Information(
+                "[WAKE-DIAG] wake keyword line (generated) phrase={Phrase} score={Score:F1} threshold={Threshold:F3} line={Line}",
+                trimmed,
+                score,
+                threshold,
+                generated);
             return true;
         }
 
+        if (WakeWordKeywordEncodings.TryGetEncodedLine(modelRoot, trimmed, out var cached))
+        {
+            WriteLine(outputPath, cached);
+            Log.Warning(
+                "[WAKE-DIAG] wake keyword line (cached, threshold may be high) phrase={Phrase} line={Line}. " +
+                "Install Python+sherpa_onnx to regenerate with threshold={Threshold:F3}.",
+                trimmed,
+                cached,
+                threshold);
+            return true;
+        }
+
+        Log.Warning(
+            "[WAKE-DIAG] wake phrase encode failed phrase={Phrase}. Use Chinese characters only, or run scripts/generate-wake-encodings.ps1.",
+            trimmed);
         Log.Warning(
             "Cannot encode wake phrase '{Phrase}' for Sherpa KWS. " +
             "Use Chinese characters only, or run scripts/generate-wake-encodings.ps1 and repackage.",

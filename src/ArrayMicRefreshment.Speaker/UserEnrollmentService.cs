@@ -229,10 +229,10 @@ public sealed class UserEnrollmentService : IUserEnrollmentService
         }
 
         var median = SpeakerEmbeddingMath.Median(scores.ToArray());
-        // Threshold = median * 0.80, but not lower than base * 0.70
+        // Threshold = median * 0.80, clamped to [base * 0.70, base] so user setting is always the ceiling.
         var adaptive = median * 0.80f;
         var floor = baseThreshold * 0.70f;
-        return Math.Max(adaptive, floor);
+        return Math.Min(Math.Max(adaptive, floor), baseThreshold);
     }
 
     private SpeakerEnrollmentRecord? GetRecord(string userId)

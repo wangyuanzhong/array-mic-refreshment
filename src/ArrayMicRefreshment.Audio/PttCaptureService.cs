@@ -11,8 +11,9 @@ public sealed class PttCaptureService : IDisposable
 {
     public const int DefaultRingBufferSeconds = 120;
     public static readonly TimeSpan VadAssistMinHold = TimeSpan.FromSeconds(8);
-    private const int StandbyRingCapacityBytes = 384_000;
-    private const double StandbyPreRollSeconds = 0.9;
+    private const int StandbyRingCapacityBytes = 576_000;
+    private const double StandbyPreRollSeconds = 1.5;
+    private const int WasapiCaptureBufferMs = 20;
 
     private readonly AppSettings _settings;
     private readonly IPushToTalkSource _ptt;
@@ -23,6 +24,7 @@ public sealed class PttCaptureService : IDisposable
     private readonly TimeSpan _vadAssistMinHold;
     private readonly Func<bool>? _pttCaptureAllowed;
     private readonly Func<bool>? _keepStandbyCaptureBetweenSessions;
+    private readonly Func<PttCaptureHandoff?>? _tryCaptureHandoffOnPress;
     private readonly Func<byte[]?>? _takePreRollOnPress;
     private readonly Action? _beforeCaptureStarts;
     private readonly Action? _afterCaptureEnds;
@@ -58,6 +60,7 @@ public sealed class PttCaptureService : IDisposable
         TimeSpan? vadAssistMinHold = null,
         Func<bool>? pttCaptureAllowed = null,
         Func<bool>? keepStandbyCaptureBetweenSessions = null,
+        Func<PttCaptureHandoff?>? tryCaptureHandoffOnPress = null,
         Func<byte[]?>? takePreRollOnPress = null,
         Action? beforeCaptureStarts = null,
         Action? afterCaptureEnds = null)
@@ -71,6 +74,7 @@ public sealed class PttCaptureService : IDisposable
         _vadAssistMinHold = vadAssistMinHold ?? VadAssistMinHold;
         _pttCaptureAllowed = pttCaptureAllowed;
         _keepStandbyCaptureBetweenSessions = keepStandbyCaptureBetweenSessions;
+        _tryCaptureHandoffOnPress = tryCaptureHandoffOnPress;
         _takePreRollOnPress = takePreRollOnPress;
         _beforeCaptureStarts = beforeCaptureStarts;
         _afterCaptureEnds = afterCaptureEnds;
@@ -128,46 +132,59 @@ public sealed class PttCaptureService : IDisposable
 
             try
             {
-                var wakePreRoll = _takePreRollOnPress?.Invoke();
-                if (_takePreRollOnPress is not null)
+                var handoff = _tryCaptureHandoffOnPress?.Invoke();
+                byte[]? wakePreRoll = null;
+                if (handoff is null)
                 {
-                    _beforeCaptureStarts?.Invoke();
+                    wakePreRoll = _takePreRollOnPress?.Invoke();
                 }
 
-                var device = _deviceEnumerator.ResolveDevice(_settings.SelectedDeviceId)
-                    ?? throw new InvalidOperationException("No capture device available.");
-
-                EnsureCaptureStream(device);
-                if (!_captureRunning)
+                if (handoff is not null)
                 {
-                    _stream!.Start();
-                    _captureRunning = true;
+                    AdoptCaptureHandoff(handoff);
                 }
-
-                if (_standbyActive)
+                else
                 {
-                    var standbyPreRoll = _standbyRing.SnapshotLast(StandbyPreRollBytesForStream());
-                    if (standbyPreRoll.Length > 0)
+                    var device = _deviceEnumerator.ResolveDevice(_settings.SelectedDeviceId)
+                        ?? throw new InvalidOperationException("No capture device available.");
+
+                    EnsureCaptureStream(device);
+                    if (!_captureRunning)
                     {
-                        _segmentBuffer.AddRange(standbyPreRoll);
-                        _ring.Write(standbyPreRoll);
-                        Serilog.Log.Information(
-                            "PTT standby pre-roll injected ({Bytes} bytes)",
-                            standbyPreRoll.Length);
+                        _stream!.Start();
+                        _captureRunning = true;
                     }
-                }
 
-                if (wakePreRoll is { Length: > 0 })
-                {
-                    _segmentBuffer.AddRange(wakePreRoll);
-                    _ring.Write(wakePreRoll);
-                    Serilog.Log.Information(
-                        "PTT pre-roll injected from wake listen path ({Bytes} bytes)",
-                        wakePreRoll.Length);
-                }
+                    if (_standbyActive)
+                    {
+                        var standbyPreRoll = _standbyRing.SnapshotLast(StandbyPreRollBytesForStream());
+                        if (standbyPreRoll.Length > 0)
+                        {
+                            _segmentBuffer.AddRange(standbyPreRoll);
+                            _ring.Write(standbyPreRoll);
+                            Serilog.Log.Information(
+                                "PTT standby pre-roll injected ({Bytes} bytes)",
+                                standbyPreRoll.Length);
+                        }
+                    }
+                    else if (ShouldKeepStandbyCapture())
+                    {
+                        Serilog.Log.Warning(
+                            "PTT pressed without standby pre-roll; first ~{Ms}ms of speech may be clipped. " +
+                            "Standby capture will start for subsequent presses.",
+                            WasapiCaptureBufferMs);
+                        StartStandbyListeningIfNeeded();
+                    }
 
-                if (_takePreRollOnPress is null)
-                {
+                    if (wakePreRoll is { Length: > 0 })
+                    {
+                        _segmentBuffer.AddRange(wakePreRoll);
+                        _ring.Write(wakePreRoll);
+                        Serilog.Log.Information(
+                            "PTT pre-roll injected from wake listen path ({Bytes} bytes)",
+                            wakePreRoll.Length);
+                    }
+
                     _beforeCaptureStarts?.Invoke();
                 }
 
@@ -185,6 +202,34 @@ public sealed class PttCaptureService : IDisposable
                 CaptureFailed?.Invoke(this, ex);
             }
         }
+    }
+
+    private void AdoptCaptureHandoff(PttCaptureHandoff handoff)
+    {
+        if (_stream is not null && !ReferenceEquals(_stream, handoff.Stream))
+        {
+            StopStream();
+        }
+
+        _stream = handoff.Stream;
+        _activeDeviceId = handoff.DeviceId;
+        _stream.DataAvailable -= OnCaptureData;
+        _stream.DataAvailable += OnCaptureData;
+        _captureRunning = true;
+        _standbyActive = false;
+        _standbyRing.Clear();
+
+        if (handoff.PreRollNativePcm.Length > 0)
+        {
+            _segmentBuffer.AddRange(handoff.PreRollNativePcm);
+            _ring.Write(handoff.PreRollNativePcm);
+        }
+
+        Serilog.Log.Information(
+            "PTT adopted wake listen stream handoff (preRoll={PreRollBytes} bytes, device={Device}, running={Running})",
+            handoff.PreRollNativePcm.Length,
+            handoff.DeviceId,
+            _captureRunning);
     }
 
     private void OnPttReleased(object? sender, EventArgs e)

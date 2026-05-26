@@ -37,6 +37,27 @@ public class VoicePipelineTests
     }
 
     [Fact]
+    public async Task WakeWord_SpeakerRejected_does_not_emit()
+    {
+        var sink = new RecordingSink();
+        var pipeline = new VoicePipeline(
+            new AppSettings { MasterEnabled = true, WakeWordPhrase = "小助手" },
+            new StubSpeakerGate { AlwaysPass = false },
+            new StubUtteranceAsr(),
+            new StubIntentRouter(),
+            new StubPromptRefiner(enabled: false),
+            sink);
+
+        var outcome = await pipeline.ProcessUtteranceAsync(
+            TestAudioHelper.CreateUtterance(),
+            CancellationToken.None,
+            VoiceTriggerKind.WakeWord);
+
+        Assert.Equal(VoicePipelineStatus.SpeakerRejected, outcome.Status);
+        Assert.Empty(sink.Emitted);
+    }
+
+    [Fact]
     public async Task RefineEnabled_uses_refined_text_not_raw()
     {
         var sink = new RecordingSink();

@@ -81,17 +81,9 @@ public sealed class VoicePipeline
                 $"未检测到有效麦克风信号（音量过低 RMS={rms:F4}）。请检查录音设备、系统麦克风权限与音量。");
         }
 
-        Task<SpeakerVerificationResult> speakerTask;
-        if (triggerKind == VoiceTriggerKind.WakeWord)
-        {
-            Log.Information(
-                "Speaker gate skipped for wake-word utterance (wake phrase already verified the mic is active).");
-            speakerTask = Task.FromResult(new SpeakerVerificationResult(true, 0f, VerificationSkipped: true));
-        }
-        else
-        {
-            speakerTask = _speakerGate.VerifyCurrentUserAsync(utterance, cancellationToken);
-        }
+        // Wake-word and PTT both require speaker verification after capture.
+        // WakeWordCaptureService may supply SpeakerVerifyPcm16LeMono (post-wake command only).
+        var speakerTask = _speakerGate.VerifyCurrentUserAsync(utterance, cancellationToken);
 
         var asrTask = _asr.RecognizeUtteranceAsync(utterance, cancellationToken);
         await Task.WhenAll(speakerTask, asrTask).ConfigureAwait(false);
@@ -99,9 +91,15 @@ public sealed class VoicePipeline
         var speakerVerify = speakerTask.Result;
         if (!speakerVerify.Allowed && !speakerVerify.VerificationSkipped)
         {
+            var effectiveThreshold = speakerVerify.EffectiveThreshold > 0f
+                ? speakerVerify.EffectiveThreshold
+                : _settings.SpeakerVerifyThreshold;
+            var windowHint = speakerVerify.WindowAverage > 0f
+                ? $"，近几次均值 {speakerVerify.WindowAverage:F2}"
+                : string.Empty;
             return new VoicePipelineOutcome(
                 VoicePipelineStatus.SpeakerRejected,
-                $"说话人未通过声纹校验（相似度 {speakerVerify.Score:F2}，阈值 {_settings.SpeakerVerifyThreshold:F2}）。" +
+                $"说话人未通过声纹校验（相似度 {speakerVerify.Score:F2}，有效阈值 {effectiveThreshold:F2}{windowHint}）。" +
                 "请重新「注册说话人」或略降低声纹阈值；旧版注册数据已自动归一化，若仍失败请重录。");
         }
 

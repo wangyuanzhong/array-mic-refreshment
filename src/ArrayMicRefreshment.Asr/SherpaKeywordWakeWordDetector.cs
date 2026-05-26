@@ -29,6 +29,19 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
     private float _attack = 0.78f;
     private float _release = 0.08f;
 
+    private long _windowChunks;
+    private long _windowDecodePasses;
+    private long _windowEmptyKeywordDecodes;
+    private long _windowSkippedNotRunning;
+    private long _windowSkippedSampleRate;
+    private long _windowLoudChunks;
+    private float _windowPeakInputRms;
+    private float _windowPeakAgcRms;
+    private float _windowPeakAgcGain;
+    private long _lifetimeDetections;
+    private DateTimeOffset _windowStartedUtc = DateTimeOffset.UtcNow;
+    private string? _lastKeywordLine;
+
     private SherpaKeywordWakeWordDetector(
         WakeWordModelPaths paths,
         string phrase,
@@ -41,8 +54,11 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
         ApplySensitivityProfile(sensitivity);
         RebuildSpotter();
         Log.Information(
-            "Sherpa KWS ready (phrase={Phrase}, keywordsFile={File})",
+            "Sherpa KWS ready (phrase={Phrase}, sensitivity={Sensitivity}, threshold={Threshold:F3}, score={Score:F1}, keywordsFile={File})",
             _phrase,
+            _sensitivity,
+            _keywordsThreshold,
+            _keywordsScore,
             _keywordsFilePath);
     }
 
@@ -96,13 +112,42 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
     {
         lock (_gate)
         {
-            if (_spotter is not null && _stream is not null)
-            {
-                _spotter.Reset(_stream);
-            }
-
-            ResetAgc();
+            ResetStreamingState(rearm: false);
             _running = true;
+            Log.Information(
+                "[WAKE-DIAG] KWS started (phrase={Phrase}, running={Running})",
+                _phrase,
+                _running);
+        }
+    }
+
+    public void RearmAfterDictation()
+    {
+        lock (_gate)
+        {
+            ResetStreamingState(rearm: true);
+            _running = true;
+            Log.Information(
+                "[WAKE-DIAG] KWS rearmed after dictation (phrase={Phrase}, threshold={Threshold:F3}, score={Score:F1})",
+                _phrase,
+                _keywordsThreshold,
+                _keywordsScore);
+        }
+    }
+
+    private void ResetStreamingState(bool rearm)
+    {
+        if (_spotter is not null)
+        {
+            _stream?.Dispose();
+            _stream = _spotter.CreateStream();
+        }
+
+        ResetAgc();
+        ResetWindowStats();
+        if (rearm)
+        {
+            _windowStartedUtc = DateTimeOffset.UtcNow;
         }
     }
 
@@ -110,6 +155,14 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
     {
         lock (_gate)
         {
+            if (_running)
+            {
+                Log.Information(
+                    "[WAKE-DIAG] KWS stopped (phrase={Phrase}, lifetimeDetections={Detections})",
+                    _phrase,
+                    _lifetimeDetections);
+            }
+
             _running = false;
         }
     }
@@ -191,12 +244,12 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
                 _release = 0.10f;
                 break;
             case WakeWordSensitivity.Maximum:
-                _keywordsThreshold = 0.06f;
-                _keywordsScore = 2.0f;
-                _targetRms = 0.16f;
-                _maxGain = 100f;
-                _attack = 0.92f;
-                _release = 0.04f;
+                _keywordsThreshold = 0.05f;
+                _keywordsScore = 1.8f;
+                _targetRms = 0.18f;
+                _maxGain = 120f;
+                _attack = 0.96f;
+                _release = 0.03f;
                 break;
             default:
                 _keywordsThreshold = 0.10f;
@@ -220,11 +273,13 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
         {
             if (!_running || _spotter is null || _stream is null)
             {
+                _windowSkippedNotRunning++;
                 return;
             }
 
             if (sampleRate != 16000)
             {
+                _windowSkippedSampleRate++;
                 return;
             }
 
@@ -239,24 +294,42 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
                 floats = _floatScratch;
             }
 
+            var inputRms = ComputeRms(pcm16Mono);
+            TrackInputWindow(inputRms);
+
             for (var i = 0; i < pcm16Mono.Length; i++)
             {
                 floats[i] = pcm16Mono[i] / 32768f;
             }
 
             ApplyStreamingAgc(floats.AsSpan(0, pcm16Mono.Length));
+            var agcRms = ComputeRmsFloat(floats.AsSpan(0, pcm16Mono.Length));
+            _windowPeakAgcRms = Math.Max(_windowPeakAgcRms, agcRms);
+            _windowPeakAgcGain = Math.Max(_windowPeakAgcGain, _agcGain);
+            _windowChunks++;
 
             _stream.AcceptWaveform(sampleRate, floats);
 
             while (_spotter.IsReady(_stream))
             {
+                _windowDecodePasses++;
                 _spotter.Decode(_stream);
                 var result = _spotter.GetResult(_stream);
                 if (string.IsNullOrEmpty(result.Keyword))
                 {
+                    _windowEmptyKeywordDecodes++;
                     continue;
                 }
 
+                _lifetimeDetections++;
+                Log.Information(
+                    "[WAKE-DIAG] Sherpa KWS hit keyword={Keyword} (phrase={Phrase}, inputRms={InputRms:F4}, agcRms={AgcRms:F4}, agcGain={Gain:F1}x, decodes={Decodes})",
+                    result.Keyword,
+                    _phrase,
+                    inputRms,
+                    agcRms,
+                    _agcGain,
+                    _windowDecodePasses);
                 Log.Information("Sherpa KWS detected keyword: {Keyword}", result.Keyword);
                 _spotter.Reset(_stream);
                 WakeWordDetected?.Invoke(
@@ -265,6 +338,104 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
                 break;
             }
         }
+    }
+
+    public void FlushPeriodicDiagnostics(WakeWordListenStats listen)
+    {
+        lock (_gate)
+        {
+            var analysis = WakeWordDiagnosticAnalyzer.AnalyzeListenPath(listen, DetectorId, _running);
+            Log.Information(
+                "[WAKE-DIAG] window={WindowSec:F0}s phrase={Phrase} sensitivity={Sensitivity} " +
+                "listen={Listening} dictation={Dictation} device={Device}@{Rate}Hz " +
+                "captureBytes={CapBytes} chunksFed={ChunksFed} skippedListen={SkipListen} skippedDictation={SkipDictation} " +
+                "peakRms={PeakRms:F4} kwsChunks={KwsChunks} kwsDecodes={Decodes} emptyDecodes={EmptyDecodes} " +
+                "skippedNotRunning={SkipRun} skippedRate={SkipRate} loudChunks={Loud} " +
+                "peakAgcRms={AgcRms:F4} peakAgcGain={AgcGain:F1}x lifetimeHits={Hits} " +
+                "kwsThreshold={Th:F3} kwsScore={Score:F1} keywordLine={KeywordLine}",
+                (DateTimeOffset.UtcNow - _windowStartedUtc).TotalSeconds,
+                _phrase,
+                listen.Sensitivity,
+                listen.Listening,
+                listen.DictationActive,
+                listen.DeviceDisplayName ?? "?",
+                listen.DeviceSampleRate,
+                listen.CaptureBytes,
+                listen.ChunksFed,
+                listen.ChunksSkippedNotListening,
+                listen.ChunksSkippedDictation,
+                listen.CapturePeakRms,
+                _windowChunks,
+                _windowDecodePasses,
+                _windowEmptyKeywordDecodes,
+                _windowSkippedNotRunning,
+                _windowSkippedSampleRate,
+                _windowLoudChunks,
+                _windowPeakAgcRms,
+                _windowPeakAgcGain,
+                _lifetimeDetections,
+                _keywordsThreshold,
+                _keywordsScore,
+                _lastKeywordLine ?? "?");
+            Log.Information("[WAKE-DIAG] analysis: {Analysis}", analysis);
+            ResetWindowStats();
+        }
+    }
+
+    private void TrackInputWindow(float inputRms)
+    {
+        _windowPeakInputRms = Math.Max(_windowPeakInputRms, inputRms);
+        if (inputRms >= 0.012f)
+        {
+            _windowLoudChunks++;
+        }
+    }
+
+    private void ResetWindowStats()
+    {
+        _windowChunks = 0;
+        _windowDecodePasses = 0;
+        _windowEmptyKeywordDecodes = 0;
+        _windowSkippedNotRunning = 0;
+        _windowSkippedSampleRate = 0;
+        _windowLoudChunks = 0;
+        _windowPeakInputRms = 0;
+        _windowPeakAgcRms = 0;
+        _windowPeakAgcGain = 0;
+        _windowStartedUtc = DateTimeOffset.UtcNow;
+    }
+
+    private static float ComputeRms(ReadOnlySpan<short> samples)
+    {
+        if (samples.Length == 0)
+        {
+            return 0;
+        }
+
+        double sum = 0;
+        foreach (var s in samples)
+        {
+            var n = s / 32768.0;
+            sum += n * n;
+        }
+
+        return (float)Math.Sqrt(sum / samples.Length);
+    }
+
+    private static float ComputeRmsFloat(ReadOnlySpan<float> samples)
+    {
+        if (samples.Length == 0)
+        {
+            return 0;
+        }
+
+        double sum = 0;
+        foreach (var s in samples)
+        {
+            sum += s * s;
+        }
+
+        return (float)Math.Sqrt(sum / samples.Length);
     }
 
     private void RebuildSpotter()
@@ -279,16 +450,43 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
             return;
         }
 
-        if (!WakeWordKeywordFile.TryWrite(_paths, _keywordsFilePath, _phrase))
+        if (!WakeWordKeywordFile.TryWrite(_paths, _keywordsFilePath, _phrase, _keywordsScore, _keywordsThreshold))
         {
             throw new InvalidOperationException(
                 $"Failed to encode wake phrase '{_phrase}' for Sherpa KWS.");
         }
 
+        _lastKeywordLine = TryReadFirstKeywordLine(_keywordsFilePath);
+
         var config = BuildConfig(_paths, _keywordsFilePath, _keywordsThreshold, _keywordsScore);
         _spotter = new KeywordSpotter(config);
         _stream = _spotter.CreateStream();
         ResetAgc();
+        Log.Information(
+            "[WAKE-DIAG] KWS spotter rebuilt (phrase={Phrase}, threshold={Threshold:F3}, score={Score:F1}, keywordLine={KeywordLine}, encoder={Encoder}, decoder={Decoder})",
+            _phrase,
+            _keywordsThreshold,
+            _keywordsScore,
+            _lastKeywordLine ?? "?",
+            _paths.EncoderPath,
+            _paths.DecoderPath);
+    }
+
+    private static string? TryReadFirstKeywordLine(string keywordsFilePath)
+    {
+        try
+        {
+            if (!File.Exists(keywordsFilePath))
+            {
+                return null;
+            }
+
+            return File.ReadLines(keywordsFilePath).FirstOrDefault(l => !string.IsNullOrWhiteSpace(l))?.Trim();
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static KeywordSpotterConfig BuildConfig(

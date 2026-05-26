@@ -10,9 +10,10 @@ public sealed class SpeakerGate : ISpeakerGate, IDisposable
     private readonly IUserEnrollmentService _enrollment;
     private readonly ISpeakerEmbeddingBackend _embeddingBackend;
 
+    public const int SlidingWindowSize = 3;
+
     // P0: Sliding window for multi-utterance verification
     private readonly Queue<float> _recentScores = new();
-    private const int SlidingWindowSize = 3;
 
     public SpeakerGate(
         AppSettings settings,
@@ -160,7 +161,12 @@ public sealed class SpeakerGate : ISpeakerGate, IDisposable
                         string.Join(",", _recentScores.Select(s => $"{s:F3}")));
                 }
 
-                return new SpeakerVerificationResult(pass, rawScore, VerificationSkipped: false);
+                return new SpeakerVerificationResult(
+                    pass,
+                    rawScore,
+                    VerificationSkipped: false,
+                    EffectiveThreshold: adaptiveThreshold,
+                    WindowAverage: windowAverage);
             },
             cancellationToken);
     }

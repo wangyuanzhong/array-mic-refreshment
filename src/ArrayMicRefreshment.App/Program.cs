@@ -25,6 +25,13 @@ internal static class Program
         try
         {
             Log.Information("Array Mic Refreshment {Version} starting", AppInfo.Version);
+            Log.Information(
+                "Diagnostic log file: {LogPath} (grep [WAKE-DIAG] for wake-word analysis)",
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "ArrayMicRefreshment",
+                    "logs",
+                    $"app-{DateTime.UtcNow:yyyyMMdd}.log"));
             ApplicationConfiguration.Initialize();
             Application.Run(new TrayApplicationContext());
         }

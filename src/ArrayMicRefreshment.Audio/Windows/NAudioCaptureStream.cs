@@ -11,6 +11,9 @@ public sealed class NAudioCaptureStreamFactory : IAudioCaptureStreamFactory
 
 public sealed class NAudioCaptureStream : IAudioCaptureStream
 {
+    /// <summary>Lower latency than NAudio default (100 ms) to reduce PTT word-onset clipping.</summary>
+    private const int WasapiCaptureBufferMs = 20;
+
     private readonly AudioDeviceInfo _device;
     private readonly ManualResetEventSlim _recordingStopped = new(false);
     private IWaveIn? _waveIn;
@@ -120,7 +123,7 @@ public sealed class NAudioCaptureStream : IAudioCaptureStream
                     $"录音设备「{_device.DisplayName}」当前不可用（{mm.State}）。请插入/启用后重试。");
             }
 
-            var capture = new WasapiCapture(mm)
+            var capture = new WasapiCapture(mm, false, WasapiCaptureBufferMs)
             {
                 ShareMode = AudioClientShareMode.Shared,
             };
