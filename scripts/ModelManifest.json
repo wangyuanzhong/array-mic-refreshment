@@ -27,6 +27,20 @@
       "notes": "SenseVoice float32 高精度版 — 无精度损失，准确率最高，但体积大速度慢"
     }
   ],
+  "phase2Kws": {
+    "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models",
+    "notes": "Zipformer Chinese KWS (~3.3M) — open-vocabulary wake phrase via keywords file",
+    "packages": [
+      {
+        "id": "sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01",
+        "role": "kws-primary",
+        "archive": "sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01.tar.bz2",
+        "extractDir": "sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01",
+        "sha256": null,
+        "notes": "Wake-word spotting; phrase configured in app settings"
+      }
+    ]
+  },
   "phase2Speaker": {
     "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models",
     "notes": "3D-Speaker ERes2Net base zh-cn 16 kHz — speaker embedding for enrollment gate",

@@ -53,7 +53,10 @@ public sealed class VoicePipeline
             _promptRefiner.IsEnabled);
     }
 
-    public async Task<VoicePipelineOutcome> ProcessUtteranceAsync(AudioUtterance utterance, CancellationToken cancellationToken)
+    public async Task<VoicePipelineOutcome> ProcessUtteranceAsync(
+        AudioUtterance utterance,
+        CancellationToken cancellationToken,
+        VoiceTriggerKind triggerKind = VoiceTriggerKind.Ptt)
     {
         if (!_settings.MasterEnabled)
         {
@@ -62,9 +65,12 @@ public sealed class VoicePipeline
 
         if (utterance.Pcm16LeMono.Length < MinPcmBytes)
         {
+            var shortHint = triggerKind == VoiceTriggerKind.WakeWord
+                ? "唤醒后请稍大声、清晰地说出指令（至少约 0.2 秒）。"
+                : "请完整按住 PTT 组合键至少 0.5 秒再松开；若仍如此，在设置中换 [MME] 录音设备。";
             return new VoicePipelineOutcome(
                 VoicePipelineStatus.EmptyTranscript,
-                $"录音过短（{utterance.Duration.TotalMilliseconds:F0} ms，{utterance.Pcm16LeMono.Length} 字节）。请完整按住 PTT 组合键至少 0.5 秒再松开；若仍如此，在设置中换 [MME] 录音设备。");
+                $"录音过短（{utterance.Duration.TotalMilliseconds:F0} ms，{utterance.Pcm16LeMono.Length} 字节）。{shortHint}");
         }
 
         var rms = Core.Audio.PcmConverters.ComputeRms16Le(utterance.Pcm16LeMono);
@@ -75,7 +81,18 @@ public sealed class VoicePipeline
                 $"未检测到有效麦克风信号（音量过低 RMS={rms:F4}）。请检查录音设备、系统麦克风权限与音量。");
         }
 
-        var speakerTask = _speakerGate.VerifyCurrentUserAsync(utterance, cancellationToken);
+        Task<SpeakerVerificationResult> speakerTask;
+        if (triggerKind == VoiceTriggerKind.WakeWord)
+        {
+            Log.Information(
+                "Speaker gate skipped for wake-word utterance (wake phrase already verified the mic is active).");
+            speakerTask = Task.FromResult(new SpeakerVerificationResult(true, 0f, VerificationSkipped: true));
+        }
+        else
+        {
+            speakerTask = _speakerGate.VerifyCurrentUserAsync(utterance, cancellationToken);
+        }
+
         var asrTask = _asr.RecognizeUtteranceAsync(utterance, cancellationToken);
         await Task.WhenAll(speakerTask, asrTask).ConfigureAwait(false);
 
@@ -89,6 +106,11 @@ public sealed class VoicePipeline
         }
 
         var raw = asrTask.Result;
+        if (triggerKind == VoiceTriggerKind.WakeWord)
+        {
+            raw = StripLeadingWakePhrase(raw, _settings.WakeWordPhrase);
+        }
+
         if (string.IsNullOrWhiteSpace(raw))
         {
             return new VoicePipelineOutcome(
@@ -207,5 +229,22 @@ public sealed class VoicePipeline
             _asr.ModelId,
             RefineApplied: false,
             RefineStatus: refineSkipReason ?? "未启用");
+    }
+
+    private static string StripLeadingWakePhrase(string raw, string wakePhrase)
+    {
+        if (string.IsNullOrWhiteSpace(raw) || string.IsNullOrWhiteSpace(wakePhrase))
+        {
+            return raw;
+        }
+
+        var text = raw.Trim();
+        var phrase = wakePhrase.Trim();
+        if (text.StartsWith(phrase, StringComparison.Ordinal))
+        {
+            return text[phrase.Length..].TrimStart(' ', '，', ',', '。', '.', '、');
+        }
+
+        return raw;
     }
 }

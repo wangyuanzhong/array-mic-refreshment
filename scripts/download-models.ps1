@@ -17,7 +17,9 @@ param(
     [ValidateSet("asr-primary", "asr-fallback", "all")]
     [string]$Package = "asr-primary",
     [switch]$IncludeSpeaker,
-    [switch]$SkipSpeaker
+    [switch]$SkipSpeaker,
+    [switch]$IncludeKws,
+    [switch]$SkipKws
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,6 +31,13 @@ if ($SkipSpeaker) {
     $IncludeSpeaker = $false
 }
 
+if (-not $PSBoundParameters.ContainsKey('IncludeKws') -and -not $SkipKws) {
+    $IncludeKws = $false
+}
+if ($SkipKws) {
+    $IncludeKws = $false
+}
+
 if ([string]::IsNullOrWhiteSpace($ModelsRoot)) {
     $ModelsRoot = Join-Path $RepoRoot "models"
 }
@@ -38,7 +47,7 @@ if (-not (Test-Path $manifestPath)) {
     throw "ModelManifest.json not found at $manifestPath"
 }
 
-$manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+$manifest = Get-Content $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $baseUrl = $manifest.baseUrl.TrimEnd("/")
 
 New-Item -ItemType Directory -Force -Path $ModelsRoot | Out-Null
@@ -138,9 +147,19 @@ if ($IncludeSpeaker) {
     }
 }
 
+if ($IncludeKws -and $manifest.phase2Kws) {
+    $kwsBase = $manifest.phase2Kws.baseUrl.TrimEnd("/")
+    foreach ($pkg in @($manifest.phase2Kws.packages)) {
+        Download-PackageArchive -pkg $pkg -UrlBase $kwsBase
+    }
+}
+
 Write-Host ""
 Write-Host "Models root: $ModelsRoot"
 Write-Host "Point AppSettings.ModelsDirectory or Sherpa config to the extracted folder."
 if (-not $IncludeSpeaker) {
     Write-Host "Speaker model: omitted. Re-run without -SkipSpeaker (default downloads speaker ONNX)."
+}
+if (-not $IncludeKws) {
+    Write-Host "KWS model: omitted. Re-run with -IncludeKws for wake-word detection."
 }

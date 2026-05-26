@@ -31,6 +31,7 @@ public sealed class VoiceCaptureOrchestrator : IDisposable
         _wakeCapture.CaptureFailed += OnWakeCaptureFailed;
         _wakeCapture.CaptureEmpty += OnWakeCaptureEmpty;
         _wakeCapture.StatusChanged += OnWakeStatusChanged;
+        _wakeCapture.WakeWordActivated += OnWakeWordActivated;
 
         ApplyModeInternal(_mode, log: false);
     }
@@ -42,6 +43,8 @@ public sealed class VoiceCaptureOrchestrator : IDisposable
     public event EventHandler<string>? CaptureEmpty;
 
     public event EventHandler<string>? WakeStatusChanged;
+
+    public event EventHandler<WakeWordDetectedEventArgs>? WakeWordActivated;
 
     public VoiceTriggerMode Mode
     {
@@ -168,6 +171,14 @@ public sealed class VoiceCaptureOrchestrator : IDisposable
         }
     }
 
+    private void OnWakeWordActivated(object? sender, WakeWordDetectedEventArgs e)
+    {
+        if (ShouldForwardWake())
+        {
+            WakeWordActivated?.Invoke(this, e);
+        }
+    }
+
     private bool ShouldForwardPtt()
     {
         lock (_modeGate)
@@ -194,6 +205,7 @@ public sealed class VoiceCaptureOrchestrator : IDisposable
         _wakeCapture.CaptureFailed -= OnWakeCaptureFailed;
         _wakeCapture.CaptureEmpty -= OnWakeCaptureEmpty;
         _wakeCapture.StatusChanged -= OnWakeStatusChanged;
+        _wakeCapture.WakeWordActivated -= OnWakeWordActivated;
 
         _wakeCapture.Dispose();
     }

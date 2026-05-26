@@ -69,7 +69,16 @@ public sealed class SpeakerGate : ISpeakerGate, IDisposable
             () =>
             {
                 // P2: Volume normalization before embedding extraction
-                var normalizedPcm = SpeakerEmbeddingMath.NormalizeVolume(utterance.Pcm16LeMono);
+                var speakerPcm = utterance.SpeakerVerifyPcm16LeMono ?? utterance.Pcm16LeMono;
+                if (utterance.SpeakerVerifyPcm16LeMono is not null)
+                {
+                    Log.Debug(
+                        "Speaker gate using trimmed verify PCM ({Bytes} bytes, full={FullBytes})",
+                        speakerPcm.Length,
+                        utterance.Pcm16LeMono.Length);
+                }
+
+                var normalizedPcm = SpeakerEmbeddingMath.NormalizeVolume(speakerPcm);
                 var pcm = PcmConverters.Ensure16KHzMonoPcm16Le(normalizedPcm, utterance.SampleRate);
                 var floats = PcmConverters.Pcm16LeToFloat(pcm);
                 var probe = _embeddingBackend.ComputeEmbedding(floats, PcmConverters.TargetSampleRate);

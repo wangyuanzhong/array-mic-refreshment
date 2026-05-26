@@ -19,6 +19,9 @@ public sealed class PttCaptureService : IDisposable
     private readonly IVoiceActivityDetector _vad;
     private readonly AudioHostApi _hostApi;
     private readonly TimeSpan _vadAssistMinHold;
+    private readonly Func<bool>? _pttCaptureAllowed;
+    private readonly Action? _beforeCaptureStarts;
+    private readonly Action? _afterCaptureEnds;
     private readonly ByteRingBuffer _ring;
     private readonly List<byte> _segmentBuffer = new();
     private readonly object _gate = new();
@@ -46,7 +49,10 @@ public sealed class PttCaptureService : IDisposable
         IVoiceActivityDetector? vad = null,
         AudioHostApi hostApi = AudioHostApi.Wasapi,
         int ringBufferSeconds = DefaultRingBufferSeconds,
-        TimeSpan? vadAssistMinHold = null)
+        TimeSpan? vadAssistMinHold = null,
+        Func<bool>? pttCaptureAllowed = null,
+        Action? beforeCaptureStarts = null,
+        Action? afterCaptureEnds = null)
     {
         _settings = settings;
         _ptt = ptt;
@@ -55,6 +61,9 @@ public sealed class PttCaptureService : IDisposable
         _vad = vad ?? new NullVoiceActivityDetector();
         _hostApi = hostApi;
         _vadAssistMinHold = vadAssistMinHold ?? VadAssistMinHold;
+        _pttCaptureAllowed = pttCaptureAllowed;
+        _beforeCaptureStarts = beforeCaptureStarts;
+        _afterCaptureEnds = afterCaptureEnds;
         _ring = new ByteRingBuffer(Math.Max(16000 * 2 * ringBufferSeconds, 32000));
 
         _ptt.PttPressed += OnPttPressed;
@@ -87,6 +96,11 @@ public sealed class PttCaptureService : IDisposable
 
     private void OnPttPressed(object? sender, EventArgs e)
     {
+        if (_pttCaptureAllowed is not null && !_pttCaptureAllowed())
+        {
+            return;
+        }
+
         lock (_gate)
         {
             if (_pttHeld)
@@ -94,6 +108,7 @@ public sealed class PttCaptureService : IDisposable
                 return;
             }
 
+            _beforeCaptureStarts?.Invoke();
             _pttHeld = true;
             _pressUtc = DateTimeOffset.UtcNow;
             _segmentBuffer.Clear();
@@ -149,6 +164,7 @@ public sealed class PttCaptureService : IDisposable
             finally
             {
                 _drainingCapture = false;
+                _afterCaptureEnds?.Invoke();
             }
         }
     }
@@ -236,6 +252,11 @@ public sealed class PttCaptureService : IDisposable
     /// <summary>Prime WASAPI/MME so the first PTT press is not limited to one ~50ms buffer.</summary>
     public void WarmCaptureDevice()
     {
+        if (_pttCaptureAllowed is not null && !_pttCaptureAllowed())
+        {
+            return;
+        }
+
         lock (_gate)
         {
             if (_pttHeld)

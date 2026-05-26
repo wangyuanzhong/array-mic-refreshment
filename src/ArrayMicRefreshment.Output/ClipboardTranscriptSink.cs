@@ -62,17 +62,7 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
                 return;
             }
 
-            // Use Threading.Timer which works without WinForms message pump
-            _ = new System.Threading.Timer(
-                _ =>
-                {
-                    Log.Debug("Threading timer callback executing");
-                    TryPasteToCaret();
-                },
-                null,
-                500,
-                System.Threading.Timeout.Infinite);
-            Log.Debug("Paste Threading.Timer started (500ms)");
+            SchedulePasteOnUiThread();
         }
 
         if (_uiContext is not null)
@@ -91,6 +81,30 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
     }
 
 #if WINDOWS
+    private void SchedulePasteOnUiThread()
+    {
+        if (_uiContext is not null)
+        {
+            var timer = new System.Windows.Forms.Timer { Interval = 500 };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                timer.Dispose();
+                Log.Debug("WinForms timer callback executing paste");
+                TryPasteToCaret();
+            };
+            timer.Start();
+            Log.Debug("Paste WinForms.Timer started (500ms)");
+            return;
+        }
+
+        RunOnSta(() =>
+        {
+            Thread.Sleep(500);
+            TryPasteToCaret();
+        });
+    }
+
     private void TryPasteToCaret()
     {
         var text = _pendingPasteText;

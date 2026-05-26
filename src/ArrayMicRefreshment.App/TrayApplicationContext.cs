@@ -19,11 +19,15 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly IPushToTalkSource _ptt;
     private readonly PttCaptureService _pttCaptureService;
     private readonly VoiceCaptureOrchestrator _voiceOrchestrator;
-    private readonly StubWakeWordDetector _wakeDetector;
+    private readonly IWakeWordDetector _wakeDetector;
     private VoicePipeline _pipeline;
     private VoiceTriggerMode _voiceTriggerMode = VoiceTriggerMode.PttOnly;
     private SherpaPipelineFactory.PipelineComponents? _sherpaComponents;
     private readonly ClipboardTranscriptSink _sink;
+    private readonly TrayBalloonHelper _balloons;
+    private readonly SynchronizationContext _uiContext;
+    private bool _wakeStartupBalloonShown;
+    private bool _wakePausedForPtt;
     private nint _settingsWindowHandle;
     private string? _registeredPttHotkey;
 
@@ -31,7 +35,13 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         _settings = _settingsStore.Load();
         _voiceTriggerMode = NormalizePersistedMode(_settings.TriggerMode);
-        _sink = new ClipboardTranscriptSink(() => _settingsWindowHandle, SynchronizationContext.Current);
+        _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
+        if (SynchronizationContext.Current is null)
+        {
+            SynchronizationContext.SetSynchronizationContext(_uiContext);
+        }
+
+        _sink = new ClipboardTranscriptSink(() => _settingsWindowHandle, _uiContext);
 
         _masterSwitchItem = new ToolStripMenuItem("启用语音转写", null, OnToggleMaster)
         {
@@ -67,6 +77,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             ContextMenuStrip = menu,
         };
         _trayIcon.DoubleClick += (_, _) => OnOpenSettings(null, EventArgs.Empty);
+        _balloons = new TrayBalloonHelper(_trayIcon, _uiContext);
 
         _sink.Emitted += (text, paste) =>
             Log.Information("Transcript emitted (paste={Paste}): {Text}", paste, text);
@@ -106,15 +117,21 @@ public sealed class TrayApplicationContext : ApplicationContext
             _ptt,
             deviceEnumerator,
             captureFactory,
-            vad);
+            vad,
+            pttCaptureAllowed: IsPttCaptureEnabled,
+            beforeCaptureStarts: PauseWakeListeningForPtt,
+            afterCaptureEnds: ResumeWakeListeningAfterPtt);
 
-        _wakeDetector = new StubWakeWordDetector();
+        _wakeDetector = WakeWordDetectorFactory.Create(_settings);
+        Log.Information(
+            "[DIAG] Wake detector created: {DetectorId} (phrase={Phrase})",
+            _wakeDetector.DetectorId,
+            _settings.WakeWordPhrase);
         var wakeCapture = new WakeWordCaptureService(
             _settings,
             _wakeDetector,
             deviceEnumerator,
-            captureFactory,
-            vad);
+            captureFactory);
 
         _voiceOrchestrator = new VoiceCaptureOrchestrator(
             _pttCaptureService,
@@ -125,6 +142,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _voiceOrchestrator.CaptureFailed += OnCaptureFailed;
         _voiceOrchestrator.CaptureEmpty += OnCaptureEmpty;
         _voiceOrchestrator.WakeStatusChanged += OnWakeStatusChanged;
+        _voiceOrchestrator.WakeWordActivated += OnWakeWordActivated;
         _ptt.PttPressed += OnPttPressed;
         _ptt.PttReleased += OnPttReleased;
 
@@ -134,7 +152,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (_ptt is NAudioPushToTalkSource { IsRegistered: false })
         {
             _statusItem.Text = "状态: PTT 热键未注册";
-            _trayIcon.ShowBalloonTip(
+            _balloons.Show(
                 6000,
                 "Array Mic",
                 "PTT 全局热键注册失败，按键录音不可用。请在设置中更换热键组合。",
@@ -149,12 +167,16 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             warmTimer.Stop();
             warmTimer.Dispose();
-            _pttCaptureService.WarmCaptureDevice();
+            WarmAudioCaptureIfNeeded();
         };
         warmTimer.Start();
 #endif
 
         UpdateTrayTooltip();
+        if (_voiceTriggerMode is VoiceTriggerMode.WakeWordOnly or VoiceTriggerMode.Both)
+        {
+            NotifyWakeModeStartup();
+        }
     }
 
     private VoicePipeline BuildPipeline(AppSettings settings)
@@ -210,7 +232,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         if (_sherpaComponents?.Speaker is not SpeakerGate gate)
         {
-            _trayIcon.ShowBalloonTip(
+            _balloons.Show(
                 6000,
                 "Array Mic",
                 "说话人模型未加载。请在 exe 旁放置 models，并运行 scripts\\download-models.ps1（默认会下载声纹模型）。",
@@ -228,7 +250,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             _settings.CurrentSpeakerUserId = gate.Enrollment.CurrentUserId;
             _settingsStore.Save(_settings);
-            _trayIcon.ShowBalloonTip(
+            _balloons.Show(
                 5000,
                 "Array Mic",
                 "说话人注册成功。请在「设置」中将「当前用户」选为刚注册的用户以启用声纹校验。",
@@ -262,7 +284,10 @@ public sealed class TrayApplicationContext : ApplicationContext
             deviceEnumerator,
             enrollment,
             enrollmentCapture,
-            _sherpaComponents?.SpeakerModelMissing == true);
+            _sherpaComponents?.SpeakerModelMissing == true)
+        {
+            RuntimeTriggerMode = _voiceTriggerMode,
+        };
         form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
         if (form.ShowDialog() == DialogResult.OK)
         {
@@ -301,7 +326,7 @@ public sealed class TrayApplicationContext : ApplicationContext
                 else
                 {
                     _registeredPttHotkey = _settings.PttHotkey;
-                    _trayIcon.ShowBalloonTip(
+                    _balloons.Show(
                         4000,
                         "Array Mic",
                         $"PTT 热键已更新为 {naudioPtt.HotkeyDisplay}",
@@ -315,10 +340,30 @@ public sealed class TrayApplicationContext : ApplicationContext
                 SetVoiceTriggerMode(persistedMode);
             }
 
+            if (!string.Equals(previous.WakeWordPhrase, _settings.WakeWordPhrase, StringComparison.Ordinal))
+            {
+                try
+                {
+                    _wakeDetector.ApplyPhrase(_settings.WakeWordPhrase);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to apply wake phrase after settings save");
+                    MessageBox.Show(
+                        $"唤醒词配置更新失败：{ex.Message}",
+                        "唤醒词",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
+            }
+
             _pttCaptureService.InvalidateCaptureDevice();
             PersistAndRefresh();
 #if WINDOWS
-            _pttCaptureService.WarmCaptureDevice();
+            if (SettingsCopier.RequiresWakeCaptureRestart(previous, _settings))
+            {
+                RefreshAudioCaptureAfterSettings();
+            }
 #endif
         }
 
@@ -374,9 +419,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
 
         _voiceTriggerMode = mode;
+        _settings.TriggerMode = mode;
         _voiceOrchestrator.SetMode(mode);
         RefreshTriggerModeMenuChecks();
         UpdateTrayTooltip();
+        PersistAndRefresh();
 
         var status = mode switch
         {
@@ -387,6 +434,140 @@ public sealed class TrayApplicationContext : ApplicationContext
         };
         _statusItem.Text = status;
         Log.Information("Voice trigger mode changed to {Mode}", mode);
+
+        if (mode is VoiceTriggerMode.WakeWordOnly or VoiceTriggerMode.Both)
+        {
+            NotifyWakeModeStartup();
+        }
+    }
+
+    private void NotifyWakeModeStartup()
+    {
+        if (_wakeDetector.DetectorId.StartsWith("stub", StringComparison.OrdinalIgnoreCase))
+        {
+            _balloons.Show(
+                8000,
+                "Array Mic — 唤醒词",
+                "未检测到 Sherpa 唤醒模型，设置里的唤醒词暂无法从语音识别。\n" +
+                "请在 exe 旁运行：scripts\\download-models.ps1 -IncludeKws\n" +
+                "安装前可用托盘「模拟唤醒」测试后续流程。",
+                ToolTipIcon.Warning);
+        }
+        else
+        {
+            if (!_wakeStartupBalloonShown)
+            {
+                _wakeStartupBalloonShown = true;
+                _balloons.Show(
+                    3000,
+                    "Array Mic — 唤醒词",
+                    $"正在监听「{_settings.WakeWordPhrase}」…",
+                    ToolTipIcon.Info);
+            }
+        }
+    }
+
+    private void OnWakeWordActivated(object? sender, WakeWordDetectedEventArgs e)
+    {
+        if (!_settings.MasterEnabled)
+        {
+            return;
+        }
+
+        Log.Information("Wake-word activated UI notification for {Keyword}", e.Keyword);
+        _balloons.DismissForNextTask();
+        RunOnUiSync(() =>
+        {
+            _statusItem.Text = "状态: 识别中…";
+            _balloons.Show(
+                1200,
+                "Array Mic — 已唤醒",
+                $"「{e.Keyword}」— 请说指令",
+                ToolTipIcon.Info);
+        });
+    }
+
+    private bool IsPttCaptureEnabled() =>
+        _voiceTriggerMode is VoiceTriggerMode.PttOnly or VoiceTriggerMode.Both;
+
+    private void WarmAudioCaptureIfNeeded()
+    {
+        if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
+        {
+            _pttCaptureService.WarmCaptureDevice();
+        }
+    }
+
+    private void RefreshAudioCaptureAfterSettings()
+    {
+        if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
+        {
+            _pttCaptureService.WarmCaptureDevice();
+            return;
+        }
+
+        Log.Information("Restarting wake-word listening after settings (mode={Mode})", _voiceTriggerMode);
+        if (_voiceOrchestrator.WakeCapture is WakeWordCaptureService wakeCapture)
+        {
+            wakeCapture.RestartListening();
+        }
+        else
+        {
+            _voiceOrchestrator.WakeCapture.StopListening();
+            _voiceOrchestrator.WakeCapture.StartListening();
+        }
+    }
+
+    private void PauseWakeListeningForPtt()
+    {
+        if (_voiceTriggerMode != VoiceTriggerMode.Both)
+        {
+            return;
+        }
+
+        if (_voiceOrchestrator.WakeCapture.IsListening)
+        {
+            Log.Information("Pausing wake-word mic for PTT (Both mode)");
+            _voiceOrchestrator.WakeCapture.StopListening();
+            _wakePausedForPtt = true;
+        }
+    }
+
+    private void ResumeWakeListeningAfterPtt()
+    {
+        if (!_wakePausedForPtt)
+        {
+            return;
+        }
+
+        _wakePausedForPtt = false;
+        if (_voiceTriggerMode is VoiceTriggerMode.WakeWordOnly or VoiceTriggerMode.Both)
+        {
+            Log.Information("Resuming wake-word listening after PTT");
+            _voiceOrchestrator.WakeCapture.StartListening();
+        }
+    }
+
+    private void RunOnUi(Action action)
+    {
+        if (SynchronizationContext.Current == _uiContext)
+        {
+            action();
+            return;
+        }
+
+        _uiContext.Post(_ => action(), null);
+    }
+
+    private void RunOnUiSync(Action action)
+    {
+        if (SynchronizationContext.Current == _uiContext)
+        {
+            action();
+            return;
+        }
+
+        _uiContext.Send(_ => action(), null);
     }
 
     private static VoiceTriggerMode NormalizePersistedMode(VoiceTriggerMode mode) =>
@@ -433,7 +614,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
         {
-            _trayIcon.ShowBalloonTip(
+            _balloons.Show(
                 4000,
                 "Array Mic",
                 "当前为「仅 PTT」模式。请先在「触发模式」中切换到唤醒词相关模式。",
@@ -447,7 +628,18 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
 
         Log.Information("Simulating wake-word detection (stub detector)");
-        _wakeDetector.SimulateDetection();
+        if (_wakeDetector is StubWakeWordDetector stub)
+        {
+            stub.SimulateDetection(_settings.WakeWordPhrase);
+        }
+        else
+        {
+            _balloons.Show(
+                4000,
+                "Array Mic",
+                "当前为 Sherpa 唤醒检测器，请直接说出设置的唤醒词。",
+                ToolTipIcon.Info);
+        }
     }
 
     private void OnWakeStatusChanged(object? sender, string status)
@@ -459,14 +651,30 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         if (!_pttCaptureService.IsPttHeld)
         {
-            _statusItem.Text = $"状态: {status}";
+            RunOnUi(() => _statusItem.Text = $"状态: {status}");
         }
     }
 
     private void OnPttPressed(object? sender, EventArgs e)
     {
-        _statusItem.Text = "状态: 录音中…";
         Log.Information("PTT pressed ({Hotkey})", _ptt.HotkeyDisplay);
+        _balloons.DismissForNextTask();
+        RunOnUi(() =>
+        {
+            if (_voiceTriggerMode == VoiceTriggerMode.WakeWordOnly)
+            {
+                _statusItem.Text = "状态: 仅唤醒词（PTT 未启用）";
+                _balloons.Show(
+                    4000,
+                    "Array Mic",
+                    "当前为「仅唤醒词」模式，PTT 不会录音。\n" +
+                    "请用托盘「触发模式」切换到「仅 PTT」或「PTT + 唤醒词」。",
+                    ToolTipIcon.Info);
+                return;
+            }
+
+            _statusItem.Text = "状态: 录音中…";
+        });
     }
 
     private void OnPttReleased(object? sender, EventArgs e)
@@ -504,7 +712,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             }
             else
             {
-                _trayIcon.ShowBalloonTip(
+                _balloons.Show(
                     4000,
                     "Array Mic",
                     "当前未在录音。请先按住 PTT 热键说话，松开后应自动识别；本菜单仅在卡住时用于强制结束录音。",
@@ -525,20 +733,28 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnCaptureFailed(object? sender, Exception ex)
     {
-        _statusItem.Text = "状态: 录音失败";
-        _trayIcon.ShowBalloonTip(
-            4000,
-            "Array Mic",
-            ex.Message,
-            ToolTipIcon.Warning);
         Log.Warning(ex, "PTT capture failed");
+        RunOnUi(() =>
+        {
+            _statusItem.Text = "状态: 录音失败";
+            _balloons.Show(
+                4000,
+                "Array Mic",
+                ex.Message,
+                ToolTipIcon.Warning);
+        });
     }
 
     private void OnCaptureEmpty(object? sender, string message)
     {
-        _statusItem.Text = "状态: 未录到音频";
-        _trayIcon.ShowBalloonTip(4000, "Array Mic", message, ToolTipIcon.Warning);
-        Log.Warning("PTT capture empty: {Message}", message);
+        Log.Warning("Capture empty: {Message}", message);
+        RunOnUi(() =>
+        {
+            _statusItem.Text = _voiceTriggerMode == VoiceTriggerMode.PttOnly
+                ? "状态: 未录到音频"
+                : "状态: 监听唤醒词…";
+            _balloons.Show(4000, "Array Mic — 唤醒", message, ToolTipIcon.Warning);
+        });
     }
 
     private async void OnUtteranceReady(object? sender, UtteranceCaptureEventArgs e)
@@ -547,6 +763,9 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             return;
         }
+
+        // Drop any wake/status balloon so ASR + paste are never blocked behind it.
+        _balloons.DismissForNextTask();
 
         var utterance = e.Utterance;
         Log.Information(
@@ -557,17 +776,20 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         if (_sherpaComponents?.AsrModelsMissing == true)
         {
-            _statusItem.Text = "状态: ASR 模型缺失";
-            _trayIcon.ShowBalloonTip(
-                8000,
-                "Array Mic",
-                "未找到 SenseVoice 模型，无法语音转写。请将 models 文件夹放在 exe 同级目录（在仓库根目录运行 scripts\\download-models.ps1 下载）。",
-                ToolTipIcon.Error);
+            RunOnUi(() =>
+            {
+                _statusItem.Text = "状态: ASR 模型缺失";
+                _balloons.Show(
+                    8000,
+                    "Array Mic",
+                    "未找到 SenseVoice 模型，无法语音转写。请将 models 文件夹放在 exe 同级目录（在仓库根目录运行 scripts\\download-models.ps1 下载）。",
+                    ToolTipIcon.Error);
+            });
             Log.Warning("Skipping ASR: SenseVoice models not found under {ModelsDir}", _settings.ModelsDirectory);
             return;
         }
 
-        _statusItem.Text = "状态: 识别中…";
+        RunOnUi(() => _statusItem.Text = "状态: 识别中…");
 
         Log.Information(
             "[DIAGNOSTIC] Before pipeline processing. " +
@@ -580,20 +802,33 @@ public sealed class TrayApplicationContext : ApplicationContext
         VoicePipelineOutcome outcome;
         try
         {
-            outcome = await _pipeline.ProcessUtteranceAsync(utterance, CancellationToken.None).ConfigureAwait(true);
+            outcome = await _pipeline.ProcessUtteranceAsync(
+                utterance,
+                CancellationToken.None,
+                e.TriggerKind).ConfigureAwait(true);
         }
         catch (Exception ex)
         {
-            _statusItem.Text = "状态: 处理异常";
+            RunOnUi(() =>
+            {
+                _statusItem.Text = "状态: 处理异常";
+                _balloons.Show(
+                    8000,
+                    "Array Mic — 异常",
+                    $"处理失败: {ex.Message}\n\n请查看日志并重启软件。",
+                    ToolTipIcon.Error);
+            });
             Log.Error(ex, "Pipeline crashed in OnUtteranceReady");
-            _trayIcon.ShowBalloonTip(
-                8000,
-                "Array Mic — 异常",
-                $"处理失败: {ex.Message}\n\n请查看日志并重启软件。",
-                ToolTipIcon.Error);
             return;
         }
 
+        var capturedOutcome = outcome;
+        var capturedTrigger = e.TriggerKind;
+        RunOnUi(() => ApplyUtteranceOutcome(capturedOutcome, capturedTrigger));
+    }
+
+    private void ApplyUtteranceOutcome(VoicePipelineOutcome outcome, VoiceTriggerKind triggerKind)
+    {
         var modelLabel = string.IsNullOrEmpty(outcome.AsrModelId)
             ? "未知模型"
             : (outcome.AsrModelId.Contains("2025-09") ? "2025-09(无标点)" :
@@ -603,53 +838,63 @@ public sealed class TrayApplicationContext : ApplicationContext
         var skillName = SkillLabel(_settings.ForcedIntent);
         var refineLabel = $"{skillName} | {outcome.RefineStatus ?? "未知"}";
 
+        // Only suppress balloons for utterances that were actually triggered by wake-word.
+        // PTT in Both mode should still show its own feedback.
+        var wakeFlow = triggerKind == VoiceTriggerKind.WakeWord;
+
         switch (outcome.Status)
         {
             case VoicePipelineStatus.SpeakerRejected:
             case VoicePipelineStatus.EmptyTranscript:
-                _statusItem.Text = "状态: 未输出";
+                _statusItem.Text = wakeFlow ? "状态: 监听唤醒词…" : "状态: 未输出";
                 Log.Warning("Pipeline outcome: {Status} — {Detail}", outcome.Status, outcome.Detail);
-                _trayIcon.ShowBalloonTip(
+                _balloons.Show(
                     5000,
-                    "Array Mic",
+                    wakeFlow ? "Array Mic — 唤醒未输出" : "Array Mic",
                     outcome.Detail ?? outcome.Status.ToString(),
                     ToolTipIcon.Warning);
                 break;
             case VoicePipelineStatus.Emitted:
             case VoicePipelineStatus.EmittedRawFallback:
-                _statusItem.Text = outcome.Status == VoicePipelineStatus.EmittedRawFallback
-                    ? "状态: 整理失败，使用原文"
-                    : "状态: 就绪";
+                _statusItem.Text = wakeFlow
+                    ? "状态: 监听唤醒词…"
+                    : outcome.Status == VoicePipelineStatus.EmittedRawFallback
+                        ? "状态: 整理失败，使用原文"
+                        : "状态: 就绪";
                 if (!string.IsNullOrWhiteSpace(outcome.Detail))
                 {
                     var preview = outcome.Detail.Length > 40
                         ? outcome.Detail[..40] + "…"
                         : outcome.Detail;
                     var via = _settings.PasteToCaretEnabled ? "已输出" : "已复制到剪贴板";
+                    Log.Information("Transcript {Via} (model={Model}, refine={Refine}): {Text}",
+                        via, modelLabel, refineLabel, outcome.Detail);
+
                     string balloonTitle;
                     string balloonBody;
                     if (outcome.Status == VoicePipelineStatus.EmittedRawFallback)
                     {
-                        // Show the exact failure reason in the balloon
                         var failureReason = outcome.RefineStatus ?? "未知原因";
-                        balloonTitle = $"Array Mic — {modelLabel} | 整理失败";
+                        balloonTitle = wakeFlow
+                            ? "Array Mic — 唤醒（整理失败）"
+                            : $"Array Mic — {modelLabel} | 整理失败";
                         balloonBody = $"原因: {failureReason}\n{via}（原文）: {preview}";
                     }
                     else
                     {
-                        balloonTitle = $"Array Mic — {modelLabel} | {refineLabel}";
+                        balloonTitle = wakeFlow
+                            ? "Array Mic — 唤醒完成"
+                            : $"Array Mic — {modelLabel} | {refineLabel}";
                         balloonBody = $"{via}: {preview}";
                     }
 
-                    _trayIcon.ShowBalloonTip(
-                        5000,
+                    _balloons.Show(
+                        wakeFlow ? 3500 : 5000,
                         balloonTitle,
                         balloonBody,
                         outcome.Status == VoicePipelineStatus.EmittedRawFallback
                             ? ToolTipIcon.Warning
                             : ToolTipIcon.Info);
-                    Log.Information("Transcript {Via} (model={Model}, refine={Refine}): {Text}",
-                        via, modelLabel, refineLabel, outcome.Detail);
                 }
 
                 break;
@@ -700,7 +945,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             : _sherpaComponents?.SpeakerModelMissing == true
                 ? " 无声纹"
                 : string.Empty;
-        _trayIcon.Text = $"Array Mic — {modeLabel} {ptt} 转写:{master}{models}";
+        _trayIcon.Text = $"Array Mic {AppInfo.Version} — {modeLabel} {ptt} 转写:{master}{models}";
         if (_trayIcon.Text.Length > 63)
         {
             _trayIcon.Text = _trayIcon.Text[..63];
@@ -743,6 +988,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             }
 
             _sherpaComponents?.DisposeOwned();
+            _balloons.Dispose();
             _trayIcon.Dispose();
         }
 

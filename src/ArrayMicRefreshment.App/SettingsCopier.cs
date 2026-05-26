@@ -53,6 +53,11 @@ internal static class SettingsCopier
         !string.Equals(previous.ModelsDirectory, next.ModelsDirectory, StringComparison.OrdinalIgnoreCase)
         || !string.Equals(previous.SelectedAsrModelId, next.SelectedAsrModelId, StringComparison.OrdinalIgnoreCase);
 
+    public static bool RequiresWakeCaptureRestart(AppSettings previous, AppSettings next) =>
+        previous.TriggerMode != next.TriggerMode
+        || !string.Equals(previous.SelectedDeviceId, next.SelectedDeviceId, StringComparison.OrdinalIgnoreCase)
+        || !string.Equals(previous.WakeWordPhrase, next.WakeWordPhrase, StringComparison.Ordinal);
+
     public static bool RequiresPipelineRebuild(AppSettings previous, AppSettings next) =>
         RequiresSherpaReload(previous, next)
         || previous.PromptRefineEnabled != next.PromptRefineEnabled

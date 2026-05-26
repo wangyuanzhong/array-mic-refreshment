@@ -5,6 +5,12 @@ public sealed class AudioUtterance
     public required byte[] Pcm16LeMono { get; init; }
     public int SampleRate { get; init; } = 16000;
     public TimeSpan Duration { get; init; }
+
+    /// <summary>
+    /// Optional PCM used only for speaker verification (e.g. wake-word mode excludes pre-roll
+    /// that contains the wake phrase). When null, <see cref="Pcm16LeMono"/> is used.
+    /// </summary>
+    public byte[]? SpeakerVerifyPcm16LeMono { get; init; }
 }
 
 public interface IPushToTalkSource
@@ -26,6 +32,9 @@ public interface IWakeWordCaptureService : IDisposable
     event EventHandler<string>? CaptureEmpty;
 
     event EventHandler<string>? StatusChanged;
+
+    /// <summary>Fired when the wake-word engine detects the configured phrase (before dictation).</summary>
+    event EventHandler<WakeWordDetectedEventArgs>? WakeWordActivated;
 
     bool IsListening { get; }
 

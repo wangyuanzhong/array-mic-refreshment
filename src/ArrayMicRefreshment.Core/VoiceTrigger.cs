@@ -1,6 +1,6 @@
 namespace ArrayMicRefreshment.Core;
 
-/// <summary>Runtime voice capture routing mode (not persisted in settings UI yet).</summary>
+/// <summary>Runtime voice capture routing mode (persisted in <see cref="AppSettings.TriggerMode"/>).</summary>
 public enum VoiceTriggerMode
 {
     /// <summary>Global PTT hotkey only (default, existing behaviour).</summary>
@@ -61,4 +61,7 @@ public interface IWakeWordDetector : IDisposable
 
     /// <summary>Feed one chunk of capture audio (typically 10–100 ms at 16 kHz mono).</summary>
     void ProcessAudio(ReadOnlySpan<short> pcm16Mono, int sampleRate);
+
+    /// <summary>Update the phrase to listen for (may reload models).</summary>
+    void ApplyPhrase(string phrase);
 }

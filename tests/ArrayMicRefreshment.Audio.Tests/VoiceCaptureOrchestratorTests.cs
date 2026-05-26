@@ -112,7 +112,10 @@ public sealed class VoiceCaptureOrchestratorTests
     public async Task WakeWord_EndToEnd_StubDetector_EmitsWakeUtterance()
     {
         const int sampleRate = 16000;
-        var sine = PcmResampler.GenerateSineWavePcm16(sampleRate, 1, 440, TimeSpan.FromMilliseconds(500));
+        var sine = PcmResampler.GenerateSineWavePcm16(sampleRate, 1, 440, TimeSpan.FromMilliseconds(2000));
+        var silence = new byte[sine.Length / 2];
+        var payload = new byte[sine.Length + silence.Length];
+        sine.CopyTo(payload, 0);
         var device = new AudioDeviceInfo
         {
             Id = "fake:0",
@@ -123,9 +126,8 @@ public sealed class VoiceCaptureOrchestratorTests
             Channels = 1,
         };
         var enumerator = new FakeAudioDeviceEnumerator(device);
-        var factory = new FakeCaptureStreamFactory(_ => new FakeCaptureStream(sine, sampleRate, 1));
+        var factory = new FakeCaptureStreamFactory(_ => new FakeCaptureStream(payload, sampleRate, 1));
         var detector = new StubWakeWordDetector(chunksBeforeAutoFire: 0);
-        var vad = new TriggeringVoiceActivityDetector();
         var settings = new AppSettings();
 
         using var wake = new WakeWordCaptureService(
@@ -133,9 +135,10 @@ public sealed class VoiceCaptureOrchestratorTests
             detector,
             enumerator,
             factory,
-            vad,
-            postWakeSilenceTimeout: TimeSpan.FromMilliseconds(50),
-            postWakeMaxSession: TimeSpan.FromSeconds(5));
+            postWakeSilenceTimeout: TimeSpan.FromMilliseconds(80),
+            postWakeStartGrace: TimeSpan.FromSeconds(2),
+            postWakeMaxSession: TimeSpan.FromSeconds(5),
+            postWakeEchoIgnore: TimeSpan.Zero);
         var ptt = new TestPushToTalkSource();
         using var pttCapture = new PttCaptureService(settings, ptt, enumerator, factory);
         using var orchestrator = new VoiceCaptureOrchestrator(
@@ -149,9 +152,7 @@ public sealed class VoiceCaptureOrchestratorTests
         wake.StartListening();
         await Task.Delay(100);
         detector.SimulateDetection();
-        await Task.Delay(120);
-        vad.TriggerEndOfSpeech = true;
-        await Task.Delay(500);
+        await Task.Delay(1200);
 
         Assert.NotNull(captured);
         Assert.Equal(VoiceTriggerKind.WakeWord, captured!.TriggerKind);
@@ -231,6 +232,7 @@ public sealed class VoiceCaptureOrchestratorTests
         public event EventHandler<Exception>? CaptureFailed;
         public event EventHandler<string>? CaptureEmpty;
         public event EventHandler<string>? StatusChanged;
+        public event EventHandler<WakeWordDetectedEventArgs>? WakeWordActivated;
 
         public bool IsListening => _listening;
         public bool IsDictationActive { get; private set; }

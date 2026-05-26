@@ -42,6 +42,7 @@ public static class TriggerModeOptions
     {
         new("PTT（按住热键）", VoiceTriggerMode.PttOnly),
         new("唤醒词", VoiceTriggerMode.WakeWordOnly),
+        new("PTT + 唤醒词", VoiceTriggerMode.Both),
     };
 }
 
@@ -109,13 +110,14 @@ public sealed class SettingsForm : Form
     private readonly TextBox _apiModel = new() { Width = 360 };
     private readonly TextBox _skillsDir = new() { Width = 360 };
     private readonly ComboBox _triggerMode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
+    private VoiceTriggerMode _loadedTriggerMode = VoiceTriggerMode.PttOnly;
     private readonly TextBox _wakeWordPhrase = new() { Width = 360 };
     private readonly Label _wakeWordHint = new()
     {
         AutoSize = true,
         MaximumSize = new Size(360, 0),
         ForeColor = SystemColors.GrayText,
-        Text = "唤醒词检测尚未启用；保存后供后续版本使用。",
+        Text = "保存后立即生效。需安装 Sherpa 唤醒模型（scripts\\download-models.ps1 -IncludeKws）才能从语音识别；未安装时可用托盘「模拟唤醒」测试。",
     };
     private Label? _wakeWordLabel;
     private Control? _wakeWordPanel;
@@ -134,6 +136,9 @@ public sealed class SettingsForm : Form
 
     public AppSettings Settings { get; private set; }
 
+    /// <summary>When set, reflects the live tray mode instead of stale persisted settings.</summary>
+    public VoiceTriggerMode? RuntimeTriggerMode { get; set; }
+
     public SettingsForm(
         AppSettings settings,
         IAudioDeviceEnumerator? deviceEnumerator = null,
@@ -147,7 +152,7 @@ public sealed class SettingsForm : Form
         _speakerModelMissing = speakerModelMissing;
         Settings = settings;
         Settings.MigrateLegacyApiSettings();
-        Text = "Array Mic Refreshment — 设置";
+        Text = $"Array Mic Refreshment — 设置 ({AppInfo.Version})";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -677,7 +682,7 @@ public sealed class SettingsForm : Form
                 return false;
             }
 
-            var triggerMode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.PttOnly;
+            var triggerMode = ResolveTriggerModeFromUi();
             if (triggerMode == VoiceTriggerMode.WakeWordOnly && string.IsNullOrWhiteSpace(_wakeWordPhrase.Text))
             {
                 MessageBox.Show(
@@ -760,9 +765,10 @@ public sealed class SettingsForm : Form
         }
         catch (Exception ex)
         {
+            Serilog.Log.Error(ex, "Failed to commit settings from dialog");
             MessageBox.Show(
                 this,
-                $"保存设置时出错：{ex.GetType().Name}\n\n{ex.Message}\n\n{ex.StackTrace}",
+                $"保存设置时出错：{ex.Message}",
                 "错误",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
@@ -772,7 +778,8 @@ public sealed class SettingsForm : Form
 
     private void UpdateWakeWordUiVisibility()
     {
-        var wake = (_triggerMode.SelectedItem as TriggerModeOption)?.Value == VoiceTriggerMode.WakeWordOnly;
+        var mode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.PttOnly;
+        var wake = mode is VoiceTriggerMode.WakeWordOnly or VoiceTriggerMode.Both;
         if (_wakeWordLabel is not null)
         {
             _wakeWordLabel.Visible = wake;
@@ -791,9 +798,19 @@ public sealed class SettingsForm : Form
         LoadCurrentPresetIntoUi();
         _refineEnabled.Checked = Settings.PromptRefineEnabled;
         _skillsDir.Text = Settings.SkillsDirectory;
-        var trigger = TriggerModeOptions.All.FirstOrDefault(x => x.Value == Settings.TriggerMode)
-            ?? TriggerModeOptions.All.First(x => x.Value == VoiceTriggerMode.PttOnly);
-        _triggerMode.SelectedItem = trigger;
+        var triggerMode = RuntimeTriggerMode ?? Settings.TriggerMode;
+        for (var i = 0; i < TriggerModeOptions.All.Count; i++)
+        {
+            if (TriggerModeOptions.All[i].Value != triggerMode)
+            {
+                continue;
+            }
+
+            _triggerMode.SelectedIndex = i;
+            break;
+        }
+
+        _loadedTriggerMode = triggerMode;
         _wakeWordPhrase.Text = Settings.WakeWordPhrase;
         _pttHotkey.HotkeyExpression = Settings.PttHotkey;
         var forced = SkillOptions.All.FirstOrDefault(x => x.Value == Settings.ForcedIntent)
@@ -975,7 +992,7 @@ public sealed class SettingsForm : Form
             SelectedDeviceId = deviceId,
             CurrentSpeakerUserId = speakerUserId,
             PttHotkey = _pttHotkey.HotkeyExpression,
-            TriggerMode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.PttOnly,
+            TriggerMode = ResolveTriggerModeFromUi(),
             WakeWordPhrase = _wakeWordPhrase.Text.Trim(),
             SkillsDirectory = _skillsDir.Text.Trim(),
             ModelsDirectory = Settings.ModelsDirectory,
@@ -996,6 +1013,21 @@ public sealed class SettingsForm : Form
             ApiKey = currentPreset.ApiKey,
             ApiModel = currentPreset.ApiModel,
         };
+    }
+
+    private VoiceTriggerMode ResolveTriggerModeFromUi()
+    {
+        if (_triggerMode.SelectedItem is TriggerModeOption selected)
+        {
+            return selected.Value;
+        }
+
+        if (_triggerMode.SelectedIndex >= 0 && _triggerMode.SelectedIndex < TriggerModeOptions.All.Count)
+        {
+            return TriggerModeOptions.All[_triggerMode.SelectedIndex].Value;
+        }
+
+        return _loadedTriggerMode;
     }
 
     private async void OnTestConnectionClick(object? sender, EventArgs e)

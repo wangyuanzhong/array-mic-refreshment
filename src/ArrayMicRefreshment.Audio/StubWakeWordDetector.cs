@@ -10,7 +10,7 @@ public sealed class StubWakeWordDetector : IWakeWordDetector
 {
     public const string DefaultKeyword = "stub-wake";
 
-    private readonly string _keyword;
+    private string _keyword;
     private readonly int _chunksBeforeAutoFire;
     private int _chunkCount;
     private bool _running;
@@ -19,11 +19,11 @@ public sealed class StubWakeWordDetector : IWakeWordDetector
         string keyword = DefaultKeyword,
         int chunksBeforeAutoFire = 0)
     {
-        _keyword = keyword;
+        _keyword = string.IsNullOrWhiteSpace(keyword) ? DefaultKeyword : keyword.Trim();
         _chunksBeforeAutoFire = Math.Max(0, chunksBeforeAutoFire);
     }
 
-    public string DetectorId => "stub";
+    public string DetectorId => "stub (no KWS model)";
 
     public bool IsRunning => _running;
 
@@ -74,6 +74,11 @@ public sealed class StubWakeWordDetector : IWakeWordDetector
         WakeWordDetected?.Invoke(
             this,
             new WakeWordDetectedEventArgs(_keyword, DateTimeOffset.UtcNow));
+    }
+
+    public void ApplyPhrase(string phrase)
+    {
+        _keyword = string.IsNullOrWhiteSpace(phrase) ? DefaultKeyword : phrase.Trim();
     }
 
     public void Dispose()
