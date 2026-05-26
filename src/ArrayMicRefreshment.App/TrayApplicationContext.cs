@@ -296,8 +296,6 @@ public sealed class TrayApplicationContext : ApplicationContext
     /// </summary>
     private bool TryOpenWebEnroll(SpeakerGate gate)
     {
-        _ = gate;
-
         if (!WebView2RuntimeChecker.IsRuntimeAvailable(out _))
         {
             return false;
@@ -310,7 +308,35 @@ public sealed class TrayApplicationContext : ApplicationContext
             return false;
         }
 
-        using var form = new WebUiHostForm("#/enroll");
+        IEnrollmentUtteranceSource? capture;
+        try
+        {
+            capture = new EnrollmentUtteranceCapture(
+                _settings,
+                new NAudioDeviceEnumerator(),
+                new NAudioCaptureStreamFactory());
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to create enrollment capture for Web UI; falling back to EnrollmentDialog.");
+            return false;
+        }
+
+        var context = CreateWebUiBridgeContext(
+            capture,
+            onSuccess: () =>
+            {
+                _settings.CurrentSpeakerUserId = gate.Enrollment.CurrentUserId;
+                _settingsStore.Save(_settings);
+                _balloons.Show(
+                    5000,
+                    "Array Mic",
+                    "说话人注册成功。请在「设置」中将「当前用户」选为刚注册的用户以启用声纹校验。",
+                    ToolTipIcon.Info);
+            });
+
+        using var captureDisposable = capture as IDisposable;
+        using var form = new WebUiHostForm("#/enroll", context);
         form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
         form.ShowDialog();
         _settingsWindowHandle = IntPtr.Zero;
@@ -356,10 +382,44 @@ public sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        using var form = new WebUiHostForm("#/settings");
+#if WINDOWS
+        IAudioDeviceEnumerator? deviceEnumerator = new NAudioDeviceEnumerator();
+#else
+        IAudioDeviceEnumerator? deviceEnumerator = null;
+#endif
+
+        var context = CreateWebUiBridgeContext(enrollmentCapture: null, deviceEnumerator: deviceEnumerator);
+        using var form = new WebUiHostForm("#/settings", context);
         form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
         form.ShowDialog();
         _settingsWindowHandle = IntPtr.Zero;
+    }
+
+    private WebUiBridgeContext CreateWebUiBridgeContext(
+        IEnrollmentUtteranceSource? enrollmentCapture,
+        Action? onSuccess = null,
+        IAudioDeviceEnumerator? deviceEnumerator = null)
+    {
+        IUserEnrollmentService? enrollment = null;
+        if (_sherpaComponents?.Speaker is SpeakerGate gate)
+        {
+            enrollment = gate.Enrollment;
+        }
+
+        return new WebUiBridgeContext
+        {
+            Settings = _settings,
+            SettingsStore = _settingsStore,
+            Enrollment = enrollment,
+            EnrollmentCapture = enrollmentCapture,
+            DeviceEnumerator = deviceEnumerator,
+            RuntimeTriggerMode = _voiceTriggerMode,
+            MasterEnabled = _settings.MasterEnabled,
+            SpeakerModelMissing = _sherpaComponents?.SpeakerModelMissing == true,
+            SettingsApplyHost = new TraySettingsApplyHost(this),
+            SettingsApplyService = _settingsApplyService,
+            OnSuccess = onSuccess,
+        };
     }
 
     private void OnOpenWinFormsSettings(object? sender, EventArgs e)
