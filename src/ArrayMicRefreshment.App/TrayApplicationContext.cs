@@ -1,4 +1,6 @@
 using ArrayMicRefreshment.Asr;
+using ArrayMicRefreshment.App.Services;
+using ArrayMicRefreshment.App.Web;
 using ArrayMicRefreshment.Audio;
 using ArrayMicRefreshment.Core;
 using ArrayMicRefreshment.Output;
@@ -30,6 +32,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private bool _wakePausedForPtt;
     private nint _settingsWindowHandle;
     private string? _registeredPttHotkey;
+    private readonly SettingsApplyService _settingsApplyService = new();
 
     public TrayApplicationContext()
     {
@@ -65,6 +68,10 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripMenuItem("设置…", null, OnOpenSettings));
+        if (WebUiFeatureFlags.UseWebSettings)
+        {
+            menu.Items.Add(new ToolStripMenuItem("设置（WinForms）…", null, OnOpenWinFormsSettings));
+        }
         menu.Items.Add(new ToolStripMenuItem("注册说话人…", null, OnEnrollSpeaker));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("强制结束录音（卡住时用）", null, OnSimulatePttRelease));
@@ -270,6 +277,74 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
 
 #if WINDOWS
+        if (TryOpenWebEnroll(gate))
+        {
+            return;
+        }
+
+        ShowEnrollmentDialogFallback(gate);
+#else
+        _ = sender;
+#endif
+    }
+
+#if WINDOWS
+    /// <summary>
+    /// Opens WebView2 enrollment at <c>#/enroll</c>. Returns true when Web UI was shown
+    /// (including user cancel). Returns false when WebView2 runtime or wwwroot is unavailable
+    /// so the caller can fall back to <see cref="EnrollmentDialog"/>.
+    /// </summary>
+    private bool TryOpenWebEnroll(SpeakerGate gate)
+    {
+        if (!WebView2RuntimeChecker.IsRuntimeAvailable(out _))
+        {
+            return false;
+        }
+
+        var wwwRootIndex = Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html");
+        if (!File.Exists(wwwRootIndex))
+        {
+            Log.Warning("Web UI wwwroot missing at {Path}; falling back to EnrollmentDialog.", wwwRootIndex);
+            return false;
+        }
+
+        IEnrollmentUtteranceSource? capture = null;
+        try
+        {
+            capture = new EnrollmentUtteranceCapture(
+                _settings,
+                new NAudioDeviceEnumerator(),
+                new NAudioCaptureStreamFactory());
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to create enrollment capture for Web UI; falling back to EnrollmentDialog.");
+            return false;
+        }
+
+        var context = CreateWebUiBridgeContext(
+            capture,
+            onSuccess: () =>
+            {
+                _settings.CurrentSpeakerUserId = gate.Enrollment.CurrentUserId;
+                _settingsStore.Save(_settings);
+                _balloons.Show(
+                    5000,
+                    "Array Mic",
+                    "说话人注册成功。请在「设置」中将「当前用户」选为刚注册的用户以启用声纹校验。",
+                    ToolTipIcon.Info);
+            });
+
+        using var captureDisposable = capture as IDisposable;
+        using var form = new WebUiHostForm("#/enroll", context);
+        form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
+        form.ShowDialog();
+
+        return true;
+    }
+
+    private void ShowEnrollmentDialogFallback(SpeakerGate gate)
+    {
         using var capture = new EnrollmentUtteranceCapture(
             _settings,
             new NAudioDeviceEnumerator(),
@@ -285,12 +360,68 @@ public sealed class TrayApplicationContext : ApplicationContext
                 "说话人注册成功。请在「设置」中将「当前用户」选为刚注册的用户以启用声纹校验。",
                 ToolTipIcon.Info);
         }
-#else
-        _ = sender;
-#endif
     }
+#endif
 
     private void OnOpenSettings(object? sender, EventArgs e)
+    {
+        if (WebUiFeatureFlags.UseWebSettings)
+        {
+            OnOpenWebSettings();
+            return;
+        }
+
+        OnOpenWinFormsSettings(sender, e);
+    }
+
+    private void OnOpenWebSettings()
+    {
+        if (!WebView2RuntimeChecker.TryEnsureAvailable(null))
+        {
+            return;
+        }
+
+#if WINDOWS
+        IAudioDeviceEnumerator? deviceEnumerator = new NAudioDeviceEnumerator();
+#else
+        IAudioDeviceEnumerator? deviceEnumerator = null;
+#endif
+
+        var context = CreateWebUiBridgeContext(enrollmentCapture: null, deviceEnumerator: deviceEnumerator);
+        using var form = new WebUiHostForm("#/settings", context);
+        form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
+        form.ShowDialog();
+        _settingsWindowHandle = IntPtr.Zero;
+    }
+
+    private WebUiBridgeContext CreateWebUiBridgeContext(
+        IEnrollmentUtteranceSource? enrollmentCapture,
+        Action? onSuccess = null,
+        IAudioDeviceEnumerator? deviceEnumerator = null)
+    {
+        IUserEnrollmentService? enrollment = null;
+        if (_sherpaComponents?.Speaker is SpeakerGate gate)
+        {
+            enrollment = gate.Enrollment;
+        }
+
+        return new WebUiBridgeContext
+        {
+            Settings = _settings,
+            SettingsStore = _settingsStore,
+            Enrollment = enrollment,
+            EnrollmentCapture = enrollmentCapture,
+            DeviceEnumerator = deviceEnumerator,
+            RuntimeTriggerMode = _voiceTriggerMode,
+            MasterEnabled = _settings.MasterEnabled,
+            SpeakerModelMissing = _sherpaComponents?.SpeakerModelMissing == true,
+            SettingsApplyHost = new TraySettingsApplyHost(this),
+            SettingsApplyService = _settingsApplyService,
+            OnSuccess = onSuccess,
+        };
+    }
+
+    private void OnOpenWinFormsSettings(object? sender, EventArgs e)
     {
         IAudioDeviceEnumerator? deviceEnumerator = null;
         IEnrollmentUtteranceSource? enrollmentCapture = null;
@@ -320,101 +451,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
         if (form.ShowDialog() == DialogResult.OK)
         {
-            var previous = CloneSettingsSnapshot(_settings);
-            SettingsCopier.CopyInto(form.Settings, _settings);
-
-            var rebuildRequired = SettingsCopier.RequiresPipelineRebuild(previous, _settings);
-            Log.Information(
-                "[DIAGNOSTIC] Settings changed. PreviousRefine={PrevRefine}, CurrentRefine={CurrRefine}, " +
-                "RebuildRequired={Rebuild}",
-                previous.PromptRefineEnabled,
-                _settings.PromptRefineEnabled,
-                rebuildRequired);
-
-            if (rebuildRequired)
-            {
-                Log.Information("Pipeline rebuild required. Rebuilding...");
-                _pipeline = BuildPipeline(_settings);
-            }
-            else
-            {
-                _pipeline.ApplySettings(_settings);
-            }
-
-            var hotkeyChanged = !string.Equals(
-                _registeredPttHotkey,
-                _settings.PttHotkey,
-                StringComparison.OrdinalIgnoreCase);
-            if (hotkeyChanged
-                && _ptt is NAudioPushToTalkSource naudioPtt)
-            {
-                if (!naudioPtt.TryUpdateHotkey(_settings.PttHotkey, out var hotkeyError))
-                {
-                    MessageBox.Show(hotkeyError ?? "PTT 热键注册失败。", "热键", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                }
-                else
-                {
-                    _registeredPttHotkey = _settings.PttHotkey;
-                    _balloons.Show(
-                        4000,
-                        "Array Mic",
-                        $"PTT 热键已更新为 {naudioPtt.HotkeyDisplay}",
-                        ToolTipIcon.Info);
-                }
-            }
-
-            var persistedMode = NormalizePersistedMode(_settings.TriggerMode);
-            if (_voiceTriggerMode != persistedMode)
-            {
-                SetVoiceTriggerMode(persistedMode);
-            }
-
-            if (!string.Equals(previous.WakeWordPhrase, _settings.WakeWordPhrase, StringComparison.Ordinal))
-            {
-                try
-                {
-                    _wakeDetector.ApplyPhrase(_settings.WakeWordPhrase);
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "Failed to apply wake phrase after settings save");
-                    MessageBox.Show(
-                        $"唤醒词配置更新失败：{ex.Message}",
-                        "唤醒词",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                }
-            }
-
-            if (previous.WakeWordSensitivity != _settings.WakeWordSensitivity)
-            {
-                _wakeDetector.ApplyWakeSensitivity(_settings.WakeWordSensitivity);
-            }
-
-            if (previous.WakeCommandSilenceMs != _settings.WakeCommandSilenceMs
-                && _voiceOrchestrator.WakeCapture is WakeWordCaptureService wakeCaptureService)
-            {
-                wakeCaptureService.ApplyWakeCaptureSettings(_settings);
-            }
-
-            if (previous.HudScreenCorner != _settings.HudScreenCorner)
-            {
-                _feedback.ApplyHudCorner(_settings.HudScreenCorner);
-            }
-
-            if (previous.LaunchAtStartup != _settings.LaunchAtStartup)
-            {
-                ApplyLaunchAtStartup(_settings.LaunchAtStartup);
-            }
-
-            _pttCaptureService.InvalidateCaptureDevice();
-            PersistAndRefresh();
-#if WINDOWS
-            if (SettingsCopier.RequiresWakeCaptureRestart(previous, _settings))
-            {
-                RefreshAudioCaptureAfterSettings();
-            }
-#endif
+            var previous = SettingsApplyService.CloneSnapshot(_settings);
+            _settingsApplyService.Apply(previous, form.Settings, new TraySettingsApplyHost(this));
         }
 
 #if WINDOWS
@@ -1113,13 +1151,6 @@ public sealed class TrayApplicationContext : ApplicationContext
         _ = await _pipeline.ProcessUtteranceAsync(utterance, CancellationToken.None).ConfigureAwait(true);
     }
 
-    private static AppSettings CloneSettingsSnapshot(AppSettings source)
-    {
-        var clone = new AppSettings();
-        SettingsCopier.CopyInto(source, clone);
-        return clone;
-    }
-
     private void PersistAndRefresh()
     {
         _settingsStore.Save(_settings);
@@ -1194,5 +1225,84 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
 
         base.Dispose(disposing);
+    }
+
+    private sealed class TraySettingsApplyHost : ISettingsApplyHost
+    {
+        private readonly TrayApplicationContext _ctx;
+
+        public TraySettingsApplyHost(TrayApplicationContext ctx) => _ctx = ctx;
+
+        public AppSettings TargetSettings => _ctx._settings;
+
+        public VoiceTriggerMode CurrentTriggerMode => _ctx._voiceTriggerMode;
+
+        public string? RegisteredPttHotkey
+        {
+            get => _ctx._registeredPttHotkey;
+            set => _ctx._registeredPttHotkey = value;
+        }
+
+        public void RebuildPipeline() => _ctx._pipeline = _ctx.BuildPipeline(_ctx._settings);
+
+        public void ApplyPipelineSettings() => _ctx._pipeline.ApplySettings(_ctx._settings);
+
+        public IPushToTalkSource PushToTalk => _ctx._ptt;
+
+        public bool TryUpdatePttHotkey(string hotkey, out string? error)
+        {
+            if (_ctx._ptt is NAudioPushToTalkSource naudioPtt)
+            {
+                return naudioPtt.TryUpdateHotkey(hotkey, out error);
+            }
+
+            error = null;
+            return false;
+        }
+
+        public void NotifyPttHotkeyUpdated(string hotkeyDisplay) =>
+            _ctx._balloons.Show(
+                4000,
+                "Array Mic",
+                $"PTT 热键已更新为 {hotkeyDisplay}",
+                ToolTipIcon.Info);
+
+        public void NotifyPttHotkeyFailed(string? error) =>
+            MessageBox.Show(error ?? "PTT 热键注册失败。", "热键", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+        public IWakeWordDetector WakeDetector => _ctx._wakeDetector;
+
+        public void ApplyWakeCaptureSettings(AppSettings settings)
+        {
+            if (_ctx._voiceOrchestrator.WakeCapture is WakeWordCaptureService wakeCaptureService)
+            {
+                wakeCaptureService.ApplyWakeCaptureSettings(settings);
+            }
+        }
+
+        public void SetVoiceTriggerMode(VoiceTriggerMode mode) => _ctx.SetVoiceTriggerMode(mode);
+
+        public void ApplyHudCorner(HudScreenCorner corner) => _ctx._feedback.ApplyHudCorner(corner);
+
+        public void ApplyLaunchAtStartup(bool enabled)
+        {
+#if WINDOWS
+            TrayApplicationContext.ApplyLaunchAtStartup(enabled);
+#endif
+        }
+
+        public void InvalidateCaptureDevice() => _ctx._pttCaptureService.InvalidateCaptureDevice();
+
+        public void PersistAndRefresh() => _ctx.PersistAndRefresh();
+
+        public void RefreshAudioCaptureAfterSettings()
+        {
+#if WINDOWS
+            _ctx.RefreshAudioCaptureAfterSettings();
+#endif
+        }
+
+        public void ShowWakePhraseWarning(string message) =>
+            MessageBox.Show(message, "唤醒词", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 }

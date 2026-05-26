@@ -6,6 +6,35 @@
 
 ---
 
+## 0.1 与仓库 `main` 对齐的现状快照（2026-05-26，集成负责人维护）
+
+> **用途**：把「路线 B 规划」与 **当前代码事实** 绑在一起，避免 Agent 按文档假设已实现 WebView2。
+
+| 维度 | 文档 §1.1 描述 | **当前 `main` 实测** |
+|------|----------------|----------------------|
+| 产品对外版本 | V0.3（README） | README 写 V0.3；`ArrayMicRefreshment.App.csproj` 仍为 `InformationalVersion=V0.2` / `0.2.0` — **需 Phase 5 对齐** |
+| WebView2 NuGet | 「尚未引入」 | **仍未引入**（`ArrayMicRefreshment.App.csproj` 无 `Microsoft.Web.WebView2`） |
+| `ui/` 前端工程 | 目标态 §6 | **不存在** |
+| `src/.../Web/**` | 目标态 §6 | **不存在** |
+| `SettingsApplyService` | Phase 0 产出 | **未提取**；保存逻辑仍在 `TrayApplicationContext.OnOpenSettings` + `SettingsForm` |
+| 设置 / 注册 UI | WinForms | `SettingsForm.cs`（~1270 行）、`EnrollmentDialog.cs`、`PrivacyConsent.cs` — **仍为主路径** |
+| 托盘入口 | Phase 2 后改 Web | `TrayApplicationContext` 仍 `SettingsForm.ShowDialog` |
+| CI（Linux） | `dotnet build` 可编 App | 本环境无 SDK 时仅能改代码；**WebView2 运行与 §10.2 手测仅 Windows** |
+| 路线 B Phase checklist §14 | 全未勾选 | **0/5 Phase 完成** |
+
+**结论**：路线 B 的 **决策与契约** 已写在本文；**实现进度为 0%**。并行 Agent 应从 **Phase 0（A1）** 与 **Phase 1（A2）** 开工，再合并 A4/A3，最后 A5。
+
+**与本仓库其他文档**：
+
+| 文档 | 与路线 B 关系 |
+|------|----------------|
+| [`README.md`](../README.md) | 仍描述 WinForms 设置窗；Phase 2 验收后改 WebView2 |
+| [`docs/HANDOFF_PHASE5.md`](HANDOFF_PHASE5.md) | 音频/Sherpa/打包；**不替代** UI 升级 |
+| [`docs/LOCAL_DEVELOPMENT.md`](LOCAL_DEVELOPMENT.md) | 开发环境；未来需增加 `ui/` 的 `npm ci` 步骤（Phase 1+） |
+| [`AGENTS.md`](../AGENTS.md) | Agent 应先读 LOCAL_DEVELOPMENT；UI 大改再读 **本文** |
+
+---
+
 ## 0. 读者须知（30 秒版）
 
 | 问题 | 答案 |

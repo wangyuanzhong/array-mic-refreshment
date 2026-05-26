@@ -31,8 +31,33 @@ Set-Location $repoRoot
 
 $proj = 'src\ArrayMicRefreshment.App\ArrayMicRefreshment.App.csproj'
 $outDir = Join-Path $OutputDir "ArrayMicRefreshment-$Mode"
+$uiDir = Join-Path $repoRoot 'ui'
+$wwwSrc = Join-Path $repoRoot 'src\ArrayMicRefreshment.App\wwwroot'
 
 if (Test-Path $outDir) { Remove-Item $outDir -Recurse -Force }
+
+# Route B: build Web UI before dotnet publish (docs/UI_ROUTE_B_WEBVIEW2.md §9.2)
+if (-not (Test-Path (Join-Path $uiDir 'package.json'))) {
+    throw "ui/package.json not found — Web UI sources are required for release builds."
+}
+
+Write-Host "→ Building Web UI (npm ci && npm run build) ..." -ForegroundColor Cyan
+Push-Location $uiDir
+try {
+    npm ci
+    if ($LASTEXITCODE -ne 0) { throw "npm ci failed (exit $LASTEXITCODE)" }
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw "npm run build failed (exit $LASTEXITCODE)" }
+}
+finally {
+    Pop-Location
+}
+
+if (-not (Test-Path (Join-Path $wwwSrc 'index.html'))) {
+    throw "Web UI build did not produce $wwwSrc\index.html"
+}
+
+Write-Host "✔ Web UI built → $wwwSrc" -ForegroundColor Green
 
 $selfContained = ($Mode -eq 'self-contained')
 $publishArgs = @(
@@ -48,6 +73,14 @@ $publishArgs = @(
 Write-Host "→ dotnet $($publishArgs -join ' ')" -ForegroundColor Cyan
 dotnet @publishArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)" }
+
+# Ensure wwwroot is present in publish output (csproj CopyToOutputDirectory + explicit sync)
+$wwwDst = Join-Path $outDir 'wwwroot'
+Write-Host "→ Copying wwwroot to $wwwDst ..." -ForegroundColor Cyan
+if (Test-Path $wwwDst) { Remove-Item $wwwDst -Recurse -Force }
+robocopy $wwwSrc $wwwDst /E /NFL /NDL /NJH /NJS | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "robocopy wwwroot failed (exit $LASTEXITCODE)" }
+Write-Host "✔ Bundled wwwroot into release folder" -ForegroundColor Green
 
 $exe = Join-Path $outDir 'ArrayMicRefreshment.exe'
 if (-not (Test-Path $exe)) { throw "Expected $exe to exist after publish" }
@@ -65,7 +98,9 @@ if ($Mode -eq 'framework-dep') {
 Write-Host "  2. Download ASR + speaker models (once):" -ForegroundColor Yellow
 Write-Host "     cd <repo root>; .\\scripts\\download-models.ps1" -ForegroundColor Yellow
 Write-Host "     (or place the model under <unzipped folder>\\models\\ manually)" -ForegroundColor Yellow
-Write-Host "  3. Double-click ArrayMicRefreshment.exe" -ForegroundColor Yellow
+Write-Host "  3. Install WebView2 Runtime if settings/enrollment Web UI fails to open:" -ForegroundColor Yellow
+Write-Host "     winget install Microsoft.EdgeWebView2Runtime" -ForegroundColor Yellow
+Write-Host "  4. Double-click ArrayMicRefreshment.exe" -ForegroundColor Yellow
 
 $skillsSrc = Join-Path $repoRoot 'skills'
 $skillsDst = Join-Path $outDir 'skills'

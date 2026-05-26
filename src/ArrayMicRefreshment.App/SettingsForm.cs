@@ -7,6 +7,8 @@ using ArrayMicRefreshment.Speaker;
 
 namespace ArrayMicRefreshment.App;
 
+// Route B Phase 2: retain SettingsForm until integration sign-off — do NOT delete before Phase 2 checklist (docs/UI_ROUTE_B_WEBVIEW2.md §8 Phase 2) is complete.
+
 /// <summary>Display wrapper for a PromptIntent skill choice.</summary>
 public sealed class SkillOption
 {

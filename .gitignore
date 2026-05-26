@@ -1,3 +1,8 @@
+# Web UI (Route B) — generated assets; run `ui/npm run build` before Release
+ui/node_modules/
+ui/.vite/
+src/ArrayMicRefreshment.App/wwwroot/
+
 # Build outputs
 bin/
 obj/
