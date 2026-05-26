@@ -95,6 +95,9 @@ public sealed class TrayApplicationContext : ApplicationContext
             winPtt.ForegroundAtRelease += RememberPasteTarget;
         }
 
+        _ptt.PttPressed += OnPttPressed;
+        _ptt.PttReleased += OnPttReleased;
+
         var pttRegistered = _ptt is NAudioPushToTalkSource { IsRegistered: true };
         Log.Information(
             "PTT hotkey loaded from settings: {Saved} → registered as {Active} (ok={Ok})",
@@ -124,6 +127,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             captureFactory,
             vad,
             pttCaptureAllowed: IsPttCaptureEnabled,
+            keepStandbyCaptureBetweenSessions: () => _voiceTriggerMode == VoiceTriggerMode.PttOnly,
             takePreRollOnPress: TakeWakePreRollForPtt,
             beforeCaptureStarts: PauseWakeListeningForPtt,
             afterCaptureEnds: ResumeWakeListeningAfterPtt);
@@ -150,8 +154,6 @@ public sealed class TrayApplicationContext : ApplicationContext
         _voiceOrchestrator.CaptureEmpty += OnCaptureEmpty;
         _voiceOrchestrator.WakeStatusChanged += OnWakeStatusChanged;
         _voiceOrchestrator.WakeWordActivated += OnWakeWordActivated;
-        _ptt.PttPressed += OnPttPressed;
-        _ptt.PttReleased += OnPttReleased;
 
         Log.Information("Voice capture orchestrator started (mode={Mode})", _voiceTriggerMode);
 
@@ -169,7 +171,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 #endif
 
 #if WINDOWS
-        var warmTimer = new System.Windows.Forms.Timer { Interval = 2000 };
+        var warmTimer = new System.Windows.Forms.Timer { Interval = 100 };
         warmTimer.Tick += (_, _) =>
         {
             warmTimer.Stop();
@@ -515,6 +517,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (mode is VoiceTriggerMode.PttOnly)
         {
             _feedback.ClearSession();
+            _pttCaptureService.StartStandbyListeningIfNeeded();
+        }
+        else
+        {
+            _pttCaptureService.StopStandbyListening();
         }
 
         Log.Information("Voice trigger mode changed to {Mode}", mode);
@@ -566,7 +573,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void WarmAudioCaptureIfNeeded()
     {
-        if (_voiceTriggerMode is VoiceTriggerMode.PttOnly or VoiceTriggerMode.Both)
+        if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
         {
             _pttCaptureService.WarmCaptureDevice();
         }
@@ -576,11 +583,11 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
         {
-            _pttCaptureService.WarmCaptureDevice();
+            _pttCaptureService.StartStandbyListeningIfNeeded();
             return;
         }
 
-        Log.Information("Restarting wake-word listening after settings (mode={Mode})", _voiceTriggerMode);
+        _pttCaptureService.StopStandbyListening();
         if (_voiceOrchestrator.WakeCapture is WakeWordCaptureService wakeCapture)
         {
             wakeCapture.RestartListening();
@@ -774,9 +781,9 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         Log.Information("PTT pressed ({Hotkey})", _ptt.HotkeyDisplay);
         _balloons.DismissForNextTask();
-        RunOnUi(() =>
+        if (_voiceTriggerMode == VoiceTriggerMode.WakeWordOnly)
         {
-            if (_voiceTriggerMode == VoiceTriggerMode.WakeWordOnly)
+            RunOnUiSync(() =>
             {
                 _statusItem.Text = "状态: 仅唤醒词（PTT 未启用）";
                 _balloons.Show(
@@ -785,9 +792,12 @@ public sealed class TrayApplicationContext : ApplicationContext
                     "当前为「仅唤醒词」模式，PTT 不会录音。\n" +
                     "请用托盘「触发模式」切换到「仅 PTT」或「PTT + 唤醒词」。",
                     ToolTipIcon.Info);
-                return;
-            }
+            });
+            return;
+        }
 
+        RunOnUiSync(() =>
+        {
             _statusItem.Text = "状态: 录音中…";
             _feedback.SetPhase(VoiceActivityPhase.Recording, "录音中…");
         });

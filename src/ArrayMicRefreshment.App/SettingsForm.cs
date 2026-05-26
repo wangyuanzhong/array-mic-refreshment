@@ -152,7 +152,7 @@ public sealed class SettingsForm : Form
         ForeColor = SystemColors.GrayText,
     };
     private readonly CheckBox _refineEnabled = new() { Text = "启用提示词整理（默认建议关闭）", AutoSize = true };
-    private readonly CheckBox _launchAtStartup = new() { Text = "开机自启动", AutoSize = true, Checked = true };
+    private readonly CheckBox _launchAtStartup = new() { Text = "", AutoSize = true, Checked = true };
     private readonly ComboBox _llmPresetCombo = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
     private readonly TextBox _llmPresetName = new() { Width = 360 };
     private readonly TextBox _apiUrl = new() { Width = 360 };
@@ -162,13 +162,8 @@ public sealed class SettingsForm : Form
     private readonly ComboBox _triggerMode = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
     private VoiceTriggerMode _loadedTriggerMode = VoiceTriggerMode.PttOnly;
     private readonly TextBox _wakeWordPhrase = new() { Width = 360 };
-    private readonly Label _wakeWordHint = new()
-    {
-        AutoSize = true,
-        MaximumSize = new Size(360, 0),
-        ForeColor = SystemColors.GrayText,
-        Text = "保存后立即生效。需安装 Sherpa 唤醒模型（scripts\\download-models.ps1 -IncludeKws）才能从语音识别；未安装时可用托盘「模拟唤醒」测试。",
-    };
+    private TableLayoutPanel? _settingsLayout;
+    private const int WakeWordSectionRow = 15;
     private Control? _wakeWordSection;
     private readonly ComboBox _wakeWordSensitivity = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
     private readonly NumericUpDown _wakeCommandSilenceMs = new()
@@ -222,7 +217,7 @@ public sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(540, 940);
+        ClientSize = new Size(540, 860);
 
         foreach (var opt in TriggerModeOptions.All)
         {
@@ -282,6 +277,7 @@ public sealed class SettingsForm : Form
             AutoScroll = true,
             GrowStyle = TableLayoutPanelGrowStyle.FixedSize,
         };
+        _settingsLayout = layout;
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         for (var row = 0; row < layout.RowCount; row++)
@@ -335,7 +331,7 @@ public sealed class SettingsForm : Form
         AddRow(9, "API Key", _apiKey);
         AddRow(10, "Model", _apiModel);
         AddFullWidthRow(11, _refineEnabled);
-        AddFullWidthRow(12, _launchAtStartup);
+        AddRow(12, "开机自启", _launchAtStartup);
         AddRow(13, "Skills 目录", _skillsDir);
         AddRow(14, "触发模式", _triggerMode);
 
@@ -354,16 +350,8 @@ public sealed class SettingsForm : Form
             wakeWordSection.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
 
-        var wakeWordPanel = new FlowLayoutPanel
-        {
-            AutoSize = true,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-        };
-        wakeWordPanel.Controls.Add(_wakeWordPhrase);
-        wakeWordPanel.Controls.Add(_wakeWordHint);
         wakeWordSection.Controls.Add(new Label { Text = "唤醒词文本", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
-        wakeWordSection.Controls.Add(wakeWordPanel, 1, 0);
+        wakeWordSection.Controls.Add(_wakeWordPhrase, 1, 0);
         wakeWordSection.Controls.Add(new Label { Text = "唤醒灵敏度", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
         wakeWordSection.Controls.Add(_wakeWordSensitivity, 1, 1);
 
@@ -892,6 +880,14 @@ public sealed class SettingsForm : Form
         if (_wakeWordSection is not null)
         {
             _wakeWordSection.Visible = wake;
+        }
+
+        if (_settingsLayout is not null)
+        {
+            _settingsLayout.RowStyles[WakeWordSectionRow] = wake
+                ? new RowStyle(SizeType.AutoSize)
+                : new RowStyle(SizeType.Absolute, 0);
+            _settingsLayout.PerformLayout();
         }
 
         _wakeWordPhrase.Enabled = wake;

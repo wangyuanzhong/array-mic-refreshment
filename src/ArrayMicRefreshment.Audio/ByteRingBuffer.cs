@@ -29,24 +29,27 @@ public sealed class ByteRingBuffer
         }
     }
 
-    public byte[] Snapshot()
+    public byte[] Snapshot() => SnapshotLast(_count);
+
+    public byte[] SnapshotLast(int maxBytes)
     {
-        if (_count == 0)
+        if (_count == 0 || maxBytes <= 0)
         {
             return Array.Empty<byte>();
         }
 
-        var result = new byte[_count];
-        var start = (_write - _count + _buffer.Length) % _buffer.Length;
-        if (start + _count <= _buffer.Length)
+        var take = Math.Min(maxBytes, _count);
+        var result = new byte[take];
+        var start = (_write - take + _buffer.Length) % _buffer.Length;
+        if (start + take <= _buffer.Length)
         {
-            _buffer.AsSpan(start, _count).CopyTo(result);
+            _buffer.AsSpan(start, take).CopyTo(result);
         }
         else
         {
             var first = _buffer.Length - start;
             _buffer.AsSpan(start, first).CopyTo(result);
-            _buffer.AsSpan(0, _count - first).CopyTo(result.AsSpan(first));
+            _buffer.AsSpan(0, take - first).CopyTo(result.AsSpan(first));
         }
 
         return result;

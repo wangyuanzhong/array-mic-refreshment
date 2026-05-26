@@ -1,5 +1,23 @@
 # Changelog
 
+## V0.3 — 2026-05-26
+
+### Added
+- 开机自启设置（默认开启，写入 HKCU Run 注册表）
+- PTT 独占模式 standby 常开麦克风 + ~0.9s rolling pre-roll，按下即录、减少丢字
+
+### Fixed
+- PTT 热键 HUD 延迟：UI 反馈优先于 capture 启动
+- PTT 丢字头：撤销异步开麦，Both 模式先取 wake pre-roll 再释放唤醒 mic
+- 唤醒指令结束静音：按连续低于语音阈值计时，配置 ms 与体感一致
+- HUD 抢焦点导致无法粘贴；唤醒时提前锁定粘贴目标
+- PTT + 唤醒词模式 pre-roll 交接，减少按 PTT 后开头丢字
+- 设置窗唤醒词区块布局错位与隐藏后留白
+
+### Changed
+- 设置窗移除唤醒词下方冗余说明；「开机自启」独立一行
+- PTT warm 仅 PttOnly 模式，启动后 100ms 开启 standby
+
 ## V0.2 — 2026-05-26
 
 ### Added
