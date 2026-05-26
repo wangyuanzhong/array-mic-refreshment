@@ -81,6 +81,10 @@ public sealed class StubWakeWordDetector : IWakeWordDetector
         _keyword = string.IsNullOrWhiteSpace(phrase) ? DefaultKeyword : phrase.Trim();
     }
 
+    public void ApplyWakeSensitivity(WakeWordSensitivity sensitivity)
+    {
+    }
+
     public void Dispose()
     {
         Stop();

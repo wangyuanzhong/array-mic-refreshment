@@ -20,6 +20,7 @@ public sealed class PttCaptureService : IDisposable
     private readonly AudioHostApi _hostApi;
     private readonly TimeSpan _vadAssistMinHold;
     private readonly Func<bool>? _pttCaptureAllowed;
+    private readonly Func<byte[]?>? _takePreRollOnPress;
     private readonly Action? _beforeCaptureStarts;
     private readonly Action? _afterCaptureEnds;
     private readonly ByteRingBuffer _ring;
@@ -51,6 +52,7 @@ public sealed class PttCaptureService : IDisposable
         int ringBufferSeconds = DefaultRingBufferSeconds,
         TimeSpan? vadAssistMinHold = null,
         Func<bool>? pttCaptureAllowed = null,
+        Func<byte[]?>? takePreRollOnPress = null,
         Action? beforeCaptureStarts = null,
         Action? afterCaptureEnds = null)
     {
@@ -62,6 +64,7 @@ public sealed class PttCaptureService : IDisposable
         _hostApi = hostApi;
         _vadAssistMinHold = vadAssistMinHold ?? VadAssistMinHold;
         _pttCaptureAllowed = pttCaptureAllowed;
+        _takePreRollOnPress = takePreRollOnPress;
         _beforeCaptureStarts = beforeCaptureStarts;
         _afterCaptureEnds = afterCaptureEnds;
         _ring = new ByteRingBuffer(Math.Max(16000 * 2 * ringBufferSeconds, 32000));
@@ -98,6 +101,7 @@ public sealed class PttCaptureService : IDisposable
     {
         if (_pttCaptureAllowed is not null && !_pttCaptureAllowed())
         {
+            Serilog.Log.Debug("PTT press ignored (capture not allowed for current trigger mode)");
             return;
         }
 
@@ -108,7 +112,6 @@ public sealed class PttCaptureService : IDisposable
                 return;
             }
 
-            _beforeCaptureStarts?.Invoke();
             _pttHeld = true;
             _pressUtc = DateTimeOffset.UtcNow;
             _segmentBuffer.Clear();
@@ -117,12 +120,24 @@ public sealed class PttCaptureService : IDisposable
 
             try
             {
+                var preRoll = _takePreRollOnPress?.Invoke();
                 var device = _deviceEnumerator.ResolveDevice(_settings.SelectedDeviceId)
                     ?? throw new InvalidOperationException("No capture device available.");
 
                 EnsureCaptureStream(device);
                 _stream!.Start();
                 _captureRunning = true;
+
+                if (preRoll is { Length: > 0 })
+                {
+                    _segmentBuffer.AddRange(preRoll);
+                    _ring.Write(preRoll);
+                    Serilog.Log.Information(
+                        "PTT pre-roll injected from wake listen path ({Bytes} bytes)",
+                        preRoll.Length);
+                }
+
+                _beforeCaptureStarts?.Invoke();
                 StartVadPolling();
             }
             catch (Exception ex)

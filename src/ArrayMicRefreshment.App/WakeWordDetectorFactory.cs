@@ -14,7 +14,12 @@ internal static class WakeWordDetectorFactory
             : settings.ModelsDirectory;
         var phrase = settings.WakeWordPhrase;
 
-        if (SherpaKeywordWakeWordDetector.TryCreate(modelsDir, phrase, out var sherpa) && sherpa is not null)
+        if (SherpaKeywordWakeWordDetector.TryCreate(
+                modelsDir,
+                phrase,
+                out var sherpa,
+                settings.WakeWordSensitivity)
+            && sherpa is not null)
         {
             Log.Information(
                 "Wake-word detector: Sherpa KWS (phrase={Phrase}, models={ModelsDir})",

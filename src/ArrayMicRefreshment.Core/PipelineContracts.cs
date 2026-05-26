@@ -43,6 +43,9 @@ public interface IWakeWordCaptureService : IDisposable
     void StartListening();
 
     void StopListening();
+
+    /// <summary>Release mic for PTT without emitting a wake utterance (Both mode handoff).</summary>
+    void ReleaseMicForPtt();
 }
 
 public interface IUtteranceAsr

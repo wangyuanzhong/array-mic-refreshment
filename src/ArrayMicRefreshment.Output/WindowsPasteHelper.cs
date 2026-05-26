@@ -9,13 +9,42 @@ public static class WindowsPasteHelper
 
     public static (IntPtr Root, IntPtr Focus) CaptureForeground()
     {
+        return CaptureForegroundExcluding(null);
+    }
+
+    public static (IntPtr Root, IntPtr Focus) CaptureForegroundExcluding(IReadOnlyList<IntPtr>? excludedWindows)
+    {
         var root = GetForegroundWindow();
-        if (root == IntPtr.Zero)
+        if (root == IntPtr.Zero || IsExcludedWindow(root, excludedWindows))
         {
             return (IntPtr.Zero, IntPtr.Zero);
         }
 
-        return (root, ResolveFocusHwnd(root));
+        var focus = ResolveFocusHwnd(root);
+        if (IsExcludedWindow(focus, excludedWindows))
+        {
+            focus = root;
+        }
+
+        return (root, focus);
+    }
+
+    public static bool IsExcludedWindow(IntPtr hwnd, IReadOnlyList<IntPtr>? excludedWindows)
+    {
+        if (hwnd == IntPtr.Zero || excludedWindows is null || excludedWindows.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var excluded in excludedWindows)
+        {
+            if (excluded != IntPtr.Zero && excluded == hwnd)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static IntPtr ResolveFocusHwnd(IntPtr rootWindow)

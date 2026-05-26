@@ -64,4 +64,7 @@ public interface IWakeWordDetector : IDisposable
 
     /// <summary>Update the phrase to listen for (may reload models).</summary>
     void ApplyPhrase(string phrase);
+
+    /// <summary>Adjust streaming AGC + KWS threshold for quiet/loud environments.</summary>
+    void ApplyWakeSensitivity(WakeWordSensitivity sensitivity);
 }

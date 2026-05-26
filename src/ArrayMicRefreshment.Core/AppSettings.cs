@@ -53,6 +53,18 @@ public sealed class AppSettings
     /// <summary>Wake phrase text when <see cref="TriggerMode"/> is <see cref="VoiceTriggerMode.WakeWordOnly"/>.</summary>
     public string WakeWordPhrase { get; set; } = "小助手";
 
+    /// <summary>KWS AGC profile for quiet environments.</summary>
+    public WakeWordSensitivity WakeWordSensitivity { get; set; } = WakeWordSensitivity.Maximum;
+
+    /// <summary>Silence after last speech chunk before wake command is sent to ASR (ms).</summary>
+    public int WakeCommandSilenceMs { get; set; } = 3000;
+
+    /// <summary>Use VAD tail analysis (in addition to silence timeout) to end wake dictation.</summary>
+    public bool WakeUseVadEndDetection { get; set; } = true;
+
+    /// <summary>Screen corner for the live voice status HUD.</summary>
+    public HudScreenCorner HudScreenCorner { get; set; } = HudScreenCorner.BottomRight;
+
     public string SkillsDirectory { get; set; } = "skills";
     public string ModelsDirectory { get; set; } = "models";
     public string SelectedAsrModelId { get; set; } = string.Empty;

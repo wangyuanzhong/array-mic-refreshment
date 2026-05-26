@@ -9,7 +9,7 @@ namespace ArrayMicRefreshment.Audio;
 /// </summary>
 public sealed class WakeWordCaptureService : IWakeWordCaptureService
 {
-    public static readonly TimeSpan DefaultPostWakeSilenceTimeout = TimeSpan.FromMilliseconds(900);
+    public static readonly TimeSpan DefaultPostWakeSilenceTimeout = TimeSpan.FromMilliseconds(3000);
     public static readonly TimeSpan DefaultPostWakeStartGrace = TimeSpan.FromSeconds(4);
     /// <summary>Safety net only — normal sessions end on silence, not on this limit.</summary>
     public static readonly TimeSpan DefaultPostWakeMaxSession = TimeSpan.FromMinutes(5);
@@ -17,27 +17,28 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     public static readonly TimeSpan DefaultPostWakeMaxCommand = TimeSpan.FromSeconds(12);
 
     private const int SessionPollMs = 25;
-    private const int PreRollBytes = 64_000;
+    private const int PreRollBytes = 96_000;
+    private const int VadEndPollsRequired = 3;
+    private const int MinSilenceBeforeVadEndMs = 600;
+    private const double ExtendSpeechThresholdFactor = 0.30;
     private const double MinSpeechRms = 0.0025;
-    private const double MinCommandStartRms = 0.008;
-    private const double MinContinueSpeechRms = 0.012;
-    private const double NoiseFloorMultiplier = 4.0;
-    private const double ContinueThresholdMultiplier = 2.5;
-    /// <summary>Extend end-of-speech timer only when chunk energy is a meaningful fraction of session peak.</summary>
-    private const double PeakContinueFraction = 0.35;
+    private const double MinCommandStartRms = 0.005;
+    private const double NoiseFloorMultiplier = 3.5;
     /// <summary>Ignore wake-phrase tail / room echo before accepting command speech.</summary>
     public static readonly TimeSpan DefaultPostWakeEchoIgnore = TimeSpan.FromMilliseconds(450);
-    private const int MinSpeechChunksBeforeAccept = 3;
+    private const int MinSpeechChunksBeforeAccept = 2;
 
     private readonly AppSettings _settings;
     private readonly IWakeWordDetector _detector;
     private readonly IAudioDeviceEnumerator _deviceEnumerator;
     private readonly IAudioCaptureStreamFactory _captureFactory;
-    private readonly TimeSpan _silenceTimeout;
+    private readonly IVoiceActivityDetector _vad;
+    private readonly TimeSpan _echoIgnore;
+    private TimeSpan _silenceTimeout;
+    private bool _useVadEndDetection;
     private readonly TimeSpan _startGrace;
     private readonly TimeSpan _maxSession;
     private readonly TimeSpan _maxCommand;
-    private readonly TimeSpan _echoIgnore;
     private readonly ByteRingBuffer _preRoll = new(PreRollBytes);
     private readonly object _gate = new();
 
@@ -59,6 +60,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     private bool _commandWindowOpen;
     private int _commandBaseIndex;
     private DateTimeOffset? _commandSpeechStartedUtc;
+    private int _consecutiveVadEndPolls;
     private System.Threading.Timer? _sessionTimer;
     private WakeWordDetectedEventArgs? _pendingWakeActivated;
 
@@ -67,6 +69,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         IWakeWordDetector detector,
         IAudioDeviceEnumerator deviceEnumerator,
         IAudioCaptureStreamFactory captureFactory,
+        IVoiceActivityDetector? vad = null,
         TimeSpan? postWakeSilenceTimeout = null,
         TimeSpan? postWakeStartGrace = null,
         TimeSpan? postWakeMaxSession = null,
@@ -77,12 +80,43 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _detector = detector;
         _deviceEnumerator = deviceEnumerator;
         _captureFactory = captureFactory;
-        _silenceTimeout = postWakeSilenceTimeout ?? DefaultPostWakeSilenceTimeout;
+        _vad = vad ?? new NullVoiceActivityDetector();
+        _silenceTimeout = postWakeSilenceTimeout ?? ResolveSilenceTimeout(settings);
+        _useVadEndDetection = settings.WakeUseVadEndDetection;
         _startGrace = postWakeStartGrace ?? DefaultPostWakeStartGrace;
         _maxSession = postWakeMaxSession ?? DefaultPostWakeMaxSession;
         _maxCommand = postWakeMaxCommand ?? DefaultPostWakeMaxCommand;
         _echoIgnore = postWakeEchoIgnore ?? DefaultPostWakeEchoIgnore;
         _detector.WakeWordDetected += OnWakeWordDetected;
+    }
+
+    public void ApplyWakeCaptureSettings(AppSettings settings)
+    {
+        lock (_gate)
+        {
+            _silenceTimeout = ResolveSilenceTimeout(settings);
+            _useVadEndDetection = settings.WakeUseVadEndDetection;
+        }
+    }
+
+    /// <summary>Recent listen-path PCM for PTT handoff in Both mode (native device format).</summary>
+    public byte[] TakePreRollSnapshotForPttHandoff()
+    {
+        lock (_gate)
+        {
+            if (!_listening || _dictationActive || _preRoll.Count == 0)
+            {
+                return Array.Empty<byte>();
+            }
+
+            return _preRoll.Snapshot();
+        }
+    }
+
+    private static TimeSpan ResolveSilenceTimeout(AppSettings settings)
+    {
+        var ms = Math.Clamp(settings.WakeCommandSilenceMs, 800, 8000);
+        return TimeSpan.FromMilliseconds(ms);
     }
 
     public event EventHandler<UtteranceCaptureEventArgs>? UtteranceReady;
@@ -144,6 +178,29 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         }
     }
 
+    public void ReleaseMicForPtt()
+    {
+        lock (_gate)
+        {
+            if (!_listening && !_dictationActive && _stream is null)
+            {
+                return;
+            }
+
+            _detector.Stop();
+            if (_dictationActive)
+            {
+                CancelDictationSession();
+            }
+
+            StopCaptureStream();
+            _listening = false;
+            _preRoll.Clear();
+            _totalListenBytes = 0;
+            Log.Information("Wake mic released for PTT (dictation discarded)");
+        }
+    }
+
     /// <summary>Re-open mic + reset KWS without leaving listen mode (settings/device refresh).</summary>
     public void RestartListening()
     {
@@ -195,9 +252,8 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _detector.Stop();
         if (_dictationActive)
         {
-            if (finalizeDictation || _heardPostWakeSpeech)
+            if (finalizeDictation)
             {
-                // Full stop — do not resume KWS inside EndDictationSessionInternal.
                 _listening = false;
                 EndDictationSessionInternal();
             }
@@ -265,10 +321,12 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             _commandWindowOpen = false;
             _commandBaseIndex = 0;
             _commandSpeechStartedUtc = null;
+            _consecutiveVadEndPolls = 0;
             _preRoll.Clear();
             _dictationStartedUtc = DateTimeOffset.UtcNow;
             _lastSpeechUtc = _dictationStartedUtc;
             _dictationActive = true;
+            _vad.Reset();
         }
 
         _sessionTimer?.Dispose();
@@ -312,11 +370,11 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
                 return;
             }
 
-            if (_heardPostWakeSpeech && now - _lastSpeechUtc >= _silenceTimeout)
+            if (_heardPostWakeSpeech && ShouldEndDictation(now, pollOnly: true))
             {
                 Log.Information(
                     "Wake dictation ended after {SilenceMs}ms silence (poll, bytes={Bytes})",
-                    (int)_silenceTimeout.TotalMilliseconds,
+                    (int)(now - _lastSpeechUtc).TotalMilliseconds,
                     _dictationBuffer.Count);
                 EndDictationSessionInternal();
                 return;
@@ -554,14 +612,15 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
 
         var chunkRms = ComputeRms16Le(mono16k);
         var threshold = CurrentSpeechThreshold();
+        var extendThreshold = ExtendSpeechThreshold();
 
-        if (chunkRms < threshold)
+        if (chunkRms < extendThreshold)
         {
             LearnNoiseFloor(chunkRms);
             _consecutiveSpeechChunks = 0;
             _speechCandidateStartIndex = -1;
             _speechCandidatePeakRms = 0;
-            return _heardPostWakeSpeech && now - _lastSpeechUtc >= _silenceTimeout;
+            return _heardPostWakeSpeech && ShouldEndDictation(now, pollOnly: false);
         }
 
         if (_consecutiveSpeechChunks == 0)
@@ -595,17 +654,10 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
 
         if (_heardPostWakeSpeech)
         {
-            if (chunkRms >= threshold)
-            {
-                _speechEndByteIndex = indexAfter;
-            }
-
-            // Only strong speech resets the silence timer — ambient hum must not hold the session open.
-            if (chunkRms >= ContinueSpeechThreshold())
-            {
-                _sessionPeakRms = Math.Max(_sessionPeakRms, chunkRms);
-                _lastSpeechUtc = now;
-            }
+            _speechEndByteIndex = indexAfter;
+            _sessionPeakRms = Math.Max(_sessionPeakRms, chunkRms);
+            _lastSpeechUtc = now;
+            _consecutiveVadEndPolls = 0;
         }
 
         return false;
@@ -614,17 +666,68 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     private double CurrentSpeechThreshold()
         => Math.Max(MinSpeechRms, _noiseFloorRms * NoiseFloorMultiplier);
 
-    private double ContinueSpeechThreshold()
+    /// <summary>Lower bar than <see cref="CurrentSpeechThreshold"/> — keeps end-of-speech open across soft syllables.</summary>
+    private double ExtendSpeechThreshold()
+        => Math.Max(MinSpeechRms, CurrentSpeechThreshold() * ExtendSpeechThresholdFactor);
+
+    private bool ShouldEndDictation(DateTimeOffset now, bool pollOnly)
     {
-        var floor = Math.Max(
-            CurrentSpeechThreshold() * ContinueThresholdMultiplier,
-            MinContinueSpeechRms);
-        if (_sessionPeakRms > 0)
+        if (!_heardPostWakeSpeech)
         {
-            floor = Math.Max(floor, _sessionPeakRms * PeakContinueFraction);
+            return false;
         }
 
-        return floor;
+        var silenceMs = (now - _lastSpeechUtc).TotalMilliseconds;
+        if (silenceMs >= _silenceTimeout.TotalMilliseconds)
+        {
+            return true;
+        }
+
+        if (!_useVadEndDetection || silenceMs < MinSilenceBeforeVadEndMs)
+        {
+            return false;
+        }
+
+        if (_stream is null || _dictationBuffer.Count < 3200)
+        {
+            return false;
+        }
+
+        var tailBytes = _dictationBuffer.Count > 8000
+            ? _dictationBuffer.ToArray()[^8000..]
+            : _dictationBuffer.ToArray();
+        var mono16k = PcmResampler.To16kHzMono16Le(
+            tailBytes,
+            _stream.SampleRate,
+            _stream.Channels,
+            _stream.BitsPerSample);
+        if (mono16k.Length < 512)
+        {
+            return false;
+        }
+
+        var samples = MemoryMarshal.Cast<byte, short>(mono16k.AsSpan());
+        if (!_vad.IsEndOfSpeech(samples, PcmResampler.TargetSampleRate))
+        {
+            _consecutiveVadEndPolls = 0;
+            return false;
+        }
+
+        _consecutiveVadEndPolls++;
+        if (_consecutiveVadEndPolls < VadEndPollsRequired)
+        {
+            return false;
+        }
+
+        if (pollOnly)
+        {
+            Log.Information(
+                "Wake dictation ended by VAD after {SilenceMs}ms tail silence (bytes={Bytes})",
+                (int)silenceMs,
+                _dictationBuffer.Count);
+        }
+
+        return true;
     }
 
     private void LearnNoiseFloor(double chunkRms)

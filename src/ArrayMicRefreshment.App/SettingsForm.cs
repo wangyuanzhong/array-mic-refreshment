@@ -46,6 +46,55 @@ public static class TriggerModeOptions
     };
 }
 
+public sealed class WakeWordSensitivityOption
+{
+    public string Label { get; }
+    public WakeWordSensitivity Value { get; }
+
+    public WakeWordSensitivityOption(string label, WakeWordSensitivity value)
+    {
+        Label = label;
+        Value = value;
+    }
+
+    public override string ToString() => Label;
+}
+
+public static class WakeWordSensitivityOptions
+{
+    public static readonly IReadOnlyList<WakeWordSensitivityOption> All = new List<WakeWordSensitivityOption>
+    {
+        new("标准", WakeWordSensitivity.Standard),
+        new("高", WakeWordSensitivity.High),
+        new("最高（默认，小声/远距）", WakeWordSensitivity.Maximum),
+    };
+}
+
+public sealed class HudCornerOption
+{
+    public string Label { get; }
+    public HudScreenCorner Value { get; }
+
+    public HudCornerOption(string label, HudScreenCorner value)
+    {
+        Label = label;
+        Value = value;
+    }
+
+    public override string ToString() => Label;
+}
+
+public static class HudCornerOptions
+{
+    public static readonly IReadOnlyList<HudCornerOption> All = new List<HudCornerOption>
+    {
+        new("右下角", HudScreenCorner.BottomRight),
+        new("左下角", HudScreenCorner.BottomLeft),
+        new("右上角", HudScreenCorner.TopRight),
+        new("左上角", HudScreenCorner.TopLeft),
+    };
+}
+
 public static class SkillOptions
 {
     public static readonly IReadOnlyList<SkillOption> All = new List<SkillOption>
@@ -119,8 +168,23 @@ public sealed class SettingsForm : Form
         ForeColor = SystemColors.GrayText,
         Text = "保存后立即生效。需安装 Sherpa 唤醒模型（scripts\\download-models.ps1 -IncludeKws）才能从语音识别；未安装时可用托盘「模拟唤醒」测试。",
     };
-    private Label? _wakeWordLabel;
-    private Control? _wakeWordPanel;
+    private Control? _wakeWordSection;
+    private readonly ComboBox _wakeWordSensitivity = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 260 };
+    private readonly NumericUpDown _wakeCommandSilenceMs = new()
+    {
+        Minimum = 800,
+        Maximum = 8000,
+        Increment = 200,
+        Width = 100,
+    };
+    private readonly Label _wakeSilenceHint = new()
+    {
+        AutoSize = true,
+        MaximumSize = new Size(360, 0),
+        ForeColor = SystemColors.GrayText,
+        Text = "说完指令后需保持静音多久才提交识别（默认 3000 ms）。",
+    };
+    private readonly ComboBox _hudCorner = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
     private readonly HotkeyCaptureTextBox _pttHotkey = new() { Width = 200 };
     private readonly ComboBox _forcedIntent = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
     private readonly ComboBox _onRefineFailure = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
@@ -129,9 +193,9 @@ public sealed class SettingsForm : Form
     private readonly Label _testResult = new()
     {
         AutoSize = false,
-        Dock = DockStyle.Fill,
         ForeColor = SystemColors.GrayText,
         TextAlign = ContentAlignment.TopLeft,
+        Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top,
     };
 
     public AppSettings Settings { get; private set; }
@@ -157,11 +221,21 @@ public sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(540, 860);
+        ClientSize = new Size(540, 940);
 
         foreach (var opt in TriggerModeOptions.All)
         {
             _triggerMode.Items.Add(opt);
+        }
+
+        foreach (var opt in WakeWordSensitivityOptions.All)
+        {
+            _wakeWordSensitivity.Items.Add(opt);
+        }
+
+        foreach (var opt in HudCornerOptions.All)
+        {
+            _hudCorner.Items.Add(opt);
         }
 
         foreach (var opt in SkillOptions.All)
@@ -202,9 +276,10 @@ public sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 21,
+            RowCount = 22,
             Padding = new Padding(12),
             AutoScroll = true,
+            GrowStyle = TableLayoutPanelGrowStyle.FixedSize,
         };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -213,12 +288,18 @@ public sealed class SettingsForm : Form
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
 
-        layout.RowStyles[20] = new RowStyle(SizeType.Absolute, 56);
+        layout.RowStyles[21] = new RowStyle(SizeType.Absolute, 56);
 
         void AddRow(int row, string label, Control control)
         {
             layout.Controls.Add(new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left }, 0, row);
             layout.Controls.Add(control, 1, row);
+        }
+
+        void AddFullWidthRow(int row, Control control)
+        {
+            layout.Controls.Add(control, 0, row);
+            layout.SetColumnSpan(control, 2);
         }
 
         var speakerButtons = new FlowLayoutPanel
@@ -234,8 +315,7 @@ public sealed class SettingsForm : Form
         AddRow(0, "录音设备", _deviceCombo);
         AddRow(1, "当前用户", speakerButtons);
         AddRow(2, "声纹阈值", _speakerThreshold);
-        AddRow(3, "", _speakerStatus);
-        layout.SetColumnSpan(_speakerStatus, 2);
+        AddFullWidthRow(3, _speakerStatus);
 
         var asrModelPanel = new FlowLayoutPanel
         {
@@ -247,17 +327,31 @@ public sealed class SettingsForm : Form
         asrModelPanel.Controls.Add(_downloadModelButton);
         asrModelPanel.Controls.Add(_downloadProgress);
         AddRow(4, "ASR 模型", asrModelPanel);
-        AddRow(5, "", _asrModelStatus);
-        layout.SetColumnSpan(_asrModelStatus, 2);
+        AddFullWidthRow(5, _asrModelStatus);
         AddRow(6, "LLM 预设", _llmPresetCombo);
         AddRow(7, "预设名称", _llmPresetName);
         AddRow(8, "API Base URL", _apiUrl);
         AddRow(9, "API Key", _apiKey);
         AddRow(10, "Model", _apiModel);
-        AddRow(11, "", _refineEnabled);
-        layout.SetColumnSpan(_refineEnabled, 2);
+        AddFullWidthRow(11, _refineEnabled);
         AddRow(12, "Skills 目录", _skillsDir);
         AddRow(13, "触发模式", _triggerMode);
+
+        var wakeWordSection = new TableLayoutPanel
+        {
+            ColumnCount = 2,
+            AutoSize = true,
+            Dock = DockStyle.Top,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty,
+        };
+        wakeWordSection.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+        wakeWordSection.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        for (var wakeRow = 0; wakeRow < 3; wakeRow++)
+        {
+            wakeWordSection.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
+
         var wakeWordPanel = new FlowLayoutPanel
         {
             AutoSize = true,
@@ -266,10 +360,25 @@ public sealed class SettingsForm : Form
         };
         wakeWordPanel.Controls.Add(_wakeWordPhrase);
         wakeWordPanel.Controls.Add(_wakeWordHint);
-        _wakeWordLabel = new Label { Text = "唤醒词文本", AutoSize = true, Anchor = AnchorStyles.Left };
-        _wakeWordPanel = wakeWordPanel;
-        layout.Controls.Add(_wakeWordLabel, 0, 14);
-        layout.Controls.Add(wakeWordPanel, 1, 14);
+        wakeWordSection.Controls.Add(new Label { Text = "唤醒词文本", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        wakeWordSection.Controls.Add(wakeWordPanel, 1, 0);
+        wakeWordSection.Controls.Add(new Label { Text = "唤醒灵敏度", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+        wakeWordSection.Controls.Add(_wakeWordSensitivity, 1, 1);
+
+        var wakeSilencePanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+        };
+        wakeSilencePanel.Controls.Add(_wakeCommandSilenceMs);
+        wakeSilencePanel.Controls.Add(_wakeSilenceHint);
+        wakeWordSection.Controls.Add(new Label { Text = "指令结束静音", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
+        wakeWordSection.Controls.Add(wakeSilencePanel, 1, 2);
+        _wakeWordSection = wakeWordSection;
+        AddFullWidthRow(14, wakeWordSection);
+
+        AddRow(15, "HUD 位置", _hudCorner);
         var hotkeyPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         hotkeyPanel.Controls.Add(_pttHotkey);
         hotkeyPanel.Controls.Add(new Label
@@ -279,14 +388,12 @@ public sealed class SettingsForm : Form
             ForeColor = SystemColors.GrayText,
             MaximumSize = new Size(360, 0),
         });
-        AddRow(15, "PTT 热键", hotkeyPanel);
-        AddRow(16, "整理风格", _forcedIntent);
-        AddRow(17, "整理失败时", _onRefineFailure);
-        AddRow(18, "附加叠加 skill", _optionalOverlaySkills);
-        AddRow(19, "", _testConnection);
-        layout.SetColumnSpan(_testConnection, 2);
-        AddRow(20, "", _testResult);
-        layout.SetColumnSpan(_testResult, 2);
+        AddRow(16, "PTT 热键", hotkeyPanel);
+        AddRow(17, "整理风格", _forcedIntent);
+        AddRow(18, "整理失败时", _onRefineFailure);
+        AddRow(19, "附加叠加 skill", _optionalOverlaySkills);
+        AddFullWidthRow(20, _testConnection);
+        AddFullWidthRow(21, _testResult);
 
         _triggerMode.SelectedIndexChanged += (_, _) => UpdateWakeWordUiVisibility();
         _refineEnabled.CheckedChanged += OnRefineEnabledChanged;
@@ -780,17 +887,14 @@ public sealed class SettingsForm : Form
     {
         var mode = (_triggerMode.SelectedItem as TriggerModeOption)?.Value ?? VoiceTriggerMode.PttOnly;
         var wake = mode is VoiceTriggerMode.WakeWordOnly or VoiceTriggerMode.Both;
-        if (_wakeWordLabel is not null)
+        if (_wakeWordSection is not null)
         {
-            _wakeWordLabel.Visible = wake;
-        }
-
-        if (_wakeWordPanel is not null)
-        {
-            _wakeWordPanel.Visible = wake;
+            _wakeWordSection.Visible = wake;
         }
 
         _wakeWordPhrase.Enabled = wake;
+        _wakeWordSensitivity.Enabled = wake;
+        _wakeCommandSilenceMs.Enabled = wake;
     }
 
     private void LoadFromSettings()
@@ -812,6 +916,9 @@ public sealed class SettingsForm : Form
 
         _loadedTriggerMode = triggerMode;
         _wakeWordPhrase.Text = Settings.WakeWordPhrase;
+        SelectWakeSensitivity(Settings.WakeWordSensitivity);
+        _wakeCommandSilenceMs.Value = Math.Clamp(Settings.WakeCommandSilenceMs, 800, 8000);
+        SelectHudCorner(Settings.HudScreenCorner);
         _pttHotkey.HotkeyExpression = Settings.PttHotkey;
         var forced = SkillOptions.All.FirstOrDefault(x => x.Value == Settings.ForcedIntent)
             ?? SkillOptions.All.First(x => x.Value == PromptIntent.PlainText);
@@ -876,6 +983,40 @@ public sealed class SettingsForm : Form
         finally
         {
             _suppressPresetComboEvents = false;
+        }
+    }
+
+    private void SelectWakeSensitivity(WakeWordSensitivity value)
+    {
+        for (var i = 0; i < WakeWordSensitivityOptions.All.Count; i++)
+        {
+            if (WakeWordSensitivityOptions.All[i].Value == value)
+            {
+                _wakeWordSensitivity.SelectedIndex = i;
+                return;
+            }
+        }
+
+        if (_wakeWordSensitivity.Items.Count > 0)
+        {
+            _wakeWordSensitivity.SelectedIndex = 0;
+        }
+    }
+
+    private void SelectHudCorner(HudScreenCorner value)
+    {
+        for (var i = 0; i < HudCornerOptions.All.Count; i++)
+        {
+            if (HudCornerOptions.All[i].Value == value)
+            {
+                _hudCorner.SelectedIndex = i;
+                return;
+            }
+        }
+
+        if (_hudCorner.Items.Count > 0)
+        {
+            _hudCorner.SelectedIndex = 0;
         }
     }
 
@@ -994,6 +1135,11 @@ public sealed class SettingsForm : Form
             PttHotkey = _pttHotkey.HotkeyExpression,
             TriggerMode = ResolveTriggerModeFromUi(),
             WakeWordPhrase = _wakeWordPhrase.Text.Trim(),
+            WakeWordSensitivity = (_wakeWordSensitivity.SelectedItem as WakeWordSensitivityOption)?.Value
+                ?? WakeWordSensitivity.High,
+            WakeCommandSilenceMs = (int)_wakeCommandSilenceMs.Value,
+            HudScreenCorner = (_hudCorner.SelectedItem as HudCornerOption)?.Value
+                ?? HudScreenCorner.BottomRight,
             SkillsDirectory = _skillsDir.Text.Trim(),
             ModelsDirectory = Settings.ModelsDirectory,
             SpeakerVerifyThreshold = (float)_speakerThreshold.Value,

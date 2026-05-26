@@ -21,15 +21,24 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
     private bool _disposed;
     private float _agcGain = 1f;
     private float _noiseFloorEstimate = 0.001f;
+    private WakeWordSensitivity _sensitivity = WakeWordSensitivity.High;
+    private float _keywordsThreshold = 0.10f;
+    private float _keywordsScore = 2.5f;
+    private float _targetRms = 0.12f;
+    private float _maxGain = 60f;
+    private float _attack = 0.78f;
+    private float _release = 0.08f;
 
     private SherpaKeywordWakeWordDetector(
         WakeWordModelPaths paths,
         string phrase,
-        string keywordsFilePath)
+        string keywordsFilePath,
+        WakeWordSensitivity sensitivity)
     {
         _paths = paths;
         _phrase = string.IsNullOrWhiteSpace(phrase) ? "小助手" : phrase.Trim();
         _keywordsFilePath = keywordsFilePath;
+        ApplySensitivityProfile(sensitivity);
         RebuildSpotter();
         Log.Information(
             "Sherpa KWS ready (phrase={Phrase}, keywordsFile={File})",
@@ -52,7 +61,11 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
 
     public event EventHandler<WakeWordDetectedEventArgs>? WakeWordDetected;
 
-    public static bool TryCreate(string modelsDirectory, string phrase, out SherpaKeywordWakeWordDetector? detector)
+    public static bool TryCreate(
+        string modelsDirectory,
+        string phrase,
+        out SherpaKeywordWakeWordDetector? detector,
+        WakeWordSensitivity sensitivity = WakeWordSensitivity.High)
     {
         detector = null;
         if (!WakeWordModelPaths.TryResolve(modelsDirectory, out var paths))
@@ -67,7 +80,7 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
 
         try
         {
-            detector = new SherpaKeywordWakeWordDetector(paths, phrase, keywordsFile);
+            detector = new SherpaKeywordWakeWordDetector(paths, phrase, keywordsFile, sensitivity);
             return true;
         }
         catch (Exception ex)
@@ -123,6 +136,76 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
             {
                 Start();
             }
+        }
+    }
+
+    public void ApplyWakeSensitivity(WakeWordSensitivity sensitivity)
+    {
+        lock (_gate)
+        {
+            if (_sensitivity == sensitivity && _spotter is not null)
+            {
+                return;
+            }
+
+            ApplySensitivityProfile(sensitivity);
+            ResetAgc();
+
+            if (_spotter is null)
+            {
+                return;
+            }
+
+            var wasRunning = _running;
+            if (wasRunning)
+            {
+                Stop();
+            }
+
+            RebuildSpotter();
+            if (wasRunning)
+            {
+                Start();
+            }
+
+            Log.Information(
+                "Sherpa KWS sensitivity={Sensitivity} (threshold={Threshold:F2}, targetRms={Target:F2}, maxGain={MaxGain:F0}x)",
+                sensitivity,
+                _keywordsThreshold,
+                _targetRms,
+                _maxGain);
+        }
+    }
+
+    private void ApplySensitivityProfile(WakeWordSensitivity sensitivity)
+    {
+        _sensitivity = sensitivity;
+        switch (sensitivity)
+        {
+            case WakeWordSensitivity.Standard:
+                _keywordsThreshold = 0.12f;
+                _keywordsScore = 2.5f;
+                _targetRms = 0.10f;
+                _maxGain = 40f;
+                _attack = 0.72f;
+                _release = 0.10f;
+                break;
+            case WakeWordSensitivity.Maximum:
+                _keywordsThreshold = 0.06f;
+                _keywordsScore = 2.0f;
+                _targetRms = 0.16f;
+                _maxGain = 100f;
+                _attack = 0.92f;
+                _release = 0.04f;
+                break;
+            default:
+                _keywordsThreshold = 0.10f;
+                _keywordsScore = 2.5f;
+                _targetRms = 0.12f;
+                _maxGain = 60f;
+                _attack = 0.78f;
+                _release = 0.08f;
+                break;
         }
     }
 
@@ -202,13 +285,17 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
                 $"Failed to encode wake phrase '{_phrase}' for Sherpa KWS.");
         }
 
-        var config = BuildConfig(_paths, _keywordsFilePath);
+        var config = BuildConfig(_paths, _keywordsFilePath, _keywordsThreshold, _keywordsScore);
         _spotter = new KeywordSpotter(config);
         _stream = _spotter.CreateStream();
         ResetAgc();
     }
 
-    private static KeywordSpotterConfig BuildConfig(WakeWordModelPaths paths, string keywordsFile)
+    private static KeywordSpotterConfig BuildConfig(
+        WakeWordModelPaths paths,
+        string keywordsFile,
+        float keywordsThreshold,
+        float keywordsScore)
     {
         var config = new KeywordSpotterConfig
         {
@@ -218,8 +305,8 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
                 FeatureDim = 80,
             },
             KeywordsFile = keywordsFile,
-            KeywordsScore = 2.5f,
-            KeywordsThreshold = 0.15f,
+            KeywordsScore = keywordsScore,
+            KeywordsThreshold = keywordsThreshold,
         };
 
         config.ModelConfig.Tokens = paths.TokensPath;
@@ -248,11 +335,11 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
             return;
         }
 
-        const float targetRms = 0.08f;
-        const float maxGain = 20f;
-        const float minGain = 0.65f;
-        const float attack = 0.62f;
-        const float release = 0.14f;
+        const float minGain = 0.30f;
+        var targetRms = _targetRms;
+        var maxGain = _maxGain;
+        var attack = _attack;
+        var release = _release;
 
         double sum = 0;
         foreach (var s in samples)
@@ -261,9 +348,9 @@ public sealed class SherpaKeywordWakeWordDetector : IWakeWordDetector
         }
 
         var rms = (float)Math.Sqrt(sum / samples.Length);
-        if (rms < _noiseFloorEstimate * 3f)
+        if (rms < _noiseFloorEstimate * 2.5f)
         {
-            _noiseFloorEstimate = (_noiseFloorEstimate * 0.97f) + (rms * 0.03f);
+            _noiseFloorEstimate = (_noiseFloorEstimate * 0.96f) + (rms * 0.04f);
         }
 
         var level = Math.Max(Math.Max(rms, _noiseFloorEstimate), 1e-6f);

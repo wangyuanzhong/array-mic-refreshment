@@ -245,6 +245,8 @@ public sealed class VoiceCaptureOrchestratorTests
 
         public void StopListening() => _listening = false;
 
+        public void ReleaseMicForPtt() => _listening = false;
+
         public void RaiseUtterance()
         {
             var utterance = new AudioUtterance

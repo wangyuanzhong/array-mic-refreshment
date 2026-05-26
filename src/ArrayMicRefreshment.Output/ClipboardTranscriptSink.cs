@@ -8,6 +8,7 @@ namespace ArrayMicRefreshment.Output;
 public sealed class ClipboardTranscriptSink : ITranscriptSink
 {
     private readonly Func<nint>? _getSettingsWindowHandle;
+    private readonly Func<IReadOnlyList<nint>>? _getExcludedWindowHandles;
     private readonly SynchronizationContext? _uiContext;
 #if WINDOWS
     private nint _pasteRootWindow;
@@ -17,30 +18,34 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
 
     public event Action<string, bool>? Emitted;
 
-    public ClipboardTranscriptSink(Func<nint>? getSettingsWindowHandle = null, SynchronizationContext? uiContext = null)
+    public ClipboardTranscriptSink(
+        Func<nint>? getSettingsWindowHandle = null,
+        SynchronizationContext? uiContext = null,
+        Func<IReadOnlyList<nint>>? getExcludedWindowHandles = null)
     {
         _getSettingsWindowHandle = getSettingsWindowHandle;
         _uiContext = uiContext;
+        _getExcludedWindowHandles = getExcludedWindowHandles;
     }
 
     public void SetPasteTarget(IntPtr rootHwnd, IntPtr focusHwnd = default)
     {
 #if WINDOWS
-        var settings = _getSettingsWindowHandle?.Invoke() ?? IntPtr.Zero;
+        var excluded = GetExcludedWindowHandles();
         if (rootHwnd == IntPtr.Zero || !IsWindow(rootHwnd))
         {
             Log.Debug("SetPasteTarget skipped: invalid root hwnd {Root}", rootHwnd);
             return;
         }
 
-        if (settings != IntPtr.Zero && rootHwnd == settings)
+        if (IsPasteTargetExcluded(rootHwnd, excluded))
         {
-            Log.Debug("SetPasteTarget skipped: root is settings window {Root}", rootHwnd);
+            Log.Debug("SetPasteTarget skipped: excluded root window {Root}", rootHwnd);
             return;
         }
 
         _pasteRootWindow = rootHwnd;
-        _pasteFocusWindow = focusHwnd != IntPtr.Zero && IsWindow(focusHwnd)
+        _pasteFocusWindow = focusHwnd != IntPtr.Zero && IsWindow(focusHwnd) && !IsPasteTargetExcluded(focusHwnd, excluded)
             ? focusHwnd
             : WindowsPasteHelper.ResolveFocusHwnd(rootHwnd);
         Log.Debug("Paste target set root={Root} focus={Focus}", rootHwnd, _pasteFocusWindow);
@@ -122,8 +127,14 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
         if (root == IntPtr.Zero || !IsWindow(root))
         {
             Log.Debug("Recorded root invalid, capturing foreground window");
-            (root, focus) = WindowsPasteHelper.CaptureForeground();
+            (root, focus) = WindowsPasteHelper.CaptureForegroundExcluding(GetExcludedWindowHandles());
             Log.Debug("Captured foreground: root={Root:X} focus={Focus:X}", root, focus);
+        }
+
+        if (IsPasteTargetExcluded(root, GetExcludedWindowHandles()))
+        {
+            Log.Warning("Paste skipped: foreground resolved to excluded window {Root:X}", root);
+            return;
         }
 
         if (focus == IntPtr.Zero || !IsWindow(focus))
@@ -133,7 +144,7 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
         }
 
         var settingsHandle = _getSettingsWindowHandle?.Invoke() ?? IntPtr.Zero;
-        if (root == IntPtr.Zero || (settingsHandle != IntPtr.Zero && root == settingsHandle))
+        if (root == IntPtr.Zero || IsPasteTargetExcluded(root, GetExcludedWindowHandles()))
         {
             Log.Warning("Paste skipped: no valid target window (root={Root:X} settings={Settings:X})", root, settingsHandle);
             return;
@@ -198,6 +209,12 @@ public sealed class ClipboardTranscriptSink : ITranscriptSink
 
         Log.Error("Paste failed after 3 attempts for root={Root:X} focus={Focus:X}", root, focus);
     }
+
+    private IReadOnlyList<nint> GetExcludedWindowHandles()
+        => _getExcludedWindowHandles?.Invoke() ?? Array.Empty<nint>();
+
+    private static bool IsPasteTargetExcluded(nint hwnd, IReadOnlyList<nint> excluded)
+        => WindowsPasteHelper.IsExcludedWindow(hwnd, excluded);
 
     private static void LogModifierStates(string context)
     {

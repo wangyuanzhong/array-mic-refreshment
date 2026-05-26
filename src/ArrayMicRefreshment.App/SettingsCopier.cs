@@ -16,6 +16,10 @@ internal static class SettingsCopier
         target.PttHotkey = source.PttHotkey;
         target.TriggerMode = source.TriggerMode;
         target.WakeWordPhrase = source.WakeWordPhrase;
+        target.WakeWordSensitivity = source.WakeWordSensitivity;
+        target.WakeCommandSilenceMs = source.WakeCommandSilenceMs;
+        target.WakeUseVadEndDetection = source.WakeUseVadEndDetection;
+        target.HudScreenCorner = source.HudScreenCorner;
         target.SkillsDirectory = source.SkillsDirectory;
         target.ModelsDirectory = source.ModelsDirectory;
         target.SelectedAsrModelId = source.SelectedAsrModelId;
