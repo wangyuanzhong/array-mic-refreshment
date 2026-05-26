@@ -8,6 +8,7 @@ internal static class SettingsCopier
     {
         target.MasterEnabled = source.MasterEnabled;
         target.PasteToCaretEnabled = source.PasteToCaretEnabled;
+        target.LaunchAtStartup = source.LaunchAtStartup;
         target.PromptRefineEnabled = source.PromptRefineEnabled;
         target.ForcedIntent = source.ForcedIntent;
         target.OnRefineFailure = source.OnRefineFailure;

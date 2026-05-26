@@ -184,7 +184,25 @@ public sealed class TrayApplicationContext : ApplicationContext
         {
             NotifyWakeModeStartup();
         }
+
+#if WINDOWS
+        ApplyLaunchAtStartup(_settings.LaunchAtStartup);
+#endif
     }
+
+#if WINDOWS
+    private static void ApplyLaunchAtStartup(bool enabled)
+    {
+        try
+        {
+            WindowsStartupRegistration.Apply(enabled);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to apply launch-at-startup setting (enabled={Enabled})", enabled);
+        }
+    }
+#endif
 
     private VoicePipeline BuildPipeline(AppSettings settings)
     {
@@ -378,6 +396,11 @@ public sealed class TrayApplicationContext : ApplicationContext
             if (previous.HudScreenCorner != _settings.HudScreenCorner)
             {
                 _feedback.ApplyHudCorner(_settings.HudScreenCorner);
+            }
+
+            if (previous.LaunchAtStartup != _settings.LaunchAtStartup)
+            {
+                ApplyLaunchAtStartup(_settings.LaunchAtStartup);
             }
 
             _pttCaptureService.InvalidateCaptureDevice();

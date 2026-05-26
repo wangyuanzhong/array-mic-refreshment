@@ -38,6 +38,8 @@ public sealed class AppSettings
 {
     public bool MasterEnabled { get; set; } = true;
     public bool PasteToCaretEnabled { get; set; } = true;
+    /// <summary>Register the app in the current user's Windows Run key on logon.</summary>
+    public bool LaunchAtStartup { get; set; } = true;
     public bool PromptRefineEnabled { get; set; }
     public PromptIntent ForcedIntent { get; set; } = PromptIntent.PlainText;
     public OnRefineFailure OnRefineFailure { get; set; } = OnRefineFailure.UseRawTranscript;

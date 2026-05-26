@@ -152,6 +152,7 @@ public sealed class SettingsForm : Form
         ForeColor = SystemColors.GrayText,
     };
     private readonly CheckBox _refineEnabled = new() { Text = "启用提示词整理（默认建议关闭）", AutoSize = true };
+    private readonly CheckBox _launchAtStartup = new() { Text = "开机自启动", AutoSize = true, Checked = true };
     private readonly ComboBox _llmPresetCombo = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
     private readonly TextBox _llmPresetName = new() { Width = 360 };
     private readonly TextBox _apiUrl = new() { Width = 360 };
@@ -182,7 +183,7 @@ public sealed class SettingsForm : Form
         AutoSize = true,
         MaximumSize = new Size(360, 0),
         ForeColor = SystemColors.GrayText,
-        Text = "说完指令后需保持静音多久才提交识别（默认 3000 ms）。",
+        Text = "说完指令后，连续静音达到该时长即提交（不含 ASR 识别耗时）。",
     };
     private readonly ComboBox _hudCorner = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
     private readonly HotkeyCaptureTextBox _pttHotkey = new() { Width = 200 };
@@ -276,7 +277,7 @@ public sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 22,
+            RowCount = 23,
             Padding = new Padding(12),
             AutoScroll = true,
             GrowStyle = TableLayoutPanelGrowStyle.FixedSize,
@@ -288,7 +289,7 @@ public sealed class SettingsForm : Form
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
 
-        layout.RowStyles[21] = new RowStyle(SizeType.Absolute, 56);
+        layout.RowStyles[22] = new RowStyle(SizeType.Absolute, 56);
 
         void AddRow(int row, string label, Control control)
         {
@@ -334,8 +335,9 @@ public sealed class SettingsForm : Form
         AddRow(9, "API Key", _apiKey);
         AddRow(10, "Model", _apiModel);
         AddFullWidthRow(11, _refineEnabled);
-        AddRow(12, "Skills 目录", _skillsDir);
-        AddRow(13, "触发模式", _triggerMode);
+        AddFullWidthRow(12, _launchAtStartup);
+        AddRow(13, "Skills 目录", _skillsDir);
+        AddRow(14, "触发模式", _triggerMode);
 
         var wakeWordSection = new TableLayoutPanel
         {
@@ -376,9 +378,9 @@ public sealed class SettingsForm : Form
         wakeWordSection.Controls.Add(new Label { Text = "指令结束静音", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
         wakeWordSection.Controls.Add(wakeSilencePanel, 1, 2);
         _wakeWordSection = wakeWordSection;
-        AddFullWidthRow(14, wakeWordSection);
+        AddFullWidthRow(15, wakeWordSection);
 
-        AddRow(15, "HUD 位置", _hudCorner);
+        AddRow(16, "HUD 位置", _hudCorner);
         var hotkeyPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         hotkeyPanel.Controls.Add(_pttHotkey);
         hotkeyPanel.Controls.Add(new Label
@@ -388,12 +390,12 @@ public sealed class SettingsForm : Form
             ForeColor = SystemColors.GrayText,
             MaximumSize = new Size(360, 0),
         });
-        AddRow(16, "PTT 热键", hotkeyPanel);
-        AddRow(17, "整理风格", _forcedIntent);
-        AddRow(18, "整理失败时", _onRefineFailure);
-        AddRow(19, "附加叠加 skill", _optionalOverlaySkills);
-        AddFullWidthRow(20, _testConnection);
-        AddFullWidthRow(21, _testResult);
+        AddRow(17, "PTT 热键", hotkeyPanel);
+        AddRow(18, "整理风格", _forcedIntent);
+        AddRow(19, "整理失败时", _onRefineFailure);
+        AddRow(20, "附加叠加 skill", _optionalOverlaySkills);
+        AddFullWidthRow(21, _testConnection);
+        AddFullWidthRow(22, _testResult);
 
         _triggerMode.SelectedIndexChanged += (_, _) => UpdateWakeWordUiVisibility();
         _refineEnabled.CheckedChanged += OnRefineEnabledChanged;
@@ -901,6 +903,7 @@ public sealed class SettingsForm : Form
     {
         LoadCurrentPresetIntoUi();
         _refineEnabled.Checked = Settings.PromptRefineEnabled;
+        _launchAtStartup.Checked = Settings.LaunchAtStartup;
         _skillsDir.Text = Settings.SkillsDirectory;
         var triggerMode = RuntimeTriggerMode ?? Settings.TriggerMode;
         for (var i = 0; i < TriggerModeOptions.All.Count; i++)
@@ -1127,6 +1130,7 @@ public sealed class SettingsForm : Form
         {
             MasterEnabled = Settings.MasterEnabled,
             PasteToCaretEnabled = Settings.PasteToCaretEnabled,
+            LaunchAtStartup = _launchAtStartup.Checked,
             PromptRefineEnabled = _refineEnabled.Checked,
             ForcedIntent = (_forcedIntent.SelectedItem as SkillOption)?.Value ?? PromptIntent.Auto,
             OnRefineFailure = (OnRefineFailure)(_onRefineFailure.SelectedItem ?? OnRefineFailure.UseRawTranscript),

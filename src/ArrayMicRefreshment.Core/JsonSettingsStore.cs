@@ -36,6 +36,11 @@ public sealed class JsonSettingsStore : ISettingsStore
                 settings.PasteToCaretEnabled = true;
             }
 
+            if (!json.Contains("launchAtStartup", StringComparison.OrdinalIgnoreCase))
+            {
+                settings.LaunchAtStartup = true;
+            }
+
             settings.MigrateLegacyApiSettings();
             return settings;
         }

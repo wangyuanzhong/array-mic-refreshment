@@ -99,4 +99,32 @@ public class JsonSettingsStoreTests
             }
         }
     }
+
+    [Fact]
+    public void Load_without_launchAtStartup_defaults_to_enabled()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"amr-test-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(
+                path,
+                """
+                {
+                  "masterEnabled": true,
+                  "pttHotkey": "Ctrl+Shift+Space"
+                }
+                """);
+
+            var loaded = new JsonSettingsStore(path).Load();
+
+            Assert.True(loaded.LaunchAtStartup);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
 }

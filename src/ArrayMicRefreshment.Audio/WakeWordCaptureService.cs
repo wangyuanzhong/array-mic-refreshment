@@ -60,6 +60,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     private bool _commandWindowOpen;
     private int _commandBaseIndex;
     private DateTimeOffset? _commandSpeechStartedUtc;
+    private DateTimeOffset? _continuousSilenceStartedUtc;
     private int _consecutiveVadEndPolls;
     private System.Threading.Timer? _sessionTimer;
     private WakeWordDetectedEventArgs? _pendingWakeActivated;
@@ -321,6 +322,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             _commandWindowOpen = false;
             _commandBaseIndex = 0;
             _commandSpeechStartedUtc = null;
+            _continuousSilenceStartedUtc = null;
             _consecutiveVadEndPolls = 0;
             _preRoll.Clear();
             _dictationStartedUtc = DateTimeOffset.UtcNow;
@@ -372,9 +374,12 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
 
             if (_heardPostWakeSpeech && ShouldEndDictation(now, pollOnly: true))
             {
+                var silenceMs = _continuousSilenceStartedUtc.HasValue
+                    ? (int)(now - _continuousSilenceStartedUtc.Value).TotalMilliseconds
+                    : (int)(now - _lastSpeechUtc).TotalMilliseconds;
                 Log.Information(
-                    "Wake dictation ended after {SilenceMs}ms silence (poll, bytes={Bytes})",
-                    (int)(now - _lastSpeechUtc).TotalMilliseconds,
+                    "Wake dictation ended after {SilenceMs}ms continuous silence (poll, bytes={Bytes})",
+                    silenceMs,
                     _dictationBuffer.Count);
                 EndDictationSessionInternal();
                 return;
@@ -478,6 +483,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _commandWindowOpen = false;
         _commandBaseIndex = 0;
         _commandSpeechStartedUtc = null;
+        _continuousSilenceStartedUtc = null;
     }
 
     private void OpenCommandWindow()
@@ -572,9 +578,12 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             {
                 if (_dictationActive)
                 {
+                    var silenceMs = _continuousSilenceStartedUtc.HasValue
+                        ? (int)(DateTimeOffset.UtcNow - _continuousSilenceStartedUtc.Value).TotalMilliseconds
+                        : (int)_silenceTimeout.TotalMilliseconds;
                     Log.Information(
-                        "Wake dictation ended after {SilenceMs}ms adaptive silence (bytes={Bytes})",
-                        (int)_silenceTimeout.TotalMilliseconds,
+                        "Wake dictation ended after {SilenceMs}ms continuous silence (bytes={Bytes})",
+                        silenceMs,
                         _dictationBuffer.Count);
                     EndDictationSessionInternal();
                 }
@@ -613,54 +622,68 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         var chunkRms = ComputeRms16Le(mono16k);
         var threshold = CurrentSpeechThreshold();
         var extendThreshold = ExtendSpeechThreshold();
+        var isSpeech = chunkRms >= threshold;
 
-        if (chunkRms < extendThreshold)
-        {
-            LearnNoiseFloor(chunkRms);
-            _consecutiveSpeechChunks = 0;
-            _speechCandidateStartIndex = -1;
-            _speechCandidatePeakRms = 0;
-            return _heardPostWakeSpeech && ShouldEndDictation(now, pollOnly: false);
-        }
-
-        if (_consecutiveSpeechChunks == 0)
-        {
-            _speechCandidateStartIndex = indexBefore;
-            _speechCandidatePeakRms = chunkRms;
-        }
-        else
-        {
-            _speechCandidatePeakRms = Math.Max(_speechCandidatePeakRms, chunkRms);
-        }
-
-        _consecutiveSpeechChunks++;
-        if (!_heardPostWakeSpeech
-            && _consecutiveSpeechChunks >= MinSpeechChunksBeforeAccept
-            && _speechCandidatePeakRms >= Math.Max(threshold, MinCommandStartRms))
-        {
-            _heardPostWakeSpeech = true;
-            _sessionPeakRms = _speechCandidatePeakRms;
-            _commandSpeechStartedUtc = now;
-            _speechStartByteIndex = _speechCandidateStartIndex >= 0
-                ? Math.Max(_speechCandidateStartIndex, _commandBaseIndex)
-                : Math.Max(indexBefore, _commandBaseIndex);
-            Log.Information(
-                "Wake dictation: command speech started (peakRms={Peak:F4}, threshold={Th:F4}, bytes={Bytes})",
-                _speechCandidatePeakRms,
-                threshold,
-                _dictationBuffer.Count);
-            RaiseStatus("正在聆听指令…");
-        }
-
-        if (_heardPostWakeSpeech)
+        if (chunkRms >= extendThreshold && _heardPostWakeSpeech)
         {
             _speechEndByteIndex = indexAfter;
             _sessionPeakRms = Math.Max(_sessionPeakRms, chunkRms);
-            _lastSpeechUtc = now;
-            _consecutiveVadEndPolls = 0;
         }
 
-        return false;
+        if (isSpeech)
+        {
+            _continuousSilenceStartedUtc = null;
+            _consecutiveVadEndPolls = 0;
+
+            if (_consecutiveSpeechChunks == 0)
+            {
+                _speechCandidateStartIndex = indexBefore;
+                _speechCandidatePeakRms = chunkRms;
+            }
+            else
+            {
+                _speechCandidatePeakRms = Math.Max(_speechCandidatePeakRms, chunkRms);
+            }
+
+            _consecutiveSpeechChunks++;
+            if (!_heardPostWakeSpeech
+                && _consecutiveSpeechChunks >= MinSpeechChunksBeforeAccept
+                && _speechCandidatePeakRms >= Math.Max(threshold, MinCommandStartRms))
+            {
+                _heardPostWakeSpeech = true;
+                _sessionPeakRms = _speechCandidatePeakRms;
+                _commandSpeechStartedUtc = now;
+                _speechStartByteIndex = _speechCandidateStartIndex >= 0
+                    ? Math.Max(_speechCandidateStartIndex, _commandBaseIndex)
+                    : Math.Max(indexBefore, _commandBaseIndex);
+                Log.Information(
+                    "Wake dictation: command speech started (peakRms={Peak:F4}, threshold={Th:F4}, bytes={Bytes})",
+                    _speechCandidatePeakRms,
+                    threshold,
+                    _dictationBuffer.Count);
+                RaiseStatus("正在聆听指令…");
+            }
+
+            if (_heardPostWakeSpeech)
+            {
+                _lastSpeechUtc = now;
+            }
+
+            return false;
+        }
+
+        LearnNoiseFloor(chunkRms);
+        _consecutiveSpeechChunks = 0;
+        _speechCandidateStartIndex = -1;
+        _speechCandidatePeakRms = 0;
+
+        if (!_heardPostWakeSpeech)
+        {
+            return false;
+        }
+
+        _continuousSilenceStartedUtc ??= now;
+        return ShouldEndDictation(now, pollOnly: false);
     }
 
     private double CurrentSpeechThreshold()
@@ -672,12 +695,12 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
 
     private bool ShouldEndDictation(DateTimeOffset now, bool pollOnly)
     {
-        if (!_heardPostWakeSpeech)
+        if (!_heardPostWakeSpeech || !_continuousSilenceStartedUtc.HasValue)
         {
             return false;
         }
 
-        var silenceMs = (now - _lastSpeechUtc).TotalMilliseconds;
+        var silenceMs = (now - _continuousSilenceStartedUtc.Value).TotalMilliseconds;
         if (silenceMs >= _silenceTimeout.TotalMilliseconds)
         {
             return true;
