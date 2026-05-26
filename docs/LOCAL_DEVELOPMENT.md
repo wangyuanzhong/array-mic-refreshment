@@ -42,14 +42,21 @@ cd array-mic-refreshment
 # 3) 若要开发/调试唤醒词，额外下载 KWS 模型
 .\scripts\download-models.ps1 -IncludeKws
 
-# 4) 编译
+# 4) 若开发 Web 设置 UI（路线 B），先构建前端
+cd ui
+npm ci
+npm run build
+cd ..
+
+# 5) 编译
 dotnet build ArrayMicRefreshment.sln -c Release
 
-# 5) 单元测试（不依赖麦克风）
+# 6) 单元测试（不依赖麦克风）
 dotnet test ArrayMicRefreshment.sln -c Release --filter "FullyQualifiedName!~Integration"
 
-# 6) 运行托盘 App（需 Windows + 麦克风）
+# 7) 运行托盘 App（需 Windows + 麦克风 + WebView2 Runtime）
 dotnet run --project src\ArrayMicRefreshment.App -c Release
+# 可选：AMR_USE_WINFORMS_SETTINGS=1 强制经典 WinForms 设置窗
 ```
 
 **成功标志：**

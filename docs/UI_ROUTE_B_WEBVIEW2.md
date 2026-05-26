@@ -6,23 +6,25 @@
 
 ---
 
-## 0.1 与仓库 `main` 对齐的现状快照（2026-05-26，集成负责人维护）
+## 0.1 与仓库对齐的现状快照（2026-05-26，集成负责人维护）
 
-> **用途**：把「路线 B 规划」与 **当前代码事实** 绑在一起，避免 Agent 按文档假设已实现 WebView2。
+> **用途**：把「路线 B 规划」与 **当前代码事实** 绑在一起。  
+> **分支参考**：`cursor/ui-route-b-integration-f621`（五路 Agent 并行实现后的集成结果）。
 
-| 维度 | 文档 §1.1 描述 | **当前 `main` 实测** |
-|------|----------------|----------------------|
-| 产品对外版本 | V0.3（README） | README 写 V0.3；`ArrayMicRefreshment.App.csproj` 仍为 `InformationalVersion=V0.2` / `0.2.0` — **需 Phase 5 对齐** |
-| WebView2 NuGet | 「尚未引入」 | **仍未引入**（`ArrayMicRefreshment.App.csproj` 无 `Microsoft.Web.WebView2`） |
-| `ui/` 前端工程 | 目标态 §6 | **不存在** |
-| `src/.../Web/**` | 目标态 §6 | **不存在** |
-| `SettingsApplyService` | Phase 0 产出 | **未提取**；保存逻辑仍在 `TrayApplicationContext.OnOpenSettings` + `SettingsForm` |
-| 设置 / 注册 UI | WinForms | `SettingsForm.cs`（~1270 行）、`EnrollmentDialog.cs`、`PrivacyConsent.cs` — **仍为主路径** |
-| 托盘入口 | Phase 2 后改 Web | `TrayApplicationContext` 仍 `SettingsForm.ShowDialog` |
-| CI（Linux） | `dotnet build` 可编 App | 本环境无 SDK 时仅能改代码；**WebView2 运行与 §10.2 手测仅 Windows** |
-| 路线 B Phase checklist §14 | 全未勾选 | **0/5 Phase 完成** |
+| 维度 | 规划（§1.1） | **集成分支实测** |
+|------|----------------|------------------|
+| 产品对外版本 | V0.3（README） | README 仍 V0.3；csproj 仍 `V0.2` — **Phase 5 待对齐** |
+| WebView2 | 目标引入 | ✅ `Microsoft.Web.WebView2` + `Web/` 宿主与 Bridge |
+| `ui/` + `wwwroot/` | Vite 前端 | ✅ 已建；`wwwroot/` **gitignore**，Release 前 `npm run build` |
+| `SettingsApplyService` | Phase 0 | ✅ 已提取；WinForms / Web 共用 `TraySettingsApplyHost` |
+| 设置入口 | Web 为主 | ✅ 默认 `WebUiHostForm` `#/settings`；`AMR_USE_WINFORMS_SETTINGS=1` 回退 WinForms |
+| 注册入口 | Web `#/enroll` | ✅ 优先 Web；Runtime/wwwroot 缺失时回退 `EnrollmentDialog` |
+| `SettingsForm` | Phase 5 删除 | ⚠️ **仍保留**（菜单可开 WinForms 设置作对照） |
+| CI（Linux） | build 可过 | ✅ `dotnet build` 0 错误；`ArrayMicRefreshment.CI.slnf` **82** 项测试通过 |
+| App.Tests | 新增 | ⚠️ 引用 WinForms/WebView2 App；**需在 Windows 跑** `dotnet test` |
+| §10.2 手测 | 发布前 | ❌ **未在本环境执行**（需 Windows 实机 + 麦克风） |
 
-**结论**：路线 B 的 **决策与契约** 已写在本文；**实现进度为 0%**。并行 Agent 应从 **Phase 0（A1）** 与 **Phase 1（A2）** 开工，再合并 A4/A3，最后 A5。
+**结论**：路线 B **约完成 Phase 0–3 的工程骨架**（约 70% 文档工作量）；**Phase 2 验收、Phase 4–5、V0.4 发布** 仍待 Windows 回归与产品签收。
 
 **与本仓库其他文档**：
 
@@ -723,25 +725,27 @@ $wwwSrc = Join-Path $repoRoot 'src/ArrayMicRefreshment.App/wwwroot'
 
 ## 14. Phase 完成 Checklist（主 Agent 勾选）
 
+> 状态截至分支 `cursor/ui-route-b-integration-f621` 集成（2026-05-26）。
+
 ### Phase 0
-- [ ] `SettingsApplyService` 已提取
-- [ ] `TrayApplicationContext` 使用 Service
-- [ ] `dotnet test` 通过
+- [x] `SettingsApplyService` 已提取
+- [x] `TrayApplicationContext` 使用 Service（WinForms OK + `SaveSettingsDraft`）
+- [x] `dotnet test`（CI slnf 82 项）通过；App.Tests 待 Windows
 
 ### Phase 1
-- [ ] WebView2 NuGet + Runtime 检测
-- [ ] `ui/` + `wwwroot/` 构建通
-- [ ] 托盘可打开 Web 设置壳
+- [x] WebView2 NuGet + Runtime 检测
+- [x] `ui/` + `wwwroot/` 构建通
+- [x] 托盘可打开 Web 设置壳
 
 ### Phase 2
-- [ ] Bridge API 完整
-- [ ] SettingsPage 字段 parity
-- [ ] 保存逻辑 parity（§2.3）
-- [ ] SettingsForm 已替换或 feature flag
+- [x] Bridge API 实现（见 §17 已知缺口）
+- [x] SettingsPage 字段 parity（§7.3 + WinForms-only 项见 A3 对照表）
+- [x] 保存逻辑 parity（§2.3，经 `SettingsApplyService`）
+- [ ] SettingsForm **已替换** — 当前为 Web 默认 + WinForms 降级菜单，**未删除**
 
 ### Phase 3
-- [ ] Enroll + Privacy Web 化
-- [ ] build-release 含前端构建
+- [x] Enroll + Privacy Web 化（Onboarding 骨架）
+- [x] build-release 含前端构建
 
 ### Phase 4（可选）
 - [ ] HUD token 统一
@@ -749,8 +753,53 @@ $wwwSrc = Join-Path $repoRoot 'src/ArrayMicRefreshment.App/wwwroot'
 
 ### Phase 5
 - [ ] 旧 Form 删除
-- [ ] V0.4 发布说明
+- [ ] V0.4 发布说明 / 版本号对齐
 - [ ] §10.2 手动回归通过
+
+---
+
+## 17. 集成报告（2026-05-26，五 Agent 合并）
+
+### 17.1 执行摘要
+
+| Agent | 职责 | 状态 |
+|-------|------|------|
+| A1 | Phase 0 `SettingsApplyService` | ✅ 已合并 |
+| A2 | Phase 1 WebView2 + Vite + `WebUiHostForm` | ✅ 已合并 |
+| A3 | Phase 2 前端 `SettingsPage` | ✅ 已合并 |
+| A4 | Phase 2 `WebUiBridge` + 单测 | ✅ 已合并（见缺口） |
+| A5 | Phase 3 注册/隐私 + `build-release.ps1` | ✅ 已合并 |
+
+**合并顺序**：A1 → A2 → A4/A3 → A5（同分支串行提交，无跨分支冲突）。
+
+**自动化验证**：
+
+- `dotnet build ArrayMicRefreshment.sln -c Release` — 0 错误（16 警告，含 WebView2/WindowsBase 版本统一警告）
+- `dotnet test ArrayMicRefreshment.CI.slnf` — 82 passed
+- `cd ui && npm run build` — 成功
+
+### 17.2 已知缺口（发布前须处理）
+
+1. **Windows 实机 §10.2**：PTT / 唤醒 / 粘贴 / Web 设置保存 — **未测**。
+2. **App.Tests**：需在安装 `Microsoft.WindowsDesktop.App` 的 Windows 上跑全量。
+3. **Bridge**：ASR 模型下载按钮无 Web API；隐私仍可能弹 WinForms `MessageBox`；`ListOptionalOverlaySkills` 用已持久化目录非 draft。
+4. **产品**：保留「设置（WinForms）…」直到 Phase 2 签收；再删 `SettingsForm`。
+5. **版本**：csproj `V0.2` vs README `V0.3` — Phase 5 统一为 V0.4。
+
+### 17.3 回退方案
+
+| 场景 | 操作 |
+|------|------|
+| Web 设置不可用 | 设环境变量 `AMR_USE_WINFORMS_SETTINGS=1` 或托盘「设置（WinForms）…」 |
+| WebView2 Runtime 缺失 | 自动 MessageBox + 不打开 Web 窗；注册回退 `EnrollmentDialog` |
+| 音频/唤醒异常 | 与 UI 无关时查 `docs/HANDOFF_PHASE5.md`；若仅 Web 保存后异常，对比 WinForms 保存同配置 |
+
+### 17.4 下一步（完成整条路线 B）
+
+1. Windows：**§10.2 手动回归** + 勾选 Phase 2 验收项（§8）。
+2. 修复 Bridge 缺口（ASR 下载、隐私纯 Web、draft skills 目录）。
+3. Phase 5：删 `SettingsForm` / `EnrollmentDialog`、更新 README/CHANGELOG、对齐版本号。
+4. （可选）Phase 4：HUD 读 `tokens.css` 同源 JSON。
 
 ---
 
