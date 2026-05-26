@@ -5,6 +5,12 @@ on:
     branches: [main, 'cursor/**']
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Optional note (shown in run summary)'
+        required: false
+        default: 'manual'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -14,6 +20,16 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
+      - name: Run context
+        run: |
+          echo "## CI run" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Branch:** \`${{ github.ref_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Event:** \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **SHA:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${{ github.event.inputs.reason }}" ]; then
+            echo "- **Note:** ${{ github.event.inputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
