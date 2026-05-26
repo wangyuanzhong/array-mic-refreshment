@@ -73,8 +73,10 @@ jobs:
       - name: Build
         run: dotnet build ArrayMicRefreshment.sln -c Release --no-restore
 
-      - name: Test App unit tests
-        run: dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.csproj -c Release --no-build --verbosity normal
-
-      - name: Test solution (exclude integration and tray smoke)
-        run: dotnet test ArrayMicRefreshment.sln -c Release --no-build --verbosity normal --filter "FullyQualifiedName!~Integration&Category!=TraySmoke"
+      - name: Test
+        shell: pwsh
+        run: |
+          dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.csproj -c Release --no-build --verbosity normal
+          dotnet test tests/ArrayMicRefreshment.Core.Tests/ArrayMicRefreshment.Core.Tests.csproj -c Release --no-build --verbosity normal
+          dotnet test tests/ArrayMicRefreshment.Audio.Tests/ArrayMicRefreshment.Audio.Tests.csproj -c Release --no-build --verbosity normal
+          dotnet test tests/ArrayMicRefreshment.Prompt.Tests/ArrayMicRefreshment.Prompt.Tests.csproj -c Release --no-build --verbosity normal
