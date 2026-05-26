@@ -89,8 +89,8 @@ internal sealed class VoiceStatusHud : Form
 
         _label.Text = message;
         _label.ForeColor = phase == VoiceActivityPhase.Error
-            ? Color.FromArgb(252, 165, 165)
-            : Color.FromArgb(245, 245, 245);
+            ? Color.FromArgb(255, 184, 208) // macaron blush (--hud-error)
+            : Color.FromArgb(250, 248, 255);
 
         if (!Visible)
         {

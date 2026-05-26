@@ -1,6 +1,6 @@
 # Array Mic Refreshment
 
-**当前版本：V0.3**
+**当前版本：V0.4**
 
 本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理**（纯文本润色或多 Skill 意图改写）→ 剪贴板 / 光标粘贴。
 
@@ -111,7 +111,7 @@ flowchart TB
 
 | 层级 | 选型 |
 |------|------|
-| 语言 / UI | **C# / .NET 8**，托盘 + 设置窗 |
+| 语言 / UI | **C# / .NET 8**，托盘 + **WebView2 PWA 风格设置窗**（`#/settings` 等路由；WinForms 可降级） |
 | ASR | **Sherpa-ONNX** → **SenseVoice 离线**（`OfflineRecognizer`） |
 | 说话人 | ECAPA-TDNN ONNX（或 sherpa speaker） |
 | VAD | Silero VAD（辅助，非主触发） |
@@ -135,7 +135,9 @@ flowchart TB
 
 ## LLM 提示词整理（首版即有，默认关）
 
-### 设置界面（API 配置窗）
+### 设置界面（WebView2 PWA）
+
+托盘右键 **设置** 打开 **WebView2** 内嵌 Web 应用（侧栏 + 卡片，Macaron Pastel 视觉）。需 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（Win10/11 通常已装 Evergreen）。开发者构建前端见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) 步骤 4（`ui/` 目录 `npm ci && npm run build`）。
 
 - **LLM 预设 ×3**：可分别保存名称、API Base URL、Key、Model，一键切换（如本地 Ollama / DeepSeek / OpenAI）
 - **API Base URL**（如 `https://api.openai.com/v1`、`https://api.deepseek.com/v1`、本机 `http://127.0.0.1:11434/v1`）
@@ -217,7 +219,7 @@ Qwen3 在公开基准上 CER 常更低，但首版不集成第二套模型；若
 ```text
 ArrayMicRefreshment/
 ├── src/
-│   ├── ArrayMicRefreshment.App/       # 托盘、设置窗、PTT
+│   ├── ArrayMicRefreshment.App/       # 托盘、WebView2 设置 UI、PTT
 │   ├── ArrayMicRefreshment.Core/
 │   ├── ArrayMicRefreshment.Audio/
 │   ├── ArrayMicRefreshment.Speaker/
@@ -341,13 +343,13 @@ ptt.PttReleased += async () => {
 
 ### 方式 A：完整离线包（推荐，含全部模型）
 
-本地构建产出（约 2.7 GB 压缩包）：
+本地构建产出（约 2.7 GB 压缩包）。构建前若含 Web 设置 UI，需在 `ui/` 执行 `npm run build`（详见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)）。
 
 ```text
 dist\ArrayMicRefreshment-ready.zip
 ```
 
-解压后目录需同时包含 `ArrayMicRefreshment.exe`、`models\`、`skills\`。双击 exe，托盘图标出现后：
+解压后目录需同时包含 `ArrayMicRefreshment.exe`、`models\`、`skills\`、`wwwroot\`。目标机器需 **WebView2 Runtime**（与 .NET 8 并列）。双击 exe，托盘图标出现后：
 
 1. 右键托盘 → **设置**
 2. 可选：勾选「启用提示词整理」→ 选择 LLM 预设 → 填写 API → **测试连接** → **确定**
@@ -370,6 +372,7 @@ dist\ArrayMicRefreshment-ready.zip
 git clone https://github.com/wangyuanzhong/array-mic-refreshment.git
 cd array-mic-refreshment
 .\scripts\download-models.ps1
+cd ui && npm ci && npm run build && cd ..
 .\scripts\build-release.ps1 -Mode self-contained -IncludeModels -Zip
 # 产出：dist\ArrayMicRefreshment-self-contained\（含 models、skills）
 # 完整离线包可再打包为 dist\ArrayMicRefreshment-ready.zip（见 CHANGELOG.md）
@@ -383,9 +386,12 @@ cd array-mic-refreshment
 或者 dev 直接跑（不打包）：
 
 ```powershell
+cd ui && npm ci && npm run build && cd ..
 dotnet build ArrayMicRefreshment.sln -c Release
 dotnet run --project src\ArrayMicRefreshment.App -c Release
 ```
+
+完整步骤（含 WebView2 Runtime、WinForms 降级）见 **[`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)**。
 
 **Linux / CI（类库 + 单元测试，不含 WinForms App）**
 
@@ -409,7 +415,8 @@ GitHub Actions：见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（`p
 | 路径 | 内容 |
 |------|------|
 | `README.md` | 架构、已定稿决策、输出逻辑 |
-| **`docs/LOCAL_DEVELOPMENT.md`** | **本地开发 / 新机搭建 / Agent 环境指南（必读）** |
+| **`docs/LOCAL_DEVELOPMENT.md`** | **本地开发 / 新机搭建 / `ui/` npm 构建 / Agent 环境指南（必读）** |
+| **`docs/UI_ROUTE_B_WEBVIEW2.md`** | WebView2 统一 UI 架构与 Bridge 契约 |
 | **`AGENTS.md`** | Agent 入口，指向 LOCAL_DEVELOPMENT |
 | `docs/ASR_MODEL.md` | **SenseVoice 定稿**与 manifest |
 | `skills/manifest.yaml` | 上游路径与 intent 映射 |

@@ -68,10 +68,6 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripMenuItem("设置…", null, OnOpenSettings));
-        if (WebUiFeatureFlags.UseWebSettings)
-        {
-            menu.Items.Add(new ToolStripMenuItem("设置（WinForms）…", null, OnOpenWinFormsSettings));
-        }
         menu.Items.Add(new ToolStripMenuItem("注册说话人…", null, OnEnrollSpeaker));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("强制结束录音（卡住时用）", null, OnSimulatePttRelease));

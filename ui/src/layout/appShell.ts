@@ -14,7 +14,8 @@ export function renderAppNav(active: RouteId): string {
   ).join('');
   return `
     <nav class="app-nav" aria-label="主导航">
-      <h1 class="app-nav__title">Array Mic</h1>
+      <p class="app-nav__brand">Array Mic</p>
+      <h1 class="app-nav__title">Refreshment</h1>
       <div class="app-nav__list">${links}</div>
     </nav>
   `;

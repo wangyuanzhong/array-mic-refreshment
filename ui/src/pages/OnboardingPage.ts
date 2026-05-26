@@ -12,18 +12,36 @@ export async function mountOnboardingPage(root: HTMLElement): Promise<void> {
       ${renderAppNav('onboarding')}
       <main class="app-content">
         <div class="card">
-          <h1 class="card-title">欢迎使用 Array Mic Refreshment</h1>
-          <p class="card-subtitle">版本 ${info.version} — 快速检查您的环境是否就绪。</p>
-          <ul class="card-subtitle" style="padding-left:1.25rem;line-height:1.8">
-            <li>确认麦克风已连接并在 Windows 声音设置中可用</li>
-            <li>在 exe 旁放置 <code>models/</code> 目录（或运行 <code>scripts\\download-models.ps1</code>）</li>
-            <li>可选：注册说话人以启用声纹校验</li>
-            <li>在设置中配置 PTT 热键与 ASR 模型</li>
+          <header class="page-hero">
+            <h1 class="page-hero__title">欢迎开始使用</h1>
+            <p class="page-hero__lead">
+              版本 ${info.version} · 花一分钟确认环境，马上就能顺畅使用语音输入。
+            </p>
+          </header>
+
+          <ul class="checklist">
+            <li class="checklist__item">
+              <span class="checklist__icon" aria-hidden="true">1</span>
+              <span>确认麦克风已连接，并在 Windows「声音设置」中可用</span>
+            </li>
+            <li class="checklist__item">
+              <span class="checklist__icon" aria-hidden="true">2</span>
+              <span>在程序目录旁放置 <code>models/</code> 文件夹，或运行 <code>scripts\\download-models.ps1</code> 下载模型</span>
+            </li>
+            <li class="checklist__item">
+              <span class="checklist__icon" aria-hidden="true">3</span>
+              <span>可选：注册说话人，启用声纹校验，让识别更安心</span>
+            </li>
+            <li class="checklist__item">
+              <span class="checklist__icon" aria-hidden="true">4</span>
+              <span>在设置中配置 PTT 热键与 ASR 模型，按自己的习惯来</span>
+            </li>
           </ul>
-          <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-top:var(--space-4)">
+
+          <div class="page-actions">
             <button type="button" id="onboard-settings" class="btn-primary">打开设置</button>
             <button type="button" id="onboard-enroll" class="btn-ghost">注册说话人</button>
-            <button type="button" id="onboard-skip" class="btn-ghost">跳过</button>
+            <button type="button" id="onboard-skip" class="btn-ghost">稍后再说</button>
           </div>
         </div>
       </main>

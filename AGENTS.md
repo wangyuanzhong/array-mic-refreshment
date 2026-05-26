@@ -14,4 +14,5 @@
 
 产品架构与已定稿决策见 [`README.md`](README.md)。
 
-**WebView2 统一 UI（路线 B）** 的实施说明、Bridge 契约与分阶段 checklist 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。
+**WebView2 统一 UI（路线 B）** 的实施说明、Bridge 契约与分阶段 checklist 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。  
+**Web UI 视觉（马卡龙色系）** 见 [`skills/frontend-design/SKILL.md`](skills/frontend-design/SKILL.md)。

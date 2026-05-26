@@ -270,6 +270,8 @@ Web 设置页 **必须复用上述逻辑**，仅替换「表单 UI」为 bridge 
 }
 ```
 
+**Macaron 配色（已实现）**：`ui/src/styles/tokens.css` 使用马卡龙 Pastel 色系，而非下方示例中的 slate 蓝灰。主 accent 为 sky `#7EC8E3`，辅以 pink `#FFB8D0`、lavender `#C9B6F0`、mint `#B8E8D0` 等；背景 `#FFF8FB` → `#F3FAFF` 渐变。Web 设置页、注册页与卡片组件均只引用 token 变量，便于日后 HUD 原生控件对齐（Phase 4）。
+
 **组件约定**（Web）：
 
 - 布局：左侧 **Nav 240px** + 右侧 **Content**（PWA 设置页）
