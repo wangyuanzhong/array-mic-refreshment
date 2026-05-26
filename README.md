@@ -409,6 +409,8 @@ GitHub Actions：见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)（`p
 | 路径 | 内容 |
 |------|------|
 | `README.md` | 架构、已定稿决策、输出逻辑 |
+| **`docs/LOCAL_DEVELOPMENT.md`** | **本地开发 / 新机搭建 / Agent 环境指南（必读）** |
+| **`AGENTS.md`** | Agent 入口，指向 LOCAL_DEVELOPMENT |
 | `docs/ASR_MODEL.md` | **SenseVoice 定稿**与 manifest |
 | `skills/manifest.yaml` | 上游路径与 intent 映射 |
 | `skills/upstream/` | 第三方 prompt 原文 |
