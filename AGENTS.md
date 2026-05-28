@@ -18,4 +18,4 @@
 
 **WebView2 统一 UI（路线 B）** 的实施说明、Bridge 契约与分阶段 checklist 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。  
 **Web UI 视觉（马卡龙色系）** 见 [`skills/frontend-design/SKILL.md`](skills/frontend-design/SKILL.md)。  
-**每次 push 后监控 GitHub Actions 直至全绿** 见 [`skills/github-actions-ci/SKILL.md`](skills/github-actions-ci/SKILL.md) 与 [`.cursor/rules/post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc)。
+**每次 push 后监控 GitHub Actions 直至全绿** 见 [`skills/github-actions-ci/SKILL.md`](skills/github-actions-ci/SKILL.md)（Cursor 本地可复制为 `.cursor/rules/post-push-ci-green.mdc`，内容见该 skill 文末）。
