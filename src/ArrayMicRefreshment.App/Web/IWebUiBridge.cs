@@ -19,6 +19,10 @@ public interface IWebUiBridge
 
     string ListOptionalOverlaySkills();
 
+    string ListFeaturePresets();
+
+    string ApplyFeaturePreset(int index);
+
     string GetSkillsCatalogStatus();
 
     // Settings read/write

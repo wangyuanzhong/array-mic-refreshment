@@ -54,6 +54,25 @@ public sealed class SettingsDraftDto
     public List<LlmPresetDto> LlmPresets { get; set; } = new();
 
     public List<string> OptionalOverlaySkills { get; set; } = new();
+
+    public int SelectedFeaturePresetIndex { get; set; }
+
+    public List<FeaturePresetDto> FeaturePresets { get; set; } = new();
+}
+
+public sealed class FeaturePresetDto
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string LlmPresetName { get; set; } = string.Empty;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public PromptIntent ForcedIntent { get; set; } = PromptIntent.PlainText;
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public OnRefineFailure OnRefineFailure { get; set; } = OnRefineFailure.UseRawTranscript;
+
+    public List<string> OptionalOverlaySkills { get; set; } = new();
 }
 
 public sealed class LlmPresetDto

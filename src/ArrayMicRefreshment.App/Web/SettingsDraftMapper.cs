@@ -8,6 +8,7 @@ public static class SettingsDraftMapper
     public static SettingsDraftDto ToDraft(AppSettings settings, VoiceTriggerMode? runtimeTriggerMode)
     {
         settings.MigrateLegacyApiSettings();
+        settings.MigrateLegacyFeaturePresets();
 
         return new SettingsDraftDto
         {
@@ -41,6 +42,17 @@ public static class SettingsDraftMapper
                 })
                 .ToList(),
             OptionalOverlaySkills = new List<string>(settings.OptionalOverlaySkills),
+            SelectedFeaturePresetIndex = settings.SelectedFeaturePresetIndex,
+            FeaturePresets = settings.FeaturePresets
+                .Select(p => new FeaturePresetDto
+                {
+                    Name = p.Name,
+                    LlmPresetName = p.LlmPresetName,
+                    ForcedIntent = p.ForcedIntent,
+                    OnRefineFailure = p.OnRefineFailure,
+                    OptionalOverlaySkills = new List<string>(p.OptionalOverlaySkills),
+                })
+                .ToList(),
         };
     }
 
@@ -48,13 +60,11 @@ public static class SettingsDraftMapper
     {
         var settings = template is null ? new AppSettings() : CloneTemplate(template);
         settings.MigrateLegacyApiSettings();
+        settings.MigrateLegacyFeaturePresets();
 
         settings.MasterEnabled = draft.MasterEnabled;
         settings.PasteToCaretEnabled = draft.PasteToCaretEnabled;
         settings.LaunchAtStartup = draft.LaunchAtStartup;
-        settings.PromptRefineEnabled = draft.PromptRefineEnabled;
-        settings.ForcedIntent = draft.ForcedIntent;
-        settings.OnRefineFailure = draft.OnRefineFailure;
         settings.SelectedDeviceId = draft.SelectedDeviceId;
         settings.CurrentSpeakerUserId = draft.CurrentSpeakerUserId;
         settings.SpeakerVerifyThreshold = Math.Clamp(draft.SpeakerVerifyThreshold, 0.25f, 0.85f);
@@ -71,10 +81,6 @@ public static class SettingsDraftMapper
         settings.HudScreenCorner = draft.HudScreenCorner;
         settings.PttHotkey = draft.PttHotkey?.Trim() ?? settings.PttHotkey;
         settings.SelectedLlmPresetIndex = draft.SelectedLlmPresetIndex;
-        settings.OptionalOverlaySkills = draft.OptionalOverlaySkills
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
 
         if (draft.LlmPresets is { Count: > 0 })
         {
@@ -101,6 +107,35 @@ public static class SettingsDraftMapper
             settings.ApiBaseUrl = current.ApiBaseUrl;
             settings.ApiKey = current.ApiKey;
             settings.ApiModel = current.ApiModel;
+        }
+
+        if (draft.FeaturePresets is { Count: > 0 })
+        {
+            settings.FeaturePresets = draft.FeaturePresets
+                .Select(p => new FeaturePreset
+                {
+                    Name = p.Name?.Trim() ?? string.Empty,
+                    LlmPresetName = p.LlmPresetName?.Trim() ?? string.Empty,
+                    ForcedIntent = p.ForcedIntent,
+                    OnRefineFailure = p.OnRefineFailure,
+                    OptionalOverlaySkills = p.OptionalOverlaySkills
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                })
+                .ToList();
+            settings.SelectedFeaturePresetIndex = draft.SelectedFeaturePresetIndex;
+            FeaturePresetApplier.ApplyFeaturePreset(settings, settings.SelectedFeaturePresetIndex);
+        }
+        else
+        {
+            settings.PromptRefineEnabled = draft.PromptRefineEnabled;
+            settings.ForcedIntent = draft.ForcedIntent;
+            settings.OnRefineFailure = draft.OnRefineFailure;
+            settings.OptionalOverlaySkills = draft.OptionalOverlaySkills
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         if (template is not null)

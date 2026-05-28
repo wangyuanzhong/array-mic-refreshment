@@ -39,6 +39,8 @@ internal static class Phase2AcceptanceTestSupport
         "selectedLlmPresetIndex",
         "llmPresets",
         "optionalOverlaySkills",
+        "selectedFeaturePresetIndex",
+        "featurePresets",
     ];
 
     internal static string SerializeDraft(SettingsDraftDto draft) =>
@@ -96,6 +98,7 @@ internal static class Phase2AcceptanceTestSupport
             PrivacyAcceptedHost = "api.example.com",
         };
         settings.MigrateLegacyApiSettings();
+        settings.MigrateLegacyFeaturePresets();
         return settings;
     }
 

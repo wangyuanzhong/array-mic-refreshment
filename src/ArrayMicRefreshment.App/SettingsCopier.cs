@@ -28,6 +28,31 @@ internal static class SettingsCopier
         target.PrivacyAcceptedHost = source.PrivacyAcceptedHost;
         target.OptionalOverlaySkills = new List<string>(source.OptionalOverlaySkills);
 
+        // Feature presets
+        target.SelectedFeaturePresetIndex = source.SelectedFeaturePresetIndex;
+        target.FeaturePresets = source.FeaturePresets?.Count > 0
+            ? source.FeaturePresets
+                .Select(p => new FeaturePreset
+                {
+                    Name = p.Name,
+                    LlmPresetName = p.LlmPresetName,
+                    ForcedIntent = p.ForcedIntent,
+                    OnRefineFailure = p.OnRefineFailure,
+                    OptionalOverlaySkills = new List<string>(p.OptionalOverlaySkills),
+                })
+                .ToList()
+            : new List<FeaturePreset>
+            {
+                new()
+                {
+                    Name = "默认",
+                    LlmPresetName = source.CurrentPreset.Name,
+                    ForcedIntent = source.ForcedIntent,
+                    OnRefineFailure = source.OnRefineFailure,
+                    OptionalOverlaySkills = new List<string>(source.OptionalOverlaySkills),
+                },
+            };
+
         // Multi-preset LLM configuration
         target.SelectedLlmPresetIndex = source.SelectedLlmPresetIndex;
         target.LlmPresets = source.LlmPresets?.Count > 0
@@ -69,6 +94,7 @@ internal static class SettingsCopier
         || previous.ForcedIntent != next.ForcedIntent
         || !string.Equals(previous.SkillsDirectory, next.SkillsDirectory, StringComparison.OrdinalIgnoreCase)
         || previous.OnRefineFailure != next.OnRefineFailure
+        || previous.SelectedFeaturePresetIndex != next.SelectedFeaturePresetIndex
         || previous.SelectedLlmPresetIndex != next.SelectedLlmPresetIndex
         || !SamePreset(previous.CurrentPreset, next.CurrentPreset)
         || !Enumerable.SequenceEqual(

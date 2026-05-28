@@ -87,6 +87,14 @@ public sealed class AppSettings
         new LlmPreset { Name = "预设3" },
     };
 
+    // ---- Feature presets (LLM preset + skill/intent bundle) ----
+
+    /// <summary>Index of the active feature preset in <see cref="FeaturePresets"/>.</summary>
+    public int SelectedFeaturePresetIndex { get; set; } = 0;
+
+    /// <summary>Named bundles combining an LLM preset with intent/overlay options.</summary>
+    public List<FeaturePreset> FeaturePresets { get; set; } = new();
+
     // ---- Legacy fields (kept for backward-compatible JSON deserialization) ----
 
     public string ApiBaseUrl { get; set; } = "https://api.openai.com/v1";
@@ -154,5 +162,37 @@ public sealed class AppSettings
         ApiBaseUrl = current.ApiBaseUrl;
         ApiKey = current.ApiKey;
         ApiModel = current.ApiModel;
+    }
+
+    /// <summary>
+    /// One-time migration: when <see cref="FeaturePresets"/> is missing from JSON, build a single
+    /// default preset from legacy <see cref="PromptRefineEnabled"/> / intent / overlay fields.
+    /// </summary>
+    public void MigrateLegacyFeaturePresets()
+    {
+        if (FeaturePresets is { Count: > 0 })
+        {
+            SelectedFeaturePresetIndex = Math.Clamp(
+                SelectedFeaturePresetIndex,
+                0,
+                FeaturePresets.Count - 1);
+            return;
+        }
+
+        MigrateLegacyApiSettings();
+
+        var llmName = CurrentPreset.Name;
+        FeaturePresets =
+        [
+            new FeaturePreset
+            {
+                Name = "默认",
+                LlmPresetName = llmName,
+                ForcedIntent = ForcedIntent,
+                OnRefineFailure = OnRefineFailure,
+                OptionalOverlaySkills = new List<string>(OptionalOverlaySkills),
+            },
+        ];
+        SelectedFeaturePresetIndex = 0;
     }
 }
