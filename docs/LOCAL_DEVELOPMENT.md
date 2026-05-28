@@ -324,7 +324,7 @@ dotnet test tests/ArrayMicRefreshment.Prompt.Tests -c Release
 
 监视日志：`dist\watch-build.log`。默认 **不** 复制 `models/`（快）；完整离线包仍用 `-IncludeModels` 或 `pack-ready.ps1`。
 
-Cursor 共用配置：`.cursor/` — 通用规则来自 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)（`00-universal-core`、`exe-packaging-local-cloud`、`post-push-ci-green`、`docs-sync-before-finish`、`git-track-cursor-folder`）；刷新：`.\scripts\sync-universal-cursor-rules.ps1`。
+Cursor 共用配置：`.cursor/` — 通用规则来自 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)（`00-universal-core`、`exe-packaging-local-cloud`、`post-push-ci-green`、`docs-sync-before-finish`、`git-track-cursor-folder`）；刷新：`.\scripts\sync-universal-cursor-rules.ps1 -Refresh`（上游 commit 见 `.cursor/UNIVERSAL_RULE_LOCK`）。
 
 Agent **skill**（非运行时 `skills/manifest.yaml`）：在 Agent 输入 **`/frontend-design`**（连字符）或 `@frontend-design`；`SKILL.md` 需含 YAML `name`/`description` 才会出现在 `/` 列表。详见 `.cursor/skills/README.md`。
 

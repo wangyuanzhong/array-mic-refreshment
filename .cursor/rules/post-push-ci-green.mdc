@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Post-push GitHub Actions (mandatory when applicable)
 
-Source: [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule).
+Synced from [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule). Lock: `.cursor/UNIVERSAL_RULE_LOCK`.
 
 ## Opt-out
 
@@ -57,6 +57,6 @@ If CI and docs conflict, follow priority in `00-universal-core.mdc` (docs + user
 
 ## Reference
 
-[`.cursor/skills/github-actions-ci/SKILL.md`](../skills/github-actions-ci/SKILL.md) — workflows and repo-specific pitfalls for **array-mic-refreshment**.
+[`.cursor/skills/github-actions-ci/SKILL.md`](../skills/github-actions-ci/SKILL.md)
 
 If `gh` is unavailable, use run URL / GitHub API; same loop and stop rules.

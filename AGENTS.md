@@ -16,7 +16,7 @@
 | [`docs-sync-before-finish.mdc`](.cursor/rules/docs-sync-before-finish.mdc) | 任务结束前同步全仓库 `.md` / `.txt` |
 | [`git-track-cursor-folder.mdc`](.cursor/rules/git-track-cursor-folder.mdc) | `.cursor/` 必须进 git |
 
-刷新通用规则：`.\scripts\sync-universal-cursor-rules.ps1`
+刷新通用规则：`.\scripts\sync-universal-cursor-rules.ps1 -Refresh`（版本锁定见 `.cursor/UNIVERSAL_RULE_LOCK`）
 
 ## 任务收尾自检（不可跳过）
 

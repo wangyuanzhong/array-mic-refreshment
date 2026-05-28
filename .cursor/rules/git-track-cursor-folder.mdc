@@ -5,8 +5,6 @@ alwaysApply: true
 
 # Git — track entire `.cursor/` in the project
 
-Source: [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule).
-
 ## Requirement
 
 The **project** directory `.cursor/` (repo root) must be versioned so **Cloud Agent** and **local** share the same rules/skills.
@@ -40,10 +38,6 @@ This is **not** `%USERPROFILE%\.cursor\` (editor global config).
 - Add secrets to `.cursor/` (tokens in `mcp.json`) — use env vars or untracked local files.
 - Add the user's home Cursor directory into the project repo.
 
-## Refresh universal rules
+## Install script
 
-From repo root:
-
-```powershell
-.\scripts\sync-universal-cursor-rules.ps1
-```
+`install-universal-rules.ps1` can patch common `.gitignore` mistakes when installing this pack.

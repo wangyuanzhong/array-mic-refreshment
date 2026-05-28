@@ -5,8 +5,6 @@ alwaysApply: true
 
 # Documentation sync (mandatory)
 
-Source: [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule).
-
 ## When
 
 Run **before** `git push`, or before you tell the user the task is **finished** if there is no push in scope.
@@ -22,7 +20,7 @@ Find and review **all**:
 
 **Exclude** (unless the user included them in the task):
 
-- `node_modules/`, `dist/`, `bin/`, `obj/`, `.git/`, large `models/`
+- `node_modules/`, `dist/`, `bin/`, `obj/`, `.git/`, `vendor/`, large `models/`
 - Upstream vendored copies under `skills/upstream/**` unless you changed that subtree
 - Auto-generated changelogs **only if** you did not change the product — still update `CHANGELOG.md` when behavior changed
 
@@ -48,7 +46,7 @@ For each doc, ask:
 ## Relation to other rules
 
 - CI fixes: must respect these docs (`post-push-ci-green.mdc`, `00-universal-core.mdc`).
-- EXE paths / CI steps: align `README.md` and `docs/LOCAL_DEVELOPMENT.md`.
+- EXE paths / CI steps: align `README.md` and `docs/LOCAL_DEVELOPMENT.md` (or equivalents).
 
 ## Report
 

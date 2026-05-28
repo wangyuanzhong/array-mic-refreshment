@@ -5,7 +5,7 @@ alwaysApply: true
 
 # EXE packaging — local build & cloud CI
 
-Source: [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule).
+Synced from [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule). Lock: `.cursor/UNIVERSAL_RULE_LOCK`.
 
 ## Detect "EXE packaging repo"
 
@@ -38,6 +38,8 @@ When **Local** mode (see `00-universal-core.mdc`) and this task changed **app/UI
    .\scripts\watch-build-release.ps1 -Once -IncludeModels
    ```
 
+   Fallback: `.\scripts\build-release.ps1 -Mode self-contained`
+
 2. If `dist/` is locked, stop `ArrayMicRefreshment` then retry.
 3. Report `dist\ArrayMicRefreshment-self-contained\ArrayMicRefreshment.exe` **full path** and **LastWriteTime**.
 4. Do **not** skip because the task was "only git merge" if `src/`/`ui/` changed on disk.
@@ -53,8 +55,9 @@ Log: `dist\watch-build.log`.
 Cannot run Windows desktop `.exe` locally. You **must**:
 
 1. **Verify CI** includes `.github/workflows/build-release-exe.yml` on `windows-latest` running `build-release.ps1`.
-2. After **push**, ensure that workflow is among **triggered** runs and reaches **success** (see `post-push-ci-green.mdc`).
-3. State in the handoff: "Local exe not built here; verified via CI run &lt;id&gt;."
+2. If missing, add a minimal workflow (path filters on `src/`, `ui/`, `scripts/build-release.ps1`, solution file).
+3. After **push**, ensure that workflow is among **triggered** runs and reaches **success** (see `post-push-ci-green.mdc`).
+4. State in the handoff: "Local exe not built here; verified via CI run &lt;id&gt;."
 
 ---
 
