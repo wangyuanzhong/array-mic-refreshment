@@ -52,8 +52,5 @@ scripts/cer-audio/
 Thumbs.db
 Desktop.ini
 
-# Cursor / agent — track shared rules; ignore local cache
-.cursor/*
-!.cursor/rules/
-!.cursor/rules/**
+# Local agent transcripts only (not shared)
 agent-transcripts/

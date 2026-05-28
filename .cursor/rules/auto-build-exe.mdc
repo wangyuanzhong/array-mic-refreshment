@@ -33,6 +33,12 @@ Full offline folder (only when user needs `models/` in `dist/`):
 1. Report `dist\ArrayMicRefreshment-self-contained\ArrayMicRefreshment.exe` path and **LastWriteTime**.
 2. Do not assume an older `dist/` exe is still valid after App / `wwwroot` / WebView2 changes.
 
+## Cloud / Linux agents
+
+Cannot produce the WinForms exe locally. Note that in the handoff; rely on CI **Build release EXE** or the user's `watch-build-release.ps1`.
+
+Log: `dist\watch-build.log`.
+
 ## User machine (not Agent — remind once if relevant)
 
 - Commit hook: `.\scripts\install-git-hooks.ps1`

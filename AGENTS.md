@@ -17,4 +17,6 @@
 **改 App / Web UI 后请打 exe：** `.\scripts\watch-build-release.ps1 -Once`（或让用户常驻 `.\scripts\watch-build-release.ps1` 监视保存）。详见 [`.cursor/rules/auto-build-exe.mdc`](.cursor/rules/auto-build-exe.mdc)。
 
 **WebView2 统一 UI（路线 B）** 的实施说明、Bridge 契约与分阶段 checklist 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。  
-**Web UI 视觉（马卡龙色系）** 见 [`skills/frontend-design/SKILL.md`](skills/frontend-design/SKILL.md)。
+**Web UI 视觉（马卡龙色系）** 见 [`.cursor/skills/frontend-design/SKILL.md`](.cursor/skills/frontend-design/SKILL.md)。  
+**每次 push 后监控 GitHub Actions 直至全绿（自动 rule）** 见 [`.cursor/rules/post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc)；细节见 [`.cursor/skills/github-actions-ci/SKILL.md`](.cursor/skills/github-actions-ci/SKILL.md)。  
+**Cursor 共用配置**（rules + Agent skills）见 [`.cursor/README.md`](.cursor/README.md)。
