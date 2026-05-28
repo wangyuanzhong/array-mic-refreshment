@@ -1,0 +1,39 @@
+---
+description: EXE packaging repo — always rebuild release exe before ending a task that touched app/UI/build
+alwaysApply: true
+---
+
+# Auto-build release EXE (required)
+
+This repo ships a **Windows desktop `.exe`**. Rules do **not** run scripts by themselves — **you (Agent) must execute** the build command below before marking the task done.
+
+## When to build
+
+Run a build if **any** of these happened in this task (including merge, pull, or applying patches):
+
+- `src/` (App), `ui/` (WebView UI), `scripts/build-release.ps1`, `scripts/watch-build-release.ps1`
+- User merged/pulled changes that touch the above — **disk changed ⇒ treat as changed**
+
+Do **not** skip because the task was "only git" or "only sync".
+
+## Command (repo root, PowerShell)
+
+```powershell
+.\scripts\watch-build-release.ps1 -Once
+```
+
+Full offline folder (only when user needs `models/` in `dist/`):
+
+```powershell
+.\scripts\watch-build-release.ps1 -Once -IncludeModels
+```
+
+## After build (required in your reply)
+
+1. Report `dist\ArrayMicRefreshment-self-contained\ArrayMicRefreshment.exe` path and **LastWriteTime**.
+2. Do not assume an older `dist/` exe is still valid after App / `wwwroot` / WebView2 changes.
+
+## User machine (not Agent — remind once if relevant)
+
+- Commit hook: `.\scripts\install-git-hooks.ps1`
+- Save watcher: `.\scripts\watch-build-release.ps1` (background)
