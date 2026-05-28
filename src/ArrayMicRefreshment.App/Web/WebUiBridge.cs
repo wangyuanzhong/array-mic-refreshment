@@ -13,6 +13,7 @@ public sealed partial class WebUiBridge : IWebUiBridge
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
 
     private readonly WebUiBridgeContext _context;

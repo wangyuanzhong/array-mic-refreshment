@@ -80,6 +80,8 @@ Write-Host "→ Copying wwwroot to $wwwDst ..." -ForegroundColor Cyan
 if (Test-Path $wwwDst) { Remove-Item $wwwDst -Recurse -Force }
 robocopy $wwwSrc $wwwDst /E /NFL /NDL /NJH /NJS | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy wwwroot failed (exit $LASTEXITCODE)" }
+# robocopy uses 0–7 for success (1 = files copied); do not fail the script on those codes
+$global:LASTEXITCODE = 0
 Write-Host "✔ Bundled wwwroot into release folder" -ForegroundColor Green
 
 $exe = Join-Path $outDir 'ArrayMicRefreshment.exe'
@@ -109,6 +111,7 @@ if (Test-Path $skillsSrc) {
     if (Test-Path $skillsDst) { Remove-Item $skillsDst -Recurse -Force }
     robocopy $skillsSrc $skillsDst /E /NFL /NDL /NJH /NJS | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy skills failed (exit $LASTEXITCODE)" }
+    $global:LASTEXITCODE = 0
     Write-Host "✔ Bundled skills into release folder" -ForegroundColor Green
 }
 
@@ -119,6 +122,7 @@ if ($IncludeModels -and (Test-Path $modelsSrc)) {
     if (Test-Path $modelsDst) { Remove-Item $modelsDst -Recurse -Force }
     robocopy $modelsSrc $modelsDst /E /NFL /NDL /NJH /NJS | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy models failed (exit $LASTEXITCODE)" }
+    $global:LASTEXITCODE = 0
     Write-Host "✔ Bundled models into release folder" -ForegroundColor Green
 }
 

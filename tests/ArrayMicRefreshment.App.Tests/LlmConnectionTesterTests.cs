@@ -15,7 +15,7 @@ public class LlmConnectionTesterTests
         {
             call++;
             var content = call == 1
-                ? """{"intent":"general_ai","confidence":0.88}"""
+                ? """{"intent":"general_chat","confidence":0.88}"""
                 : "refined output";
             var body = ChatCompletionJson(content);
             return new HttpResponseMessage(HttpStatusCode.OK)
