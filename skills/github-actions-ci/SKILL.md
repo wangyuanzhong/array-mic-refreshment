@@ -70,3 +70,16 @@ dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.cs
 
 - Latest push on the branch has **CI** and **Build release EXE** (if path filters triggered) with `conclusion: success`.
 - No known failing tests left unfixed on Windows.
+
+## Cursor rule (optional, local)
+
+`.cursor/` is gitignored. To auto-remind Cursor Desktop agents, create `.cursor/rules/post-push-ci-green.mdc`:
+
+```yaml
+---
+description: After git push, monitor GitHub Actions until green; fix failures before finishing.
+alwaysApply: true
+---
+
+After `git push`, run `gh run watch --exit-status` on the current branch. On failure, `gh run view <id> --log-failed`, fix, commit, push, repeat until green. Follow `skills/github-actions-ci/SKILL.md`.
+```
