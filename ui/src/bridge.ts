@@ -492,7 +492,10 @@ export async function getBridge(): Promise<AmrBridge> {
     return cachedBridge;
   }
 
-  const host = window.chrome?.webview?.hostObjects?.amr as AmrHostObject | undefined;
+  const hostObjects = window.chrome?.webview?.hostObjects as
+    | { amr?: AmrHostObject; sync?: { amr?: AmrHostObject } }
+    | undefined;
+  const host = hostObjects?.sync?.amr ?? hostObjects?.amr;
   if (host) {
     cachedBridge = wrapHostObject(host);
     bridgeSource = 'host';

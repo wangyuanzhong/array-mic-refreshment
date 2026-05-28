@@ -1,0 +1,8 @@
+#!/bin/sh
+# Rebuild self-contained exe after each commit (fast path; no models copy).
+cd "$(git rev-parse --show-toplevel)" || exit 0
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/watch-build-release.ps1 -Once
+elif command -v powershell >/dev/null 2>&1; then
+  powershell -NoProfile -ExecutionPolicy Bypass -File scripts/watch-build-release.ps1 -Once
+fi

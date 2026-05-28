@@ -1,0 +1,60 @@
+name: Build release EXE
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'ui/**'
+      - 'scripts/build-release.ps1'
+      - 'scripts/watch-build-release.ps1'
+      - 'ArrayMicRefreshment.sln'
+      - 'VERSION.txt'
+      - '.github/workflows/build-release-exe.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'ui/**'
+      - 'scripts/build-release.ps1'
+      - 'scripts/watch-build-release.ps1'
+      - 'ArrayMicRefreshment.sln'
+  workflow_dispatch:
+
+concurrency:
+  group: build-release-exe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package-self-contained:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build self-contained release
+        shell: pwsh
+        run: |
+          .\scripts\build-release.ps1 -Mode self-contained
+          if (-not (Test-Path dist/ArrayMicRefreshment-self-contained/ArrayMicRefreshment.exe)) {
+            throw 'ArrayMicRefreshment.exe missing after build-release.ps1'
+          }
+
+      - name: Upload EXE folder (no models)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArrayMicRefreshment-self-contained-win-x64
+          path: dist/ArrayMicRefreshment-self-contained/
+          retention-days: 14

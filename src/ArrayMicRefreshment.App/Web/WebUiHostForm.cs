@@ -1,3 +1,4 @@
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using Serilog;
 
@@ -6,6 +7,9 @@ namespace ArrayMicRefreshment.App.Web;
 /// <summary>WinForms shell hosting the unified Web UI (Route B). WebView2 is created on demand when the form loads.</summary>
 public sealed class WebUiHostForm : Form
 {
+    /// <summary>Virtual host for local wwwroot (avoid file:// — ES modules often stay blank).</summary>
+    private const string WwwRootVirtualHost = "amr.local";
+
     private readonly string _hashRoute;
     private readonly WebUiBridgeContext? _context;
     private readonly WebView2 _webView = new() { Dock = DockStyle.Fill };
@@ -83,7 +87,8 @@ public sealed class WebUiHostForm : Form
         _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
 #endif
 
-        var indexPath = Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html");
+        var wwwRootDir = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        var indexPath = Path.Combine(wwwRootDir, "index.html");
         if (!File.Exists(indexPath))
         {
             MessageBox.Show(
@@ -97,9 +102,46 @@ public sealed class WebUiHostForm : Form
             return;
         }
 
-        var uri = new Uri(indexPath).AbsoluteUri.TrimEnd('/') + _hashRoute;
-        _webView.CoreWebView2.Navigate(uri);
-        Log.Information("WebUiHostForm navigating to {Uri}", uri);
+        _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+
+        try
+        {
+            _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                WwwRootVirtualHost,
+                wwwRootDir,
+                CoreWebView2HostResourceAccessKind.Allow);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "SetVirtualHostNameToFolderMapping failed for {Dir}", wwwRootDir);
+            MessageBox.Show(
+                this,
+                $"无法映射 Web UI 目录：{ex.Message}",
+                "Web UI 错误",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            DialogResult = DialogResult.Cancel;
+            Close();
+            return;
+        }
+
+        // https://amr.local/... serves files from wwwroot; file:// breaks Vite ES module bundles (white screen).
+        var navigateUrl = $"https://{WwwRootVirtualHost}/index.html{_hashRoute}";
+        _webView.CoreWebView2.Navigate(navigateUrl);
+        Log.Information("WebUiHostForm navigating to {Uri} (wwwroot={Dir})", navigateUrl, wwwRootDir);
+    }
+
+    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        if (e.IsSuccess)
+        {
+            return;
+        }
+
+        Log.Warning(
+            "WebUiHostForm navigation failed: status={Status} error={Error}",
+            e.HttpStatusCode,
+            e.WebErrorStatus);
     }
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)

@@ -14,5 +14,7 @@
 
 产品架构与已定稿决策见 [`README.md`](README.md)。
 
+**改 App / Web UI 后请打 exe：** `.\scripts\watch-build-release.ps1 -Once`（或让用户常驻 `.\scripts\watch-build-release.ps1` 监视保存）。详见 [`.cursor/rules/auto-build-exe.mdc`](.cursor/rules/auto-build-exe.mdc)。
+
 **WebView2 统一 UI（路线 B）** 的实施说明、Bridge 契约与分阶段 checklist 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。  
 **Web UI 视觉（马卡龙色系）** 见 [`skills/frontend-design/SKILL.md`](skills/frontend-design/SKILL.md)。

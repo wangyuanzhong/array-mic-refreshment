@@ -113,6 +113,8 @@ array-mic-refreshment/
 ├── scripts/
 │   ├── download-models.ps1            # 下载 models/（必跑）
 │   ├── build-release.ps1              # 打 Release exe
+│   ├── watch-build-release.ps1        # 监视改动并自动打 exe
+│   ├── install-git-hooks.ps1          # 可选：commit 后自动打 exe
 │   ├── generate-wake-encodings.ps1      # 唤醒词 ppinyin 编码（需 Python）
 │   └── ModelManifest.json             # 模型 URL 清单
 ├── models/                            # ⚠ gitignore，克隆后不存在，必须下载或拷贝
@@ -309,6 +311,19 @@ dotnet test tests/ArrayMicRefreshment.Prompt.Tests -c Release
 ---
 
 ## 10. 打包发布 exe
+
+### 10.0 本地改代码后自动打包（可选）
+
+| 方式 | 命令 | 何时触发 |
+|------|------|----------|
+| **保存即打包（推荐）** | `.\scripts\watch-build-release.ps1` | 监视 `src/`、`ui/`、`scripts/`；停笔约 12s 后自动 `build-release` |
+| 单次打包 | `.\scripts\watch-build-release.ps1 -Once` | Agent / 手动 |
+| **每次 git commit** | `.\scripts\install-git-hooks.ps1` | 安装 `.githooks/post-commit` |
+| **推送到 GitHub** | Actions → `Build release EXE` | `main` 上改 App/UI 时上传 artifact |
+
+监视日志：`dist\watch-build.log`。默认 **不** 复制 `models/`（快）；完整离线包仍用 `-IncludeModels` 或 `pack-ready.ps1`。
+
+Cursor Agent 规则：`.cursor/rules/auto-build-exe.mdc`。
 
 ### 10.1 标准 self-contained 包
 

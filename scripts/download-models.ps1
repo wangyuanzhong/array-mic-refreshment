@@ -60,6 +60,44 @@ if ($Package -ne "all") {
     }
 }
 
+function Get-DownloadProxyUri {
+    if ($env:HTTPS_PROXY) { return $env:HTTPS_PROXY }
+    if ($env:HTTP_PROXY) { return $env:HTTP_PROXY }
+    $ie = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue
+    if ($ie.ProxyEnable -eq 1 -and $ie.ProxyServer) {
+        $server = $ie.ProxyServer.Trim()
+        if ($server -notmatch '^https?://') { $server = "http://$server" }
+        return $server
+    }
+    return $null
+}
+
+function Invoke-DownloadFile {
+    param([string]$Uri, [string]$OutFile)
+    $proxy = Get-DownloadProxyUri
+    if ($proxy) { Write-Host "[proxy] $proxy" }
+
+    $aria2 = Get-Command aria2c -ErrorAction SilentlyContinue
+    if ($aria2) {
+        $dir = Split-Path -Parent $OutFile
+        $name = Split-Path -Leaf $OutFile
+        $ariaArgs = @('-x', '16', '-s', '16', '-k', '1M', '-c', '--file-allocation=none', '-d', $dir, '-o', $name)
+        if ($proxy) { $ariaArgs += @('--all-proxy', $proxy) }
+        $ariaArgs += $Uri
+        Write-Host "[aria2] $($aria2.Source) $($ariaArgs -join ' ')"
+        & $aria2.Source @ariaArgs
+        if ($LASTEXITCODE -ne 0) { throw "aria2 download failed (exit $LASTEXITCODE) for $Uri" }
+        return
+    }
+
+    if ($proxy) {
+        Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -Proxy $proxy
+    }
+    else {
+        Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
+    }
+}
+
 function Expand-ArchiveFile {
     param([string]$ArchivePath, [string]$DestDir)
     New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
@@ -92,7 +130,7 @@ function Download-PackageArchive {
     $url = "$UrlBase/$($pkg.archive)"
 
     Write-Host "[download] $url"
-    Invoke-WebRequest -Uri $url -OutFile $archivePath -UseBasicParsing
+    Invoke-DownloadFile -Uri $url -OutFile $archivePath
 
     if ($pkg.sha256) {
         $hash = (Get-FileHash -Algorithm SHA256 -Path $archivePath).Hash.ToLowerInvariant()
@@ -122,7 +160,7 @@ function Download-SpeakerOnnx {
     $url = "$UrlBase/$($pkg.file)"
 
     Write-Host "[download] $url"
-    Invoke-WebRequest -Uri $url -OutFile $cacheFile -UseBasicParsing
+    Invoke-DownloadFile -Uri $url -OutFile $cacheFile
 
     if ($pkg.sha256) {
         $hash = (Get-FileHash -Algorithm SHA256 -Path $cacheFile).Hash.ToLowerInvariant()
