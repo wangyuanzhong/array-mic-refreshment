@@ -1,21 +1,25 @@
 # Changelog
 
-## V0.4 — 2026-05-26
+## V0.4 — 2026-05-28
 
 ### Added
-- **WebView2 设置 UI**（路线 B）：托盘「设置」默认打开 PWA 风格 Web 页（侧栏导航 + 卡片布局），含设备、ASR、LLM 预设、唤醒词、热键等完整字段
-- **`SettingsApplyService`**：从 `TrayApplicationContext` 抽出设置保存/应用逻辑，WinForms 与 Web Bridge 共用
+- **WebView2 设置 UI**（路线 B）：托盘「设置」打开 PWA 风格 Web 页（侧栏导航 + 卡片布局），含设备、ASR、LLM 预设、唤醒词、热键等完整字段
+- **`SettingsApplyService`**：从 `TrayApplicationContext` 抽出设置保存/应用逻辑，Web Bridge 共用
 - **`ui/` 前端工程**：Vite + TypeScript；Release 前需 `npm run build` 产出 `wwwroot/`（见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)）
-- Web 路由：`#/settings`、`#/enroll`、`#/privacy`；`AMR_USE_WINFORMS_SETTINGS=1` 可回退经典 WinForms 设置窗
+- Web 路由：`#/settings`、`#/enroll`、`#/privacy`
+- **`DesignTokens`**：原生 `VoiceStatusHud` 与 `ui/src/styles/tokens.css` Macaron 配色对齐
 
 ### Changed
 - 设置界面视觉：**Macaron 马卡龙 Pastel** 设计系统（`ui/src/styles/tokens.css`）
 - 打包脚本 `build-release.ps1` 在 publish 前构建前端
+- 移除 legacy WinForms `SettingsForm` / `EnrollmentDialog`；设置与注册统一 WebView2
+
+### Removed
+- `SettingsForm.cs`、`EnrollmentDialog.cs` 及 `AMR_USE_WINFORMS_SETTINGS` 环境变量降级
 
 ### Notes
 - **无音频/唤醒/ASR 管道逻辑变更**；麦克风 → 识别 → 输出链路行为与 V0.3 一致
 - 需安装 [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（Windows 10/11 通常已自带 Evergreen）
-- `SettingsForm.cs` 仍保留作 WinForms 对照与降级，后续 Phase 5 再移除
 
 ## V0.3 — 2026-05-26
 

@@ -762,12 +762,12 @@ dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.cs
 - [x] build-release 含前端构建
 
 ### Phase 4（可选）
-- [ ] HUD token 统一
+- [x] HUD token 统一（`DesignTokens` + `VoiceStatusHud` 对齐 `tokens.css`）
 - [ ] Web HUD 实验（或明确放弃）
 
 ### Phase 5
-- [ ] 旧 Form 删除
-- [ ] V0.4 发布说明 / 版本号对齐
+- [x] 旧 Form 删除（`SettingsForm`、`EnrollmentDialog`、`WebUiFeatureFlags`）
+- [x] V0.4 发布说明 / 版本号对齐
 - [ ] §10.2 手动回归通过
 
 ---

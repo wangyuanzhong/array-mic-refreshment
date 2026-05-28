@@ -16,7 +16,7 @@ public sealed class WebUiBridgeContext
 
     public IEnrollmentUtteranceSource? EnrollmentCapture { get; init; }
 
-    /// <summary>Live tray trigger mode override (see SettingsForm.RuntimeTriggerMode).</summary>
+    /// <summary>Live tray trigger mode override (shown in Web settings when runtime mode differs from persisted).</summary>
     public VoiceTriggerMode? RuntimeTriggerMode { get; init; }
 
     /// <summary>Live master enable flag from tray runtime.</summary>

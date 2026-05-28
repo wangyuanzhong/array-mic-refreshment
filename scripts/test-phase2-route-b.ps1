@@ -72,7 +72,6 @@ Write-Host ''
 Write-Host 'Still required locally (cannot automate here):' -ForegroundColor Yellow
 Write-Host '  • §10.2 — PTT / wake / paste / mic / memory after Web save' -ForegroundColor Gray
 Write-Host '  • Visual WebView2 settings UI smoke' -ForegroundColor Gray
-Write-Host '  • Optional: AMR_USE_WINFORMS_SETTINGS=1 vs default Web settings diff' -ForegroundColor Gray
 Write-Host ''
 Write-Host 'Optional release smoke:' -ForegroundColor Yellow
 Write-Host '  .\scripts\watch-build-release.ps1 -Once' -ForegroundColor Gray

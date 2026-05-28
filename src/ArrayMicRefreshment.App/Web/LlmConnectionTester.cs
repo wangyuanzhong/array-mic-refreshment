@@ -3,7 +3,7 @@ using ArrayMicRefreshment.Prompt;
 
 namespace ArrayMicRefreshment.App.Web;
 
-/// <summary>LLM connectivity test (mirrors <see cref="SettingsForm"/> test connection).</summary>
+/// <summary>LLM connectivity test for the Web settings page.</summary>
 public static class LlmConnectionTester
 {
     public static async Task<LlmTestResultDto> TestAsync(

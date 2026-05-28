@@ -113,7 +113,7 @@ flowchart TB
 
 | 层级 | 选型 |
 |------|------|
-| 语言 / UI | **C# / .NET 8**，托盘 + **WebView2 PWA 风格设置窗**（`#/settings` 等路由；WinForms 可降级） |
+| 语言 / UI | **C# / .NET 8**，托盘 + **WebView2 PWA 风格设置窗**（`#/settings`、`#/enroll` 等路由） |
 | ASR | **Sherpa-ONNX** → **SenseVoice 离线**（`OfflineRecognizer`） |
 | 说话人 | ECAPA-TDNN ONNX（或 sherpa speaker） |
 | VAD | Silero VAD（辅助，非主触发） |
@@ -256,7 +256,7 @@ ArrayMicRefreshment/
 
 ### Phase 2 — 说话人
 
-- [x] 多用户 enrollment + 当前用户下拉（`EnrollmentDialog` / 设置窗「当前用户」）
+- [x] 多用户 enrollment + 当前用户下拉（Web `#/enroll` / 设置页「当前用户」）
 
 ### Phase 3 — SenseVoice ASR（仅此引擎）
 
@@ -393,7 +393,7 @@ dotnet build ArrayMicRefreshment.sln -c Release
 dotnet run --project src\ArrayMicRefreshment.App -c Release
 ```
 
-完整步骤（含 WebView2 Runtime、WinForms 降级）见 **[`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)**。
+完整步骤（含 WebView2 Runtime）见 **[`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)**。
 
 **Linux / CI（类库 + 单元测试，不含 WinForms App）**
 

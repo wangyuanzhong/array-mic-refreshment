@@ -22,16 +22,16 @@ internal sealed class VoiceStatusHud : Form
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
         Size = new Size(300, 52);
-        BackColor = Color.FromArgb(28, 28, 30);
-        Opacity = 0.94;
+        BackColor = DesignTokens.HudBackground;
+        Opacity = DesignTokens.HudOpacity;
         Padding = new Padding(12, 10, 12, 10);
 
         _label = new Label
         {
             Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(28, 28, 30),
-            ForeColor = Color.FromArgb(245, 245, 245),
-            Font = new Font("Segoe UI", 10f, FontStyle.Regular),
+            BackColor = DesignTokens.HudBackground,
+            ForeColor = DesignTokens.HudText,
+            Font = DesignTokens.HudFont,
             TextAlign = ContentAlignment.MiddleLeft,
             AutoEllipsis = true,
         };
@@ -88,9 +88,13 @@ internal sealed class VoiceStatusHud : Form
         }
 
         _label.Text = message;
-        _label.ForeColor = phase == VoiceActivityPhase.Error
-            ? Color.FromArgb(255, 184, 208) // macaron blush (--hud-error)
-            : Color.FromArgb(250, 248, 255);
+        _label.ForeColor = phase switch
+        {
+            VoiceActivityPhase.Error => DesignTokens.HudError,
+            VoiceActivityPhase.Recording or VoiceActivityPhase.Recognizing or VoiceActivityPhase.WakePrompt
+                => DesignTokens.HudAccent,
+            _ => DesignTokens.HudText,
+        };
 
         if (!Visible)
         {
