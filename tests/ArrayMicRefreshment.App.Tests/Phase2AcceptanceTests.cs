@@ -84,7 +84,7 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         settings.PromptRefineEnabled = false;
-        using var host = new Phase2RecordingApplyHost(settings);
+        var host = new Phase2RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, applyHost: host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
@@ -105,7 +105,7 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         settings.TriggerMode = VoiceTriggerMode.PttOnly;
-        using var host = new Phase2RecordingApplyHost(settings);
+        var host = new Phase2RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, applyHost: host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
