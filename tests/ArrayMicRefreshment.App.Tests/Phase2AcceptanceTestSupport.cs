@@ -135,10 +135,12 @@ internal static class Phase2AcceptanceTestSupport
     internal sealed class Phase2RecordingApplyHost : ISettingsApplyHost, IDisposable
     {
         private readonly NAudioPushToTalkSource _ptt;
+        private readonly ISettingsStore? _settingsStore;
 
-        public Phase2RecordingApplyHost(AppSettings settings)
+        public Phase2RecordingApplyHost(AppSettings settings, ISettingsStore? settingsStore = null)
         {
             TargetSettings = settings;
+            _settingsStore = settingsStore;
             _ptt = new NAudioPushToTalkSource(settings.PttHotkey);
             RegisteredPttHotkey = settings.PttHotkey;
         }
@@ -212,7 +214,11 @@ internal static class Phase2AcceptanceTestSupport
         {
         }
 
-        public void PersistAndRefresh() => ApplyCount++;
+        public void PersistAndRefresh()
+        {
+            ApplyCount++;
+            _settingsStore?.Save(TargetSettings);
+        }
 
         public void RefreshAudioCaptureAfterSettings()
         {
