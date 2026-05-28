@@ -326,6 +326,14 @@ dotnet test tests/ArrayMicRefreshment.Prompt.Tests -c Release
 
 Cursor 共用配置：`.cursor/`（rules 如 `.cursor/rules/auto-build-exe.mdc`、`post-push-ci-green.mdc`；Agent skill 在 `.cursor/skills/`）。
 
+**本机不想启用 push 后等 CI 全绿的 rule**（Cloud 仍保留）：不要写进全局 User Rules，在仓库根执行一次：
+
+```powershell
+.\scripts\cursor-local-opt-out-post-push-ci.ps1
+```
+
+恢复：`.\scripts\cursor-local-opt-out-post-push-ci.ps1 -Restore`
+
 ### 10.1 标准 self-contained 包
 
 ```powershell
