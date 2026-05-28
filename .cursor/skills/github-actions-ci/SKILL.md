@@ -1,6 +1,6 @@
 # GitHub Actions CI — reference (post-push monitor)
 
-**Policy lives in the Cursor rule** [`.cursor/rules/post-push-ci-green.mdc`](../../.cursor/rules/post-push-ci-green.mdc) (`alwaysApply: true`) — agents must follow that rule automatically after `git push`; you do **not** need to invoke this file as a skill.
+**Policy lives in the Cursor rule** [`.cursor/rules/post-push-ci-green.mdc`](../../rules/post-push-ci-green.mdc) (`alwaysApply: true`) — agents must follow that rule automatically after `git push`; you do **not** need to invoke this file as a skill.
 
 This document is a **playbook** (commands, workflow list, repo-specific pitfalls) for the rule above.
 

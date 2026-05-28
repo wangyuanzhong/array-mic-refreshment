@@ -129,7 +129,8 @@ array-mic-refreshment/
 | `models/` | 大模型，必须 `download-models.ps1` 或从旧机器拷贝 |
 | `dist/`、`bin/`、`obj/` | 构建产物，不必拷贝 |
 | `%AppData%\ArrayMicRefreshment\` | 用户设置、声纹 enrollment、日志 |
-| `.cursor/`、`agent-transcripts/` | 本地 Agent 缓存 |
+| `.cursor/` | **进 git** — 与 Cloud 共用的 rules / Agent skills（见 [`.cursor/README.md`](../.cursor/README.md)） |
+| `agent-transcripts/` | 本地 Agent 对话缓存（不进 git） |
 
 ---
 
@@ -323,7 +324,7 @@ dotnet test tests/ArrayMicRefreshment.Prompt.Tests -c Release
 
 监视日志：`dist\watch-build.log`。默认 **不** 复制 `models/`（快）；完整离线包仍用 `-IncludeModels` 或 `pack-ready.ps1`。
 
-Cursor Agent 规则：`.cursor/rules/auto-build-exe.mdc`。
+Cursor 共用配置：`.cursor/`（rules 在 `.cursor/rules/`，Agent skill 在 `.cursor/skills/`）。
 
 ### 10.1 标准 self-contained 包
 

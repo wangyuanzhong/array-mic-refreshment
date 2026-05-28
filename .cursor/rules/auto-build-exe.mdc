@@ -1,0 +1,14 @@
+---
+description: After App or Web UI source changes, run a self-contained release build so dist/ stays testable.
+globs: src/**,ui/**,scripts/build-release.ps1,scripts/watch-build-release.ps1
+---
+
+# Auto build EXE (Windows)
+
+When you change **`src/`**, **`ui/`**, or **`scripts/build-release.ps1`** on a Windows machine:
+
+1. Prefer **`.\scripts\watch-build-release.ps1 -Once`** for a single self-contained build (see `docs/LOCAL_DEVELOPMENT.md` §10).
+2. Do **not** commit `dist/` — it is gitignored.
+3. Cloud/Linux agents cannot produce the WinForms exe; note that in the handoff and rely on CI **Build release EXE** or the user's local watch script.
+
+Log: `dist\watch-build.log`.

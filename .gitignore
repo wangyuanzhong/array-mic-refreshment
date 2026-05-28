@@ -52,8 +52,5 @@ scripts/cer-audio/
 Thumbs.db
 Desktop.ini
 
-# Cursor / agent (local IDE state; team rules are versioned under .cursor/rules/)
-.cursor/*
-!.cursor/rules/
-!.cursor/rules/**
+# Local agent transcripts only (not shared)
 agent-transcripts/

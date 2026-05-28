@@ -44,6 +44,6 @@ gh run watch --exit-status   # or watch each in-progress run id
 
 ## Reference
 
-Extra pitfalls and commands: [`skills/github-actions-ci/SKILL.md`](../../skills/github-actions-ci/SKILL.md).
+Extra pitfalls and commands: [`.cursor/skills/github-actions-ci/SKILL.md`](../skills/github-actions-ci/SKILL.md).
 
 If `gh` is unavailable, use the failed run URL from the user or GitHub API; same loop and stop rules apply.
