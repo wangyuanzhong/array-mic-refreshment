@@ -197,7 +197,7 @@ public sealed class Phase2AcceptanceTests
     }
 
     [Fact]
-    public void Phase2_A10_TestLlmConnection_with_stub_http_succeeds_for_valid_intent()
+    public async Task Phase2_A10_TestLlmConnection_with_stub_http_succeeds_for_valid_intent()
     {
         var call = 0;
         var handler = new StubHttpHandler(_ =>
@@ -223,7 +223,7 @@ public sealed class Phase2AcceptanceTests
         settings.ApiKey = "key";
         settings.ApiModel = "model";
 
-        var result = LlmConnectionTester.TestAsync(settings, handler).GetAwaiter().GetResult();
+        var result = await LlmConnectionTester.TestAsync(settings, handler);
         Assert.True(result.Ok);
         Assert.True(result.RouterConfidence > 0.8f);
     }

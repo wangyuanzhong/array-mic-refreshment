@@ -125,7 +125,21 @@ public static class SettingsDraftMapper
                 })
                 .ToList();
             settings.SelectedFeaturePresetIndex = draft.SelectedFeaturePresetIndex;
-            FeaturePresetApplier.ApplyFeaturePreset(settings, settings.SelectedFeaturePresetIndex);
+
+            // Web UI edits top-level refine fields; mirror them into the active preset before apply.
+            var activePresetIndex = Math.Clamp(
+                settings.SelectedFeaturePresetIndex,
+                0,
+                Math.Max(0, settings.FeaturePresets.Count - 1));
+            var activePreset = settings.FeaturePresets[activePresetIndex];
+            activePreset.ForcedIntent = draft.ForcedIntent;
+            activePreset.OnRefineFailure = draft.OnRefineFailure;
+            activePreset.OptionalOverlaySkills = draft.OptionalOverlaySkills
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            FeaturePresetApplier.ApplyFeaturePreset(settings, activePresetIndex);
         }
         else
         {
