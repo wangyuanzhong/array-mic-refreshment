@@ -1,0 +1,49 @@
+---
+description: After git push, wait for all triggered Actions on this branch; fix failures and re-push until green or stop conditions apply.
+alwaysApply: true
+---
+
+# Post-push GitHub Actions (mandatory)
+
+This is a **rule**, not an optional skill. Apply on every agent session in this repo.
+
+## When this applies
+
+- You ran **`git push`** on the current branch, **or**
+- You are about to mark work **done** / open or update a PR / tell the user "finished" — and your commits are already pushed or will be pushed now.
+
+If this push did **not** trigger any workflow (check path filters in `.github/workflows/*.yml`), skip monitoring.
+
+## What to watch
+
+Only workflow runs **triggered by the latest push** on **the current branch** (e.g. `CI`, and `Build release EXE` when path filters match). Do not chase unrelated runs on `main`, other branches, or old SHAs.
+
+Wait until every triggered run has a final conclusion (`success`, `failure`, or `cancelled`).
+
+```bash
+gh run list --branch "$(git rev-parse --abbrev-ref HEAD)" --limit 10
+gh run watch --exit-status   # or watch each in-progress run id
+```
+
+**Windows `build-windows` / App.Tests must pass** — Ubuntu-only green is not enough.
+
+## If something is red
+
+1. `gh run view <run-id> --log-failed` — find the first real error.
+2. If the failure is **fixable in this repo** (tests, build scripts, workflow YAML, app code): fix → commit → **push** → go back to **What to watch** for the **new** push.
+3. That is the intentional loop: **push → wait for triggered Actions → fix → push → wait again** until all triggered runs are green.
+
+## When to stop the loop (not infinite)
+
+| Stop | Reason |
+|------|--------|
+| **All triggered runs `success`** | Done — report run IDs and green status. |
+| **Failure not fixable in code** | Secrets, billing, GitHub outage, missing org permission — report; do not spam empty commits. |
+| **Same failure after 2 fix-and-push rounds** | Escalate to the user with logs and hypothesis. |
+| **Cannot run required environment** | e.g. Windows-only failure and agent has no Windows — report limitation; do not claim CI is green. |
+
+## Reference
+
+Extra pitfalls and commands: [`skills/github-actions-ci/SKILL.md`](../../skills/github-actions-ci/SKILL.md).
+
+If `gh` is unavailable, use the failed run URL from the user or GitHub API; same loop and stop rules apply.

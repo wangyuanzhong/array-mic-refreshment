@@ -1,6 +1,8 @@
-# GitHub Actions CI — post-push monitor & fix loop
+# GitHub Actions CI — reference (post-push monitor)
 
-Use this skill **after every `git push`** (or before declaring a task done) when working in this repository. Goal: **all workflows on the pushed branch are green**; if red, diagnose from logs, fix, commit, push, and re-check until green.
+**Policy lives in the Cursor rule** [`.cursor/rules/post-push-ci-green.mdc`](../../.cursor/rules/post-push-ci-green.mdc) (`alwaysApply: true`) — agents must follow that rule automatically after `git push`; you do **not** need to invoke this file as a skill.
+
+This document is a **playbook** (commands, workflow list, repo-specific pitfalls) for the rule above.
 
 ## When to trigger
 
@@ -71,15 +73,9 @@ dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.cs
 - Latest push on the branch has **CI** and **Build release EXE** (if path filters triggered) with `conclusion: success`.
 - No known failing tests left unfixed on Windows.
 
-## Cursor rule (optional, local)
+## Stop conditions (same as the rule)
 
-`.cursor/` is gitignored. To auto-remind Cursor Desktop agents, create `.cursor/rules/post-push-ci-green.mdc`:
-
-```yaml
----
-description: After git push, monitor GitHub Actions until green; fix failures before finishing.
-alwaysApply: true
----
-
-After `git push`, run `gh run watch --exit-status` on the current branch. On failure, `gh run view <id> --log-failed`, fix, commit, push, repeat until green. Follow `skills/github-actions-ci/SKILL.md`.
-```
+- All runs triggered by the latest push are **success** → stop.
+- Failure is **infra / permissions / not caused by your diff** → report, do not loop commits.
+- **Two** fix-and-push rounds with the **same** error → stop and escalate.
+- Cannot satisfy **Windows** CI in this environment → report; do not claim green.
