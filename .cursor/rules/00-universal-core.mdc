@@ -45,6 +45,8 @@ If a CI fix would violate (1), **change the test or implementation** or **update
 
 Rules do not run shell commands by themselves. **You (Agent) must execute** build, test, `gh`, and doc edits. Report blockers instead of claiming done.
 
+**No exceptions for "small" changes** — if you `git push`, you still run post-push CI monitoring when the rule applies; if you changed behavior or agent docs, you still run docs sync. Skipping because the diff is only `.cursor/` or "just a fix" is a rule violation.
+
 ## This repo (array-mic-refreshment)
 
 Also read [`AGENTS.md`](../../AGENTS.md) and [`docs/LOCAL_DEVELOPMENT.md`](../../docs/LOCAL_DEVELOPMENT.md). Project-only Agent skills: `.cursor/skills/frontend-design/`.

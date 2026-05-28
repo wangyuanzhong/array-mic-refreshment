@@ -326,6 +326,8 @@ dotnet test tests/ArrayMicRefreshment.Prompt.Tests -c Release
 
 Cursor 共用配置：`.cursor/` — 通用规则来自 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)（`00-universal-core`、`exe-packaging-local-cloud`、`post-push-ci-green`、`docs-sync-before-finish`、`git-track-cursor-folder`）；刷新：`.\scripts\sync-universal-cursor-rules.ps1`。
 
+Agent **skill**（非运行时 `skills/manifest.yaml`）：在 Agent 输入 **`/frontend-design`**（连字符）或 `@frontend-design`；`SKILL.md` 需含 YAML `name`/`description` 才会出现在 `/` 列表。详见 `.cursor/skills/README.md`。
+
 **本机不想启用 push 后等 CI 全绿的 rule**（Cloud 仍保留）：不要写进全局 User Rules，在仓库根执行一次：
 
 ```powershell
