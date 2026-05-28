@@ -1,0 +1,50 @@
+---
+description: Universal agent workflow — definition of done, doc/code priority, local vs cloud
+alwaysApply: true
+---
+
+# Universal core (all projects using this rules pack)
+
+Source: [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) — synced into this repo.
+
+## Definition of done
+
+A task is **not finished** until **all** of the following that apply are satisfied:
+
+1. **Code/build** matches user intent and passes relevant tests you can run in this environment.
+2. **Documentation**: every project `.md` and `.txt` is reviewed and updated if this change affects behavior, UI, CLI, config, or ops (see `docs-sync-before-finish.mdc`).
+3. **EXE packaging** (if this repo is an exe/desktop packager): local build or CI exe job per `exe-packaging-local-cloud.mdc`.
+4. **Git**: if you commit/push, `.cursor/` is tracked per `git-track-cursor-folder.mdc`.
+5. **Post-push CI** (cloud / after push): per `post-push-ci-green.mdc` when not opted out.
+
+## Local vs cloud (one rules pack, two behaviors)
+
+Detect mode **once per task**:
+
+| Mode | When |
+|------|------|
+| **Cloud** | Cursor Cloud Agent; or Linux/remote agent without the project's native desktop toolchain; or env `CI=true` on a push-monitoring task |
+| **Local** | Cursor Desktop on the developer machine with repo checkout |
+
+Apply the **Cloud** or **Local** subsection in each rule file. Do **not** maintain separate rule files per environment.
+
+**Local opt-out of post-push CI monitoring**: if `.cursor/.local-skip-post-push-ci` exists → skip `post-push-ci-green.mdc` only.
+
+## Conflict priority (fixes, CI, refactors)
+
+When code, tests, CI, and docs disagree, resolve in this order:
+
+1. **Product truth** in project docs: root `README.md`, `docs/**/*.md`, `AGENTS.md`, `CHANGELOG.md`, and any `.txt` spec shipped with the app — **functionality and UI definitions in these files win** over ad-hoc agent guesses.
+2. **This conversation** and explicit user messages in the current task.
+3. **Code** (implementation) — update code *or* update docs deliberately; never silently diverge.
+4. **CI/workflow YAML** — must reflect (1) and (3).
+
+If a CI fix would violate (1), **change the test or implementation** or **update the doc in the same PR** with a short note — do not "make CI green" by breaking documented behavior.
+
+## Honesty
+
+Rules do not run shell commands by themselves. **You (Agent) must execute** build, test, `gh`, and doc edits. Report blockers instead of claiming done.
+
+## This repo (array-mic-refreshment)
+
+Also read [`AGENTS.md`](../../AGENTS.md) and [`docs/LOCAL_DEVELOPMENT.md`](../../docs/LOCAL_DEVELOPMENT.md). Project-only Agent skills: `.cursor/skills/frontend-design/`.

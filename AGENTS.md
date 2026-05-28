@@ -4,6 +4,22 @@
 
 **[`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)**
 
+## 通用 Cursor 规则（强制）
+
+本仓库已安装 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)。**所有 Agent 任务**须遵守 `.cursor/rules/` 中 `alwaysApply` 规则：
+
+| 规则 | 作用 |
+|------|------|
+| [`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc) | 完成定义、本地/云端分工、文档优先于随意改 CI |
+| [`exe-packaging-local-cloud.mdc`](.cursor/rules/exe-packaging-local-cloud.mdc) | 本地 `watch-build-release.ps1 -Once`；云端验证 Build release EXE |
+| [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc) | push 后盯 Actions 至绿（本地可 `.cursor/.local-skip-post-push-ci` 跳过） |
+| [`docs-sync-before-finish.mdc`](.cursor/rules/docs-sync-before-finish.mdc) | 任务结束前同步全仓库 `.md` / `.txt` |
+| [`git-track-cursor-folder.mdc`](.cursor/rules/git-track-cursor-folder.mdc) | `.cursor/` 必须进 git |
+
+刷新通用规则：`.\scripts\sync-universal-cursor-rules.ps1`
+
+## 本仓库专项
+
 该文档包含：
 
 - Windows / .NET 8 SDK 前置条件  
@@ -14,9 +30,7 @@
 
 产品架构与已定稿决策见 [`README.md`](README.md)。
 
-**改 App / Web UI 后请打 exe：** `.\scripts\watch-build-release.ps1 -Once`（或让用户常驻 `.\scripts\watch-build-release.ps1` 监视保存）。详见 [`.cursor/rules/auto-build-exe.mdc`](.cursor/rules/auto-build-exe.mdc)。
-
-**WebView2 统一 UI（路线 B）** 的实施说明、Bridge 契约与分阶段 checklist 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。  
+**WebView2 统一 UI（路线 B）** 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。  
 **Web UI 视觉（马卡龙色系）** 见 [`.cursor/skills/frontend-design/SKILL.md`](.cursor/skills/frontend-design/SKILL.md)。  
-**每次 push 后监控 GitHub Actions 直至全绿（自动 rule）** 见 [`.cursor/rules/post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc)；细节见 [`.cursor/skills/github-actions-ci/SKILL.md`](.cursor/skills/github-actions-ci/SKILL.md)。  
-**Cursor 共用配置**（rules + Agent skills）见 [`.cursor/README.md`](.cursor/README.md)。
+**CI 排错** 见 [`.cursor/skills/github-actions-ci/SKILL.md`](.cursor/skills/github-actions-ci/SKILL.md)。  
+**Cursor 目录说明** 见 [`.cursor/README.md`](.cursor/README.md)。

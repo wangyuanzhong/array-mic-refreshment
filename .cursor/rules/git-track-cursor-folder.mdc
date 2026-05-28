@@ -1,0 +1,49 @@
+---
+description: Ensure .cursor/ is not gitignored; include full .cursor in commit and push
+alwaysApply: true
+---
+
+# Git — track entire `.cursor/` in the project
+
+Source: [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule).
+
+## Requirement
+
+The **project** directory `.cursor/` (repo root) must be versioned so **Cloud Agent** and **local** share the same rules/skills.
+
+This is **not** `%USERPROFILE%\.cursor\` (editor global config).
+
+## Before commit or push
+
+1. Check ignore status:
+
+   ```bash
+   git check-ignore -v .cursor .cursor/rules .cursor/skills
+   ```
+
+2. If `.cursor/` or `.cursor/*` is ignored in `.gitignore`:
+   - **Remove** whole-directory ignore (e.g. `.cursor/`, `.cursor/*`).
+   - Do **not** only un-ignore `rules/` while leaving `skills/` ignored.
+   - OK to keep ignoring **local-only** paths elsewhere, e.g. `agent-transcripts/` at repo root.
+
+3. Stage:
+
+   ```bash
+   git add .cursor/
+   ```
+
+4. Confirm `git status` shows intended `.cursor/**` changes.
+
+## Do not
+
+- Push only part of `.cursor/` without user request.
+- Add secrets to `.cursor/` (tokens in `mcp.json`) — use env vars or untracked local files.
+- Add the user's home Cursor directory into the project repo.
+
+## Refresh universal rules
+
+From repo root:
+
+```powershell
+.\scripts\sync-universal-cursor-rules.ps1
+```

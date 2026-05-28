@@ -1,81 +1,46 @@
-# GitHub Actions CI — reference (post-push monitor)
+# GitHub Actions CI — playbook
 
-**Policy lives in the Cursor rule** [`.cursor/rules/post-push-ci-green.mdc`](../../rules/post-push-ci-green.mdc) (`alwaysApply: true`) — agents must follow that rule automatically after `git push`; you do **not** need to invoke this file as a skill.
+Policy: [`.cursor/rules/post-push-ci-green.mdc`](../../rules/post-push-ci-green.mdc) and [`.cursor/rules/00-universal-core.mdc`](../../rules/00-universal-core.mdc).
 
-This document is a **playbook** (commands, workflow list, repo-specific pitfalls) for the rule above.
+Universal base: [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule). This file adds **array-mic-refreshment** specifics.
 
-## When to trigger
+## Post-push checklist
 
-- You pushed commits to `main` or an open PR branch.
-- User reports "CI red" / "Actions failed".
-- You changed code under paths watched by workflows (`src/`, `ui/`, `tests/`, `scripts/`, `.github/workflows/`).
+1. Branch and SHA: `git rev-parse --abbrev-ref HEAD`, `git rev-parse HEAD`
+2. List runs: `gh run list --branch "$(git rev-parse --abbrev-ref HEAD)" --limit 10`
+3. Watch: `gh run watch --exit-status`
+4. Failed logs: `gh run view <run-id> --log-failed` — last 80–150 lines, then first `FAIL` / `##[error]`
+5. Fix → commit → push → repeat until triggered runs are green
+6. Report: run IDs, root cause, files changed
 
 ## Workflows in this repo
 
 | Workflow file | Name | Runner | Notes |
 |---------------|------|--------|-------|
-| `.github/workflows/ci.yml` | CI | `ubuntu-latest` + `windows-latest` | Windows runs **App.Tests** — most regressions appear here |
-| `.github/workflows/build-release-exe.yml` | Build release EXE | `windows-latest` | `build-release.ps1`; robocopy exit 1 is success |
-| `.github/workflows/release.yml` | Release | tags | Manual / tag driven |
-
-## Post-push checklist (agent)
-
-1. **Identify branch and SHA**
-   ```bash
-   git rev-parse --abbrev-ref HEAD
-   git rev-parse HEAD
-   ```
-
-2. **List recent runs** (needs `gh` auth in environment)
-   ```bash
-   gh run list --branch "$(git rev-parse --abbrev-ref HEAD)" --limit 5
-   ```
-
-3. **Wait for in-progress runs** (up to ~15 min for Windows jobs)
-   ```bash
-   gh run watch --exit-status
-   ```
-   Or poll: `gh run list --branch … --json status,conclusion -q '.[0]'`
-
-4. **On failure — fetch logs for failed jobs only**
-   ```bash
-   gh run view <run-id> --log-failed
-   ```
-   Read the **last 80–150 lines** first; scroll up for the first `FAIL` / `##[error]`.
-
-5. **Map failure → fix**
-   - **App.Tests** on Windows: run the same project locally if possible; fix test data to match `skills/manifest.yaml` `intent_map` keys (e.g. `general_chat`, not `general_ai`).
-   - **robocopy / PowerShell exit 1** after successful copy: reset `$global:LASTEXITCODE = 0` after robocopy in `scripts/build-release.ps1`.
-   - **npm / ui build**: `cd ui && npm ci && npm run build`.
-   - **dotnet**: `dotnet test tests/ArrayMicRefreshment.App.Tests/... -c Release`.
-
-6. **Fix, commit, push**, then repeat from step 2 until **all** relevant workflows for that push are `success`.
-
-7. **Report to user**: which run IDs failed, root cause, files changed, and confirmation that latest runs are green.
+| `.github/workflows/ci.yml` | CI | `ubuntu-latest` + `windows-latest` | Windows runs **App.Tests** — most regressions here |
+| `.github/workflows/build-release-exe.yml` | Build release EXE | `windows-latest` | `build-release.ps1`; reset `$LASTEXITCODE` after robocopy |
+| `.github/workflows/release.yml` | Release | tags | Tag / manual |
 
 ## Common pitfalls (this repo)
 
-- **Intent router tests** must use upstream intent keys from `skills/manifest.yaml` → `router.intent_map` (e.g. `write_code`, `general_chat`), not internal specialist ids like `general_ai`.
-- **Bridge JSON** omits null properties (`DefaultIgnoreCondition.WhenWritingNull` on `WebUiBridge`); tests must use `TryGetProperty` only when the property should exist, or assert on value not key presence for optional fields.
-- **Windows-only tests**: Linux agents cannot run `ArrayMicRefreshment.App.Tests`; do not assume green Ubuntu job means full CI pass.
-- **Shell `&` in dotnet `--filter`**: CI uses separate `dotnet test` steps per project on Windows — do not combine with `&` in one shell line.
+- **Intent router tests**: use upstream keys from `skills/manifest.yaml` → `router.intent_map` (e.g. `general_chat`, not `general_ai`).
+- **WebUiBridge JSON**: null properties omitted (`WhenWritingNull`); tests should not expect `"warning": null`.
+- **Windows-only**: `ArrayMicRefreshment.App.Tests` — Ubuntu green ≠ full CI pass.
+- **dotnet --filter on Windows CI**: separate `dotnet test` steps per project — do not use `&` in one shell line.
+- **robocopy exit 1** after successful copy: `$global:LASTEXITCODE = 0` in `scripts/build-release.ps1`.
+
+## Doc conflict guard
+
+Before a CI-only fix, read `README.md`, `docs/**`, `AGENTS.md`. If the fix contradicts documented UI or features, update docs in the same commit or fix code to match the doc.
 
 ## Optional: local pre-push
 
 ```bash
 dotnet test ArrayMicRefreshment.CI.slnf -c Release
-# On Windows dev machine:
+# Windows dev machine:
 dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.csproj -c Release
 ```
 
-## Definition of done
+## Stop conditions
 
-- Latest push on the branch has **CI** and **Build release EXE** (if path filters triggered) with `conclusion: success`.
-- No known failing tests left unfixed on Windows.
-
-## Stop conditions (same as the rule)
-
-- All runs triggered by the latest push are **success** → stop.
-- Failure is **infra / permissions / not caused by your diff** → report, do not loop commits.
-- **Two** fix-and-push rounds with the **same** error → stop and escalate.
-- Cannot satisfy **Windows** CI in this environment → report; do not claim green.
+Same as `post-push-ci-green.mdc`: all green; infra blocked; 2 identical failures; cannot satisfy Windows jobs in this environment.

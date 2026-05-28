@@ -324,7 +324,7 @@ dotnet test tests/ArrayMicRefreshment.Prompt.Tests -c Release
 
 监视日志：`dist\watch-build.log`。默认 **不** 复制 `models/`（快）；完整离线包仍用 `-IncludeModels` 或 `pack-ready.ps1`。
 
-Cursor 共用配置：`.cursor/`（rules 如 `.cursor/rules/auto-build-exe.mdc`、`post-push-ci-green.mdc`；Agent skill 在 `.cursor/skills/`）。
+Cursor 共用配置：`.cursor/` — 通用规则来自 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)（`00-universal-core`、`exe-packaging-local-cloud`、`post-push-ci-green`、`docs-sync-before-finish`、`git-track-cursor-folder`）；刷新：`.\scripts\sync-universal-cursor-rules.ps1`。
 
 **本机不想启用 push 后等 CI 全绿的 rule**（Cloud 仍保留）：不要写进全局 User Rules，在仓库根执行一次：
 
