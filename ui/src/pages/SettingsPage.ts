@@ -103,6 +103,28 @@ function fieldErrorHtml(errors: Map<string, string>, field: string): string {
   return msg ? `<p class="field-error">${escapeHtml(msg)}</p>` : '';
 }
 
+function scrollSettingsSection(root: HTMLElement, sectionId: SectionId): void {
+  const container = root.querySelector<HTMLElement>('.settings-sections');
+  const section = root.querySelector<HTMLElement>(`#section-${sectionId}`);
+  if (!container || !section) return;
+
+  const top =
+    section.getBoundingClientRect().top -
+    container.getBoundingClientRect().top +
+    container.scrollTop;
+  container.scrollTo({ top: Math.max(0, top - 16), behavior: 'smooth' });
+}
+
+function setTestConnectionUi(root: HTMLElement, running: boolean): void {
+  const testBtn = root.querySelector<HTMLButtonElement>('#btnTestLlm');
+  const saveBtn = root.querySelector<HTMLButtonElement>('#btnSave');
+  if (testBtn) {
+    testBtn.disabled = running;
+    testBtn.textContent = running ? '测试中…' : '测试连接';
+  }
+  if (saveBtn) saveBtn.disabled = running;
+}
+
 export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   root.innerHTML = `<div class="app-shell"><main class="app-content"><p>加载设置…</p></main></div>`;
 
@@ -152,7 +174,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       : '';
 
     root.innerHTML = `
-      <div class="app-shell">
+      <div class="app-shell app-shell--settings">
         ${renderAppNav('settings')}
         <main class="app-content settings-page">
           <div class="settings-inner">
@@ -494,7 +516,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
         root.querySelectorAll('.settings-section-nav__link').forEach((link) => {
           link.classList.toggle('is-active', link === btn);
         });
-        root.querySelector(`#section-${activeSection}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollSettingsSection(root, activeSection);
       });
     });
 
@@ -544,7 +566,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   async function handleTestConnection(): Promise<void> {
     if (testConnectionRunning) return;
     testConnectionRunning = true;
-    render();
+    setTestConnectionUi(root, true);
 
     try {
       const payload = readDraftFromDom();
@@ -564,13 +586,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       }
     } finally {
       testConnectionRunning = false;
-      const saveBtn = root.querySelector<HTMLButtonElement>('#btnSave');
-      const testBtn = root.querySelector<HTMLButtonElement>('#btnTestLlm');
-      if (saveBtn) saveBtn.disabled = false;
-      if (testBtn) {
-        testBtn.disabled = false;
-        testBtn.textContent = '测试连接';
-      }
+      setTestConnectionUi(root, false);
     }
   }
 
