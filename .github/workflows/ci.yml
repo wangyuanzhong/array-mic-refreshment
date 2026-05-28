@@ -57,6 +57,16 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
+      - name: Run context
+        shell: pwsh
+        run: |
+          @"
+          ## CI run (Windows)
+          - **Branch:** ``${{ github.ref_name }}``
+          - **Event:** ``${{ github.event_name }}``
+          - **SHA:** ``${{ github.sha }}``
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -89,10 +99,26 @@ jobs:
       - name: Build
         run: dotnet build ArrayMicRefreshment.sln -c Release --no-restore
 
-      - name: Test
+      - name: Test App.Tests (Windows)
         shell: pwsh
-        run: |
-          dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.csproj -c Release --no-build --verbosity normal
-          dotnet test tests/ArrayMicRefreshment.Core.Tests/ArrayMicRefreshment.Core.Tests.csproj -c Release --no-build --verbosity normal
-          dotnet test tests/ArrayMicRefreshment.Audio.Tests/ArrayMicRefreshment.Audio.Tests.csproj -c Release --no-build --verbosity normal
-          dotnet test tests/ArrayMicRefreshment.Prompt.Tests/ArrayMicRefreshment.Prompt.Tests.csproj -c Release --no-build --verbosity normal
+        run: >
+          dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.csproj
+          -c Release --no-build --verbosity normal
+
+      - name: Test Core.Tests
+        shell: pwsh
+        run: >
+          dotnet test tests/ArrayMicRefreshment.Core.Tests/ArrayMicRefreshment.Core.Tests.csproj
+          -c Release --no-build --verbosity normal
+
+      - name: Test Audio.Tests
+        shell: pwsh
+        run: >
+          dotnet test tests/ArrayMicRefreshment.Audio.Tests/ArrayMicRefreshment.Audio.Tests.csproj
+          -c Release --no-build --verbosity normal
+
+      - name: Test Prompt.Tests
+        shell: pwsh
+        run: >
+          dotnet test tests/ArrayMicRefreshment.Prompt.Tests/ArrayMicRefreshment.Prompt.Tests.csproj
+          -c Release --no-build --verbosity normal

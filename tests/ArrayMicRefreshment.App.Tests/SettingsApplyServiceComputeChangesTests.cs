@@ -137,12 +137,13 @@ public sealed class SettingsApplyServiceComputeChangesTests
             MasterEnabled = false,
             PttHotkey = "F8",
             WakeWordPhrase = "测试",
-            SelectedLlmPresetIndex = 1,
+            SelectedLlmPresetIndex = 0,
             LlmPresets =
-            {
+            [
                 new LlmPreset { Name = "A", ApiKey = "secret" },
                 new LlmPreset { Name = "B" },
-            },
+                new LlmPreset { Name = "C" },
+            ],
             OptionalOverlaySkills = { "skill-a" },
         };
 

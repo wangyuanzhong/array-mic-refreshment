@@ -9,6 +9,14 @@ namespace ArrayMicRefreshment.App.Tests;
 
 public class WebUiBridgeSettingsTests
 {
+    private static readonly JsonSerializerOptions DraftJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private static string SerializeDraft(SettingsDraftDto draft) =>
+        JsonSerializer.Serialize(draft, DraftJsonOptions);
+
     [Fact]
     public void GetAppInfo_returns_version_json()
     {
@@ -37,7 +45,7 @@ public class WebUiBridgeSettingsTests
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
         draft.PttHotkey = "Ctrl+Shift+A";
-        var draftJson = JsonSerializer.Serialize(draft);
+        var draftJson = SerializeDraft(draft);
 
         using var doc = JsonDocument.Parse(bridge.SaveSettingsDraft(draftJson));
         Assert.True(doc.RootElement.GetProperty("ok").GetBoolean());
@@ -56,7 +64,7 @@ public class WebUiBridgeSettingsTests
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
         draft.PttHotkey = "Ctrl+Shift+B";
-        var draftJson = JsonSerializer.Serialize(draft);
+        var draftJson = SerializeDraft(draft);
 
         using var doc = JsonDocument.Parse(bridge.SaveSettingsDraft(draftJson));
         Assert.True(doc.RootElement.GetProperty("ok").GetBoolean());

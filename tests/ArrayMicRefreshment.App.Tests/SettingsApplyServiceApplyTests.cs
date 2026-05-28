@@ -134,7 +134,7 @@ public sealed class SettingsApplyServiceApplyTests
 
         Assert.True(result.WakePhraseChanged);
         Assert.Equal("boom", result.WakePhraseError);
-        Assert.Equal("boom", host.LastWakePhraseWarning);
+        Assert.Equal("唤醒词配置更新失败：boom", host.LastWakePhraseWarning);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class SettingsApplyServiceApplyTests
         Assert.True(result.HotkeyChanged);
         Assert.False(result.HotkeyUpdateAttempted);
         Assert.False(host.TryUpdatePttHotkeyCalled);
-        Assert.Null(host.RegisteredPttHotkey);
+        Assert.Equal("Ctrl+Alt+Space", host.RegisteredPttHotkey);
     }
 
     private sealed class FakeSettingsApplyHost : ISettingsApplyHost
