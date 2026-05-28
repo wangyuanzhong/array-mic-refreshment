@@ -11,7 +11,7 @@
 
 **Skill 调用：** `/frontend-design`、`/github-actions-ci`（连字符）。`SKILL.md` 须有 `name` + `description` frontmatter。
 
-**本地跳过 push 后盯 CI：** `.cursor/.local-skip-post-push-ci` 或 `.\scripts\cursor-local-opt-out-post-push-ci.ps1`
+**Push 后 CI（强制）：** 见 [`rules/post-push-ci-green.mdc`](rules/post-push-ci-green.mdc)。`gh run watch` 直到当前分支触发的工作流全绿；EXE 仓库须含 **Windows** `build-windows`（App.Tests）与 **Build release EXE**。`.cursor/.local-skip-post-push-ci` **已废弃**，勿再使用。
 
 勿提交 `.cursor/` 内的密钥。
 

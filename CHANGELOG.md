@@ -1,5 +1,33 @@
 # Changelog
 
+## V0.4.1 — 2026-05-28
+
+本次 push 修复 Windows CI「假卡死」与规则收尾缺口，不改变音频/唤醒/ASR 管道行为。
+
+### Fixed
+
+- **Windows CI `App.Tests` 挂死**：无窗体时 `PrivacyConsent` 不再调 `MessageBox.Show`；单元测试不再构造 `NAudioPushToTalkSource`（避免 WinForms `Timer` 泄漏）
+- **`SettingsDraftMapper`**：保存 draft 时将顶层整理字段同步进当前功能预设，与 Web UI 编辑一致
+- **Phase2 / WebUiBridge 测试**：功能预设与 LLM 预设改名后的校验对齐
+
+### Changed
+
+- CI：`build-windows` 增加 `timeout-minutes: 30`、`--blame-hang-timeout 2m`、`VSTEST_TESTCASE_TIMEOUT`
+- 文档：`AGENTS.md`、`docs/UI_ROUTE_B_WEBVIEW2.md`、`README.md` 与 V0.4 产品事实对齐；废弃 `.cursor/.local-skip-post-push-ci` 说明
+
+### Files / modules touched
+
+- `src/ArrayMicRefreshment.App/PrivacyConsent.cs` — headless 不弹隐私框
+- `src/ArrayMicRefreshment.App/Web/SettingsDraftMapper.cs` — 功能预设与 draft 同步
+- `tests/ArrayMicRefreshment.App.Tests/` — Phase2 / WebUiBridge 测试
+- `.github/workflows/ci.yml` — Windows 测试超时与 hang 诊断
+- `AGENTS.md`、`.cursor/rules/00-universal-core.mdc`、`.cursor/README.md` — post-push CI 无跳过
+
+### Verify
+
+- `gh run watch` 至 `build-windows` + `build-and-test` success（例：run `26602916264`）
+- Windows：`.\scripts\test-phase2-route-b.ps1` 与 `.\scripts\test-feature-presets.ps1`
+
 ## V0.4 — 2026-05-28
 
 ### Added

@@ -27,7 +27,7 @@ A task is **not finished** until **all** of the following that apply are satisfi
 2. **Documentation**: every project `.md` and `.txt` is reviewed and updated if this change affects behavior, UI, CLI, config, or ops (see `docs-sync-before-finish.mdc`).
 3. **EXE packaging** (if this repo is an exe/desktop packager): local build or CI exe job per `exe-packaging-local-cloud.mdc`.
 4. **Git**: if you commit/push, `.cursor/` is tracked per `git-track-cursor-folder.mdc`.
-5. **Post-push CI** (cloud / after push): per `post-push-ci-green.mdc` when not opted out.
+5. **Post-push CI** (cloud / after push): per `post-push-ci-green.mdc` — **no opt-out** (`.cursor/.local-skip-post-push-ci` is ignored).
 
 ## Local vs cloud (one rules pack, two behaviors)
 
@@ -40,7 +40,7 @@ Detect mode **once per task**:
 
 Apply the **Cloud** or **Local** subsection in each rule file. Do **not** maintain separate rule files per environment.
 
-**Local opt-out of post-push CI monitoring**: if `.cursor/.local-skip-post-push-ci` exists → skip `post-push-ci-green.mdc` only.
+**Post-push CI**: always run `post-push-ci-green.mdc` after `git push` (including Local mode). Do not document or rely on `.cursor/.local-skip-post-push-ci`.
 
 ## Conflict priority (fixes, CI, refactors)
 

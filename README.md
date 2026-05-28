@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml?query=branch%3Amain)
 
-**当前版本：V0.4**
+**当前版本：V0.4.1**
 
 本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理**（纯文本润色或多 Skill 意图改写）→ 剪贴板 / 光标粘贴。
 
@@ -16,7 +16,7 @@
 |---|------|------|
 | 1 | **C# / .NET 8 + Sherpa-ONNX** | 宿主与推理栈确定；通过 Sherpa-ONNX C API / 官方 C# 示例封装 P/Invoke |
 | 2 | **ASR：SenseVoice int8（已定）** | Sherpa-ONNX **离线** SenseVoice；松开 PTT 整段识别；详见 [`docs/ASR_MODEL.md`](docs/ASR_MODEL.md) |
-| 3 | **首版即含 LLM 提示词整理，默认关闭** | 设置项「启用提示词整理」默认 **关**；打开后才调用户配置的 API |
+| 3 | **首版即含 LLM 提示词整理，默认关闭** | 设置项「功能预设」/「启用提示词整理」默认 **关**；打开后才调用户配置的 API |
 | 4 | **Agent 开启时，剪贴板只放优化句** | 不写 ASR 原文；优化失败时可配置降级策略（见输出逻辑） |
 | 5 | **松开 PTT 优先触发 ASR** | **松开快捷键** 立即截断并识别，优先级 **高于** VAD 句末；按住期间 VAD 句末仅作辅助（长句中间停顿） |
 | 6 | **子开关 OFF：仍写剪贴板** | 子开关只控制 **是否自动粘贴到光标**；OFF = 不粘贴，**仍更新剪贴板** |
@@ -139,8 +139,9 @@ flowchart TB
 
 ### 设置界面（WebView2 PWA）
 
-托盘右键 **设置** 打开 **WebView2** 内嵌 Web 应用（侧栏 + 卡片，Macaron Pastel 视觉）。需 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（Win10/11 通常已装 Evergreen）。开发者构建前端见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) 步骤 4（`ui/` 目录 `npm ci && npm run build`）。
+托盘右键 **设置** 打开 **WebView2** 内嵌 Web 应用（侧栏 + 卡片，Macaron Pastel 视觉）；**功能模式** 子菜单可快速切换功能预设。需 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（Win10/11 通常已装 Evergreen）。开发者构建前端见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) 步骤 4（`ui/` 目录 `npm ci && npm run build`）。
 
+- **功能预设**：组合 LLM 预设名称 + 整理风格 + 可选 overlay skills（原「提示词整理」区升级）
 - **LLM 预设 ×3**：可分别保存名称、API Base URL、Key、Model，一键切换（如本地 Ollama / DeepSeek / OpenAI）
 - **API Base URL**（如 `https://api.openai.com/v1`、`https://api.deepseek.com/v1`、本机 `http://127.0.0.1:11434/v1`）
 - **API Key**（本机 Ollama 可空）

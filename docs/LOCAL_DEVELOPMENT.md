@@ -439,6 +439,24 @@ dotnet test ArrayMicRefreshment.sln -c Release --filter "FullyQualifiedName!~Int
 
 Windows 实机验证：PTT、唤醒、声纹、Both 模式各测一遍。
 
+路线 B / 功能预设自动化（Windows）：
+
+```powershell
+.\scripts\test-phase2-route-b.ps1
+.\scripts\test-feature-presets.ps1
+```
+
+### 14.2.1 Push 后 CI（Agent 强制）
+
+每次 `git push` 后须盯当前分支 Actions，直至**触发的工作流全部 success**。本仓库 **Ubuntu-only 绿不算完成** — `build-windows`（`App.Tests`）与 **Build release EXE** 必须过。详见 [`AGENTS.md`](../AGENTS.md) 与 `.cursor/rules/post-push-ci-green.mdc`。
+
+```bash
+gh run list --branch "$(git rev-parse --abbrev-ref HEAD)" --limit 10
+gh run watch --exit-status
+```
+
+`App.Tests` 在 CI 上若挂数分钟，常见原因：测试里构造了 `NAudioPushToTalkSource`（WinForms 定时器泄漏），或 `MessageBox` 阻塞无窗体进程 — 见 `.cursor/skills/github-actions-ci/SKILL.md`。
+
 ### 14.3 日志分析
 
 ```powershell
@@ -461,6 +479,7 @@ Select-String -Path "$env:APPDATA\ArrayMicRefreshment\logs\app-*.log" -Pattern "
 | [`docs/ASR_MODEL.md`](ASR_MODEL.md) | SenseVoice 选型 |
 | [`docs/SKILL_PIPELINE.md`](SKILL_PIPELINE.md) | LLM 整理管线 |
 | [`CHANGELOG.md`](../CHANGELOG.md) | 版本变更 |
+| [`docs/UI_ROUTE_B_WEBVIEW2.md`](UI_ROUTE_B_WEBVIEW2.md) | WebView2 路线 B、Bridge API、Phase 验收 |
 
 ---
 
