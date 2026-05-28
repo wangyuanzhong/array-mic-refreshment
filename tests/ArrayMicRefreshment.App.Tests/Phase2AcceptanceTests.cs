@@ -61,7 +61,7 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         var store = new InMemorySettingsStore(settings);
-        using var host = new Phase2RecordingApplyHost(settings, store);
+        var host = new Phase2RecordingApplyHost(settings, store);
         var bridge = CreateBridge(settings, store, host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
@@ -182,7 +182,7 @@ public sealed class Phase2AcceptanceTests
         var settings = CreateRichTemplateSettings();
         settings.LlmPresets[0].ApiKey = "secret-local-key";
         var store = new InMemorySettingsStore(settings);
-        using var host = new Phase2RecordingApplyHost(settings, store);
+        var host = new Phase2RecordingApplyHost(settings, store);
         var bridge = CreateBridge(settings, store, host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
