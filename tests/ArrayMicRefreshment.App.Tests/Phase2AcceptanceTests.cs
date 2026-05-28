@@ -61,19 +61,19 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         var store = new InMemorySettingsStore(settings);
-        var host = new Phase2RecordingApplyHost(settings);
+        using var host = new Phase2RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, store, host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
         draft.SelectedLlmPresetIndex = 0;
-        draft.LlmPresets[0].ApiBaseUrl = "http://127.0.0.1:8080/v1";
+        draft.LlmPresets[0].ApiBaseUrl = "http://127.0.0.1:5000/v1";
         draft.LlmPresets[0].ApiModel = "qwen-test";
         draft.LlmPresets[1].Name = "Renamed Cloud";
 
         using var saveDoc = JsonDocument.Parse(bridge.SaveSettingsDraft(SerializeDraft(draft)));
-        Assert.True(saveDoc.RootElement.GetProperty("ok").GetBoolean());
+        Assert.True(saveDoc.RootElement.GetProperty("ok").GetBoolean(), SaveError(saveDoc));
 
-        Assert.Equal("http://127.0.0.1:8080/v1", settings.ApiBaseUrl);
+        Assert.Equal("http://127.0.0.1:5000/v1", settings.ApiBaseUrl);
         Assert.Equal("qwen-test", settings.ApiModel);
         Assert.Equal("Renamed Cloud", settings.LlmPresets[1].Name);
         Assert.True(host.ApplyCount >= 1);
@@ -84,7 +84,7 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         settings.PromptRefineEnabled = false;
-        var host = new Phase2RecordingApplyHost(settings);
+        using var host = new Phase2RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, applyHost: host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
@@ -105,7 +105,7 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         settings.TriggerMode = VoiceTriggerMode.PttOnly;
-        var host = new Phase2RecordingApplyHost(settings);
+        using var host = new Phase2RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, applyHost: host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
@@ -117,7 +117,7 @@ public sealed class Phase2AcceptanceTests
         draft.LaunchAtStartup = true;
 
         using var doc = JsonDocument.Parse(bridge.SaveSettingsDraft(SerializeDraft(draft)));
-        Assert.True(doc.RootElement.GetProperty("ok").GetBoolean());
+        Assert.True(doc.RootElement.GetProperty("ok").GetBoolean(), SaveError(doc));
 
         Assert.True(host.TryUpdatePttHotkeyCalled);
         Assert.Equal("Ctrl+Shift+Space", host.LastHotkeyArg);
@@ -182,7 +182,7 @@ public sealed class Phase2AcceptanceTests
         var settings = CreateRichTemplateSettings();
         settings.LlmPresets[0].ApiKey = "secret-local-key";
         var store = new InMemorySettingsStore(settings);
-        var host = new Phase2RecordingApplyHost(settings);
+        using var host = new Phase2RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, store, host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
@@ -226,6 +226,21 @@ public sealed class Phase2AcceptanceTests
         var result = LlmConnectionTester.TestAsync(settings, handler).GetAwaiter().GetResult();
         Assert.True(result.Ok);
         Assert.True(result.RouterConfidence > 0.8f);
+    }
+
+    private static string SaveError(JsonDocument doc)
+    {
+        if (doc.RootElement.TryGetProperty("error", out var err))
+        {
+            return err.GetString() ?? "save failed";
+        }
+
+        if (doc.RootElement.TryGetProperty("warning", out var warn))
+        {
+            return warn.GetString() ?? "save warning";
+        }
+
+        return "save returned ok=false";
     }
 
     private sealed class StubHttpHandler : HttpMessageHandler
