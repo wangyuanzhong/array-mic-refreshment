@@ -69,9 +69,17 @@ public sealed class Phase2AcceptanceTests
         draft.LlmPresets[0].ApiBaseUrl = "http://127.0.0.1:8080/v1";
         draft.LlmPresets[0].ApiModel = "qwen-test";
         draft.LlmPresets[1].Name = "Renamed Cloud";
+        if (draft.FeaturePresets is { Count: > 0 })
+        {
+            // Align feature preset with the selected LLM row (migration defaults to former "Cloud").
+            draft.FeaturePresets[0].LlmPresetName = "Local";
+        }
 
         using var saveDoc = JsonDocument.Parse(bridge.SaveSettingsDraft(SerializeDraft(draft)));
-        Assert.True(saveDoc.RootElement.GetProperty("ok").GetBoolean());
+        var saveRoot = saveDoc.RootElement;
+        Assert.True(
+            saveRoot.GetProperty("ok").GetBoolean(),
+            saveRoot.TryGetProperty("error", out var err) ? err.GetString() : "save failed");
 
         Assert.Equal("http://127.0.0.1:8080/v1", settings.ApiBaseUrl);
         Assert.Equal("qwen-test", settings.ApiModel);
