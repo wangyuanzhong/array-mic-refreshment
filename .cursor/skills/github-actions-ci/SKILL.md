@@ -1,3 +1,8 @@
+---
+name: github-actions-ci
+description: Post-push GitHub Actions triage for this repo (gh run watch, log-failed, Windows App.Tests, build-release-exe). Use when CI is red, after git push, or /github-actions-ci.
+---
+
 # GitHub Actions CI — playbook
 
 Policy: [`.cursor/rules/post-push-ci-green.mdc`](../../rules/post-push-ci-green.mdc) and [`.cursor/rules/00-universal-core.mdc`](../../rules/00-universal-core.mdc).

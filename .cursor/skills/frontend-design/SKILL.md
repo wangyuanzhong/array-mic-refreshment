@@ -1,6 +1,14 @@
+---
+name: frontend-design
+description: Style and structure the Route B WebView2 UI under ui/ using the macaron design system (tokens.css, components.css). Use when the user mentions frontend design, Web UI, macaron palette, settings/enroll/privacy pages, or /frontend-design.
+paths: ui/**, src/ArrayMicRefreshment.App/wwwroot/**
+---
+
 # Frontend design — Array Mic Refreshment Web UI
 
 Use this skill when styling or restructuring the **Route B** WebView2 UI under `ui/`.
+
+**Invoke in chat:** `/frontend-design` or `@frontend-design` (folder name uses a **hyphen**, not a space).
 
 ## Product constraints
 
