@@ -75,7 +75,8 @@ internal static class Phase2AcceptanceTestSupport
             SelectedDeviceId = "device-1",
             CurrentSpeakerUserId = "user-a",
             SpeakerVerifyThreshold = 0.55f,
-            SelectedAsrModelId = "sense-voice",
+            // Empty: SaveSettingsDraft validates only installed models (CI has no models/).
+            SelectedAsrModelId = string.Empty,
             SkillsDirectory = "skills",
             ModelsDirectory = "models",
             TriggerMode = VoiceTriggerMode.Both,
@@ -89,11 +90,11 @@ internal static class Phase2AcceptanceTestSupport
             LlmPresets =
             [
                 new() { Name = "Local", ApiBaseUrl = "http://127.0.0.1:11434/v1", ApiKey = "k1", ApiModel = "m1" },
-                new() { Name = "Cloud", ApiBaseUrl = "https://api.example.com/v1", ApiKey = "k2", ApiModel = "m2" },
-                new() { Name = "Backup" },
+                new() { Name = "Cloud", ApiBaseUrl = "http://127.0.0.1:8080/v1", ApiKey = "k2", ApiModel = "m2" },
+                new() { Name = "Backup", ApiBaseUrl = "http://127.0.0.1:9000/v1" },
             ],
             OptionalOverlaySkills = ["voice_refine"],
-            PrivacyAcceptedHost = "api.example.com",
+            PrivacyAcceptedHost = "127.0.0.1",
         };
         settings.MigrateLegacyApiSettings();
         return settings;
@@ -131,9 +132,18 @@ internal static class Phase2AcceptanceTestSupport
             _devices.FirstOrDefault(d => d.Id == selectedDeviceId) ?? _devices[0];
     }
 
-    internal sealed class Phase2RecordingApplyHost : ISettingsApplyHost
+    internal sealed class Phase2RecordingApplyHost : ISettingsApplyHost, IDisposable
     {
-        public Phase2RecordingApplyHost(AppSettings settings) => TargetSettings = settings;
+        private readonly NAudioPushToTalkSource _ptt;
+        private readonly ISettingsStore? _settingsStore;
+
+        public Phase2RecordingApplyHost(AppSettings settings, ISettingsStore? settingsStore = null)
+        {
+            TargetSettings = settings;
+            _settingsStore = settingsStore;
+            _ptt = new NAudioPushToTalkSource(settings.PttHotkey);
+            RegisteredPttHotkey = settings.PttHotkey;
+        }
 
         public AppSettings TargetSettings { get; }
 
@@ -157,7 +167,9 @@ internal static class Phase2AcceptanceTestSupport
 
         public VoiceTriggerMode CurrentTriggerMode => LastTriggerMode;
 
-        public IPushToTalkSource PushToTalk { get; } = new StubPtt();
+        public IPushToTalkSource PushToTalk => _ptt;
+
+        public void Dispose() => _ptt.Dispose();
 
         public void RebuildPipeline()
         {
@@ -202,7 +214,11 @@ internal static class Phase2AcceptanceTestSupport
         {
         }
 
-        public void PersistAndRefresh() => ApplyCount++;
+        public void PersistAndRefresh()
+        {
+            ApplyCount++;
+            _settingsStore?.Save(TargetSettings);
+        }
 
         public void RefreshAudioCaptureAfterSettings()
         {
@@ -248,14 +264,4 @@ internal static class Phase2AcceptanceTestSupport
         }
     }
 
-    private sealed class StubPtt : IPushToTalkSource
-    {
-        public string HotkeyDisplay { get; init; } = "Ctrl+Alt+Space";
-
-#pragma warning disable CS0067
-        public event EventHandler? PttPressed;
-
-        public event EventHandler? PttReleased;
-#pragma warning restore CS0067
-    }
 }
