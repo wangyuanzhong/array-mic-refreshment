@@ -134,16 +134,14 @@ internal static class Phase2AcceptanceTestSupport
             _devices.FirstOrDefault(d => d.Id == selectedDeviceId) ?? _devices[0];
     }
 
-    internal sealed class Phase2RecordingApplyHost : ISettingsApplyHost, IDisposable
+    internal sealed class Phase2RecordingApplyHost : ISettingsApplyHost
     {
-        private readonly NAudioPushToTalkSource _ptt;
         private readonly ISettingsStore? _settingsStore;
 
         public Phase2RecordingApplyHost(AppSettings settings, ISettingsStore? settingsStore = null)
         {
             TargetSettings = settings;
             _settingsStore = settingsStore;
-            _ptt = new NAudioPushToTalkSource(settings.PttHotkey);
             RegisteredPttHotkey = settings.PttHotkey;
         }
 
@@ -169,9 +167,7 @@ internal static class Phase2AcceptanceTestSupport
 
         public VoiceTriggerMode CurrentTriggerMode => LastTriggerMode;
 
-        public IPushToTalkSource PushToTalk => _ptt;
-
-        public void Dispose() => _ptt.Dispose();
+        public IPushToTalkSource PushToTalk { get; } = new StubPtt();
 
         public void RebuildPipeline()
         {
@@ -266,4 +262,14 @@ internal static class Phase2AcceptanceTestSupport
         }
     }
 
+    private sealed class StubPtt : IPushToTalkSource
+    {
+        public string HotkeyDisplay { get; init; } = "Ctrl+Alt+Space";
+
+#pragma warning disable CS0067
+        public event EventHandler? PttPressed;
+
+        public event EventHandler? PttReleased;
+#pragma warning restore CS0067
+    }
 }

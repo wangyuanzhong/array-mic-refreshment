@@ -138,7 +138,7 @@ public sealed class SettingsApplyServiceApplyTests
     }
 
     [Fact]
-    public void Apply_skips_hotkey_update_when_push_to_talk_is_not_naudio_implementation()
+    public void Apply_calls_host_hotkey_update_when_hotkey_changes_even_with_stub_ptt()
     {
         var previous = new AppSettings { PttHotkey = "Ctrl+Alt+Space" };
         var incoming = new AppSettings { PttHotkey = "F8" };
@@ -153,9 +153,10 @@ public sealed class SettingsApplyServiceApplyTests
         var result = new SettingsApplyService().Apply(previous, incoming, host);
 
         Assert.True(result.HotkeyChanged);
-        Assert.False(result.HotkeyUpdateAttempted);
-        Assert.False(host.TryUpdatePttHotkeyCalled);
-        Assert.Equal("Ctrl+Alt+Space", host.RegisteredPttHotkey);
+        Assert.True(result.HotkeyUpdateAttempted);
+        Assert.True(result.HotkeyUpdateSucceeded);
+        Assert.True(host.TryUpdatePttHotkeyCalled);
+        Assert.Equal("F8", host.RegisteredPttHotkey);
     }
 
     private sealed class FakeSettingsApplyHost : ISettingsApplyHost

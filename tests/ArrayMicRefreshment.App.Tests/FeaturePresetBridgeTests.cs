@@ -57,7 +57,7 @@ public sealed class FeaturePresetBridgeTests
                 },
             ],
         };
-        var host = new Phase2AcceptanceTestSupport.Phase2RecordingApplyHost(settings);
+        using var host = new Phase2AcceptanceTestSupport.Phase2RecordingApplyHost(settings);
         var bridge = Phase2AcceptanceTestSupport.CreateBridge(settings, applyHost: host);
 
         using var doc = JsonDocument.Parse(bridge.ApplyFeaturePreset(0));

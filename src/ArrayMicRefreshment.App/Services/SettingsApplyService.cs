@@ -92,8 +92,7 @@ public sealed class SettingsApplyService
             host.ApplyPipelineSettings();
         }
 
-        if (result.HotkeyChanged
-            && host.PushToTalk is NAudioPushToTalkSource)
+        if (result.HotkeyChanged)
         {
             result = result with
             {

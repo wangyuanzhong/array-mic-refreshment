@@ -67,6 +67,7 @@ Same table as `post-push-ci-green.mdc`: all green; infra blocked; 2 identical fa
 - **WebUiBridge JSON**: `WhenWritingNull`; no `"warning": null` in success JSON.
 - **Windows-only** App.Tests — Ubuntu green ≠ done.
 - **dotnet --filter**: separate test steps on Windows CI; no `&` in one shell line.
+- **Job stuck on App.Tests for hours**: usually `vstest` never exits (leaked `GlobalHotkeyListener` / WinForms `Timer` from undisposed `NAudioPushToTalkSource`). Fix tests to use stub PTT; CI uses `--blame-hang-timeout` and `timeout-minutes` on the job.
 
 ## Optional: local pre-push
 
