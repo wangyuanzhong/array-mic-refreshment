@@ -22,6 +22,14 @@ export interface LlmPresetDraft {
   apiModel: string;
 }
 
+export interface FeaturePresetDraft {
+  name: string;
+  llmPresetName: string;
+  forcedIntent: ForcedIntent;
+  onRefineFailure: OnRefineFailure;
+  optionalOverlaySkills: string[];
+}
+
 export interface SettingsDraft {
   masterEnabled: boolean;
   pasteToCaretEnabled: boolean;
@@ -50,6 +58,8 @@ export interface SettingsDraft {
   selectedLlmPresetIndex: number;
   llmPresets: LlmPresetDraft[];
   optionalOverlaySkills: string[];
+  selectedFeaturePresetIndex: number;
+  featurePresets: FeaturePresetDraft[];
 }
 
 export interface AppInfo {
@@ -146,6 +156,23 @@ export interface AcceptPrivacyResult {
   ok: boolean;
 }
 
+export interface FeaturePresetListItem {
+  index: number;
+  name: string;
+  llmPresetName: string;
+  forcedIntent: ForcedIntent;
+  onRefineFailure: OnRefineFailure;
+  optionalOverlaySkills: string[];
+  selected: boolean;
+}
+
+export interface ApplyFeaturePresetResult {
+  ok: boolean;
+  error?: string;
+  warning?: string;
+  selectedFeaturePresetIndex?: number;
+}
+
 /** Raw COM host object shape (WebView2 async proxy). */
 export interface AmrHostObject {
   GetAppInfo(): Promise<string>;
@@ -165,6 +192,8 @@ export interface AmrHostObject {
   CompleteEnrollment(name: string, utteranceCount: number): Promise<string>;
   GetPrivacyConsentState(apiBaseUrl: string): Promise<string>;
   AcceptPrivacy(host: string): Promise<string>;
+  ListFeaturePresets(): Promise<string>;
+  ApplyFeaturePreset(index: number): Promise<string>;
   RequestClose(success: boolean): Promise<void>;
 }
 
@@ -186,6 +215,8 @@ export interface AmrBridge {
   completeEnrollment(name: string, utteranceCount: number): Promise<CompleteEnrollmentResult>;
   getPrivacyConsentState(apiBaseUrl: string): Promise<PrivacyConsentState>;
   acceptPrivacy(host: string): Promise<AcceptPrivacyResult>;
+  listFeaturePresets(): Promise<FeaturePresetListItem[]>;
+  applyFeaturePreset(index: number): Promise<ApplyFeaturePresetResult>;
   requestClose(success: boolean): Promise<void>;
 }
 
@@ -232,6 +263,16 @@ export function createDefaultSettingsDraft(): SettingsDraft {
       },
     ],
     optionalOverlaySkills: [],
+    selectedFeaturePresetIndex: 0,
+    featurePresets: [
+      {
+        name: '默认',
+        llmPresetName: '预设1',
+        forcedIntent: 'PlainText',
+        onRefineFailure: 'UseRawTranscript',
+        optionalOverlaySkills: [],
+      },
+    ],
   };
 }
 
@@ -329,6 +370,18 @@ function wrapHostObject(host: AmrHostObject): AmrBridge {
       return parseJson<AcceptPrivacyResult>(
         await host.AcceptPrivacy(hostName),
         'AcceptPrivacy',
+      );
+    },
+    async listFeaturePresets() {
+      return parseJson<FeaturePresetListItem[]>(
+        await host.ListFeaturePresets(),
+        'ListFeaturePresets',
+      );
+    },
+    async applyFeaturePreset(index: number) {
+      return parseJson<ApplyFeaturePresetResult>(
+        await host.ApplyFeaturePreset(index),
+        'ApplyFeaturePreset',
       );
     },
     async requestClose(success: boolean) {
@@ -463,6 +516,37 @@ function createMockBridge(): AmrBridge {
       await delay(50);
       void host;
       return { ok: true };
+    },
+    async listFeaturePresets() {
+      await delay(40);
+      return draft.featurePresets.map((p, index) => ({
+        index,
+        name: p.name,
+        llmPresetName: p.llmPresetName,
+        forcedIntent: p.forcedIntent,
+        onRefineFailure: p.onRefineFailure,
+        optionalOverlaySkills: [...p.optionalOverlaySkills],
+        selected: index === draft.selectedFeaturePresetIndex,
+      }));
+    },
+    async applyFeaturePreset(index: number) {
+      await delay(80);
+      if (index < 0 || index >= draft.featurePresets.length) {
+        return { ok: false, error: '功能预设索引无效。' };
+      }
+      draft.selectedFeaturePresetIndex = index;
+      const fp = draft.featurePresets[index];
+      const llmIdx = draft.llmPresets.findIndex(
+        (p) => p.name.localeCompare(fp.llmPresetName, undefined, { sensitivity: 'accent' }) === 0,
+      );
+      if (llmIdx >= 0) {
+        draft.selectedLlmPresetIndex = llmIdx;
+      }
+      draft.forcedIntent = fp.forcedIntent;
+      draft.onRefineFailure = fp.onRefineFailure;
+      draft.optionalOverlaySkills = [...fp.optionalOverlaySkills];
+      draft.promptRefineEnabled = true;
+      return { ok: true, selectedFeaturePresetIndex: index };
     },
     async requestClose(success: boolean) {
       void success;

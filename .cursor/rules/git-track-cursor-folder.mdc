@@ -1,17 +1,13 @@
 ---
-description: Ensure .cursor/ is not gitignored; include full .cursor in commit and push
+description: Project-level .cursor/ must be tracked in git so Cloud agents and Local share the same rules.
 alwaysApply: true
 ---
 
-# Git — track entire `.cursor/` in the project
+# Track `.cursor/` in git
 
-## Requirement
+The directory `.cursor/` at the **repo root** must be versioned. This is **not** the user-level `%USERPROFILE%\.cursor\` (editor global config) — never add that to the repo.
 
-The **project** directory `.cursor/` (repo root) must be versioned so **Cloud Agent** and **local** share the same rules/skills.
-
-This is **not** `%USERPROFILE%\.cursor\` (editor global config).
-
-## Before commit or push
+## Before any commit or push — MUST
 
 1. Check ignore status:
 
@@ -19,25 +15,26 @@ This is **not** `%USERPROFILE%\.cursor\` (editor global config).
    git check-ignore -v .cursor .cursor/rules .cursor/skills
    ```
 
-2. If `.cursor/` or `.cursor/*` is ignored in `.gitignore`:
-   - **Remove** whole-directory ignore (e.g. `.cursor/`, `.cursor/*`).
-   - Do **not** only un-ignore `rules/` while leaving `skills/` ignored.
-   - OK to keep ignoring **local-only** paths elsewhere, e.g. `agent-transcripts/` at repo root.
+2. If `.gitignore` contains a blanket ignore (`.cursor/`, `.cursor/*`, `.cursor/**`), remove it. You may keep targeted ignores like:
+   - `.cursor/agent-transcripts/`
+   - `.cursor/.local-skip-post-push-ci`
 
-3. Stage:
+   You MUST NOT un-ignore `rules/` while leaving `skills/` ignored — keep the pack consistent.
+
+3. Stage the directory:
 
    ```bash
    git add .cursor/
    ```
 
-4. Confirm `git status` shows intended `.cursor/**` changes.
+4. Confirm `git status` shows the intended `.cursor/**` changes before pushing.
 
-## Do not
+## You MUST NOT
 
-- Push only part of `.cursor/` without user request.
-- Add secrets to `.cursor/` (tokens in `mcp.json`) — use env vars or untracked local files.
-- Add the user's home Cursor directory into the project repo.
+- Push only part of `.cursor/` without an explicit user request.
+- Commit secrets (e.g. tokens in `mcp.json`) under `.cursor/`. Use env vars or untracked local files.
+- Add `%USERPROFILE%\.cursor\` (or `~/.cursor/`) into the project repo.
 
-## Install script
+## Tip
 
-`install-universal-rules.ps1` can patch common `.gitignore` mistakes when installing this pack.
+If `.gitignore` already had a blanket `.cursor/` ignore from before this pack was installed, you must remove it once. There is no installer for this rules pack — copy `rules/` and `skills/` directly into the target repo's `.cursor/`.

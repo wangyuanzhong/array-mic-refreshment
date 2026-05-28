@@ -15,6 +15,7 @@
 | [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc) | push 后盯 Actions 至绿（本地可 `.cursor/.local-skip-post-push-ci` 跳过） |
 | [`docs-sync-before-finish.mdc`](.cursor/rules/docs-sync-before-finish.mdc) | 任务结束前同步全仓库 `.md` / `.txt` |
 | [`git-track-cursor-folder.mdc`](.cursor/rules/git-track-cursor-folder.mdc) | `.cursor/` 必须进 git |
+| [`versioning-and-changelog.mdc`](.cursor/rules/versioning-and-changelog.mdc) | 版本号与 CHANGELOG 同步 |
 
 刷新通用规则：`.\scripts\sync-universal-cursor-rules.ps1 -Refresh`（版本锁定见 `.cursor/UNIVERSAL_RULE_LOCK`）
 
@@ -43,7 +44,7 @@
 
 产品架构与已定稿决策见 [`README.md`](README.md)。
 
-**WebView2 统一 UI（路线 B）** 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。  
+**WebView2 统一 UI（路线 B）** 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。自动化：`.\scripts\test-phase2-route-b.ps1`、`.\scripts\test-feature-presets.ps1`（Windows）。  
 **Web UI 视觉（马卡龙色系）** 见 [`.cursor/skills/frontend-design/SKILL.md`](.cursor/skills/frontend-design/SKILL.md)；Agent 内手动调用：**`/frontend-design`**。  
 **CI 排错** 见 [`.cursor/skills/github-actions-ci/SKILL.md`](.cursor/skills/github-actions-ci/SKILL.md)。  
 **Cursor 目录说明** 见 [`.cursor/README.md`](.cursor/README.md)。

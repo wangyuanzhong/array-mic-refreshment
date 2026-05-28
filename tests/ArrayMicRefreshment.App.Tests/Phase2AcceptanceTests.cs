@@ -61,7 +61,7 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         var store = new InMemorySettingsStore(settings);
-        var host = new Phase2RecordingApplyHost(settings);
+        using var host = new Phase2RecordingApplyHost(settings, store);
         var bridge = CreateBridge(settings, store, host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
@@ -84,7 +84,7 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         settings.PromptRefineEnabled = false;
-        var host = new Phase2RecordingApplyHost(settings);
+        using var host = new Phase2RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, applyHost: host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
@@ -105,7 +105,7 @@ public sealed class Phase2AcceptanceTests
     {
         var settings = CreateRichTemplateSettings();
         settings.TriggerMode = VoiceTriggerMode.PttOnly;
-        var host = new Phase2RecordingApplyHost(settings);
+        using var host = new Phase2RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, applyHost: host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);
@@ -182,7 +182,7 @@ public sealed class Phase2AcceptanceTests
         var settings = CreateRichTemplateSettings();
         settings.LlmPresets[0].ApiKey = "secret-local-key";
         var store = new InMemorySettingsStore(settings);
-        var host = new Phase2RecordingApplyHost(settings);
+        using var host = new Phase2RecordingApplyHost(settings, store);
         var bridge = CreateBridge(settings, store, host);
 
         var draft = SettingsDraftMapper.ToDraft(settings, null);

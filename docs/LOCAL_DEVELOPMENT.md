@@ -54,8 +54,9 @@ dotnet build ArrayMicRefreshment.sln -c Release
 # 6) 单元测试（不依赖麦克风）
 dotnet test ArrayMicRefreshment.sln -c Release --filter "FullyQualifiedName!~Integration"
 
-# 6b) 路线 B Phase 2 自动化验收（Windows；Web Bridge，不含 §10.2 麦克风手测）
+# 6b) 路线 B Phase 2 + 功能预设自动化（Windows；Web Bridge，不含 §10.2 麦克风手测）
 .\scripts\test-phase2-route-b.ps1
+.\scripts\test-feature-presets.ps1
 
 # 7) 运行托盘 App（需 Windows + 麦克风 + WebView2 Runtime）
 dotnet run --project src\ArrayMicRefreshment.App -c Release

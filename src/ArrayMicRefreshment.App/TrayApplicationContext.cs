@@ -18,6 +18,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _masterSwitchItem;
     private readonly ToolStripMenuItem _pasteSwitchItem;
     private readonly ToolStripMenuItem _statusItem;
+    private ToolStripMenuItem? _featurePresetMenu;
     private readonly IPushToTalkSource _ptt;
     private readonly PttCaptureService _pttCaptureService;
     private readonly VoiceCaptureOrchestrator _voiceOrchestrator;
@@ -72,6 +73,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("强制结束录音（卡住时用）", null, OnSimulatePttRelease));
         menu.Items.Add(BuildTriggerModeMenu());
+        menu.Items.Add(BuildFeaturePresetMenu());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("退出", null, OnExit));
 
@@ -149,11 +151,21 @@ public sealed class TrayApplicationContext : ApplicationContext
             _ptt.HotkeyDisplay,
             pttRegistered);
 
+        _settings.MigrateLegacyApiSettings();
+        _settings.MigrateLegacyFeaturePresets();
+        if (_settings.FeaturePresets is { Count: > 0 })
+        {
+            FeaturePresetApplier.ApplyFeaturePreset(_settings, _settings.SelectedFeaturePresetIndex);
+        }
+
         var startupPreset = _settings.CurrentPreset;
         Log.Information(
             "[DIAGNOSTIC] Startup settings: PromptRefineEnabled={RefineEnabled}, " +
-            "Preset={PresetName}, Url={ApiUrl}, Model={ApiModel}",
+            "FeaturePreset={FeaturePreset}, LlmPreset={PresetName}, Url={ApiUrl}, Model={ApiModel}",
             _settings.PromptRefineEnabled,
+            _settings.FeaturePresets.Count > 0
+                ? _settings.FeaturePresets[_settings.SelectedFeaturePresetIndex].Name
+                : "(legacy)",
             startupPreset.Name,
             startupPreset.ApiBaseUrl,
             startupPreset.ApiModel);
@@ -436,6 +448,63 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private bool IsExcludedPasteRoot(IntPtr hwnd)
         => WindowsPasteHelper.IsExcludedWindow(hwnd, GetExcludedPasteWindows());
+
+    private ToolStripMenuItem BuildFeaturePresetMenu()
+    {
+        _featurePresetMenu = new ToolStripMenuItem("功能模式");
+        _featurePresetMenu.DropDownOpening += (_, _) => RefreshFeaturePresetMenuItems();
+        RefreshFeaturePresetMenuItems();
+        return _featurePresetMenu;
+    }
+
+    private void RefreshFeaturePresetMenuItems()
+    {
+        if (_featurePresetMenu is null)
+        {
+            return;
+        }
+
+        _featurePresetMenu.DropDownItems.Clear();
+        _settings.MigrateLegacyApiSettings();
+        _settings.MigrateLegacyFeaturePresets();
+
+        if (_settings.FeaturePresets is not { Count: > 0 })
+        {
+            _featurePresetMenu.Enabled = false;
+            _featurePresetMenu.DropDownItems.Add(new ToolStripMenuItem("(未配置)") { Enabled = false });
+            return;
+        }
+
+        _featurePresetMenu.Enabled = true;
+        for (var i = 0; i < _settings.FeaturePresets.Count; i++)
+        {
+            var index = i;
+            var preset = _settings.FeaturePresets[i];
+            var label = string.IsNullOrWhiteSpace(preset.LlmPresetName)
+                ? preset.Name
+                : $"{preset.Name} → {preset.LlmPresetName}";
+            _featurePresetMenu.DropDownItems.Add(new ToolStripMenuItem(
+                label,
+                null,
+                (_, _) => ApplyFeaturePresetAtRuntime(index))
+            {
+                Checked = index == _settings.SelectedFeaturePresetIndex,
+            });
+        }
+    }
+
+    private void ApplyFeaturePresetAtRuntime(int index)
+    {
+        var previous = SettingsApplyService.CloneSnapshot(_settings);
+        FeaturePresetApplier.ApplyFeaturePreset(_settings, index);
+        _settingsApplyService.Apply(previous, _settings, new TraySettingsApplyHost(this));
+        RefreshFeaturePresetMenuItems();
+        UpdateTrayTooltip();
+
+        var name = _settings.FeaturePresets[index].Name;
+        _balloons.Show(3000, "Array Mic", $"已切换功能模式：{name}", ToolTipIcon.Info);
+        Log.Information("Feature preset applied from tray: {Name} (index={Index})", name, index);
+    }
 
     private ToolStripMenuItem BuildTriggerModeMenu()
     {

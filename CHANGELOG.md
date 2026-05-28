@@ -3,13 +3,17 @@
 ## V0.4 — 2026-05-28
 
 ### Added
+- **功能预设**：LLM 预设名称 + 整理风格/叠加 skill 组合；设置页「功能预设」分区；托盘右键「功能模式」快速切换
 - **WebView2 设置 UI**（路线 B）：托盘「设置」打开 PWA 风格 Web 页（侧栏导航 + 卡片布局），含设备、ASR、LLM 预设、唤醒词、热键等完整字段
+- **`scripts/test-feature-presets.ps1`**：功能预设与 Phase 2 验收自动化（Windows App.Tests）
 - **`SettingsApplyService`**：从 `TrayApplicationContext` 抽出设置保存/应用逻辑，Web Bridge 共用
 - **`ui/` 前端工程**：Vite + TypeScript；Release 前需 `npm run build` 产出 `wwwroot/`（见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)）
 - Web 路由：`#/settings`、`#/enroll`、`#/privacy`
 - **`DesignTokens`**：原生 `VoiceStatusHud` 与 `ui/src/styles/tokens.css` Macaron 配色对齐
 
 ### Changed
+- 原「提示词整理」设置区更名为 **功能预设**（多预设新建/删除/下拉选择）
+- 设置页布局：仅右侧内容区滚动，侧栏与分区导航固定（减少滚动时全页抖动/发糊）
 - 设置界面视觉：**Macaron 马卡龙 Pastel** 设计系统（`ui/src/styles/tokens.css`）
 - 打包脚本 `build-release.ps1` 在 publish 前构建前端
 - 移除 legacy WinForms `SettingsForm` / `EnrollmentDialog`；设置与注册统一 WebView2
