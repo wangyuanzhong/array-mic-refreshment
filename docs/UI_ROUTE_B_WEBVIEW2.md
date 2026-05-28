@@ -569,8 +569,20 @@ $wwwSrc = Join-Path $repoRoot 'src/ArrayMicRefreshment.App/wwwroot'
 | 层 | 内容 |
 |----|------|
 | 已有 | `tests/ArrayMicRefreshment.*` — **每次 PR 必须全绿** |
-| 新增 | `WebUiBridge` 单元测试（mock `ISettingsStore`） |
+| 已有 | `WebUiBridge` 单元测试（mock `ISettingsStore`） |
+| **Phase 2 验收（本地 Windows）** | `tests/ArrayMicRefreshment.App.Tests/Phase2AcceptanceTests.cs`，Trait `Phase=RouteB2` |
+| **一键脚本** | `.\scripts\test-phase2-route-b.ps1`（`npm build` + Phase2 测试 + 全量 App.Tests） |
 | 可选 | Playwright + WebView2 驱动 UI 测试（Windows CI） |
+
+```powershell
+# 仅 Phase 2 自动化项（约 10 条，对应 §8 checklist 的 Bridge/保存/校验）
+.\scripts\test-phase2-route-b.ps1
+
+# 或
+dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.csproj -c Release --filter "Phase=RouteB2"
+```
+
+**说明**：自动化覆盖 **Web 设置 Bridge 与 `SettingsApplyService` 行为**，**不能**替代 §10.2 的 PTT/唤醒/麦克风实机回归。
 
 ### 10.2 手动回归（发布前）
 
