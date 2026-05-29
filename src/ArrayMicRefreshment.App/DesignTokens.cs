@@ -6,8 +6,8 @@ namespace ArrayMicRefreshment.App;
 /// </summary>
 internal static class DesignTokens
 {
-    // --hud-bg: rgb(45 40 58 / 92%)
-    public static readonly Color HudBackground = Color.FromArgb(235, 45, 40, 58);
+    // --hud-bg: rgb(45 40 58 / 92%) — Form.BackColor must be opaque; use HudOpacity on the form.
+    public static readonly Color HudBackground = Color.FromArgb(45, 40, 58);
 
     // --hud-text: #faf8ff
     public static readonly Color HudText = Color.FromArgb(250, 248, 255);
