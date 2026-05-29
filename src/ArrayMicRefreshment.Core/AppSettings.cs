@@ -67,6 +67,13 @@ public sealed class AppSettings
     /// <summary>Screen corner for the live voice status HUD.</summary>
     public HudScreenCorner HudScreenCorner { get; set; } = HudScreenCorner.BottomRight;
 
+    /// <summary>
+    /// Use transparent WebView2 HUD (<c>#/hud</c>) instead of native WinForms overlay.
+    /// Falls back to native HUD when WebView2 or wwwroot is unavailable. Takes effect on app restart.
+    /// Override with env <c>AMR_WEB_HUD=0|1</c>.
+    /// </summary>
+    public bool UseWebStatusHud { get; set; } = true;
+
     public string SkillsDirectory { get; set; } = "skills";
     public string ModelsDirectory { get; set; } = "models";
     public string SelectedAsrModelId { get; set; } = string.Empty;

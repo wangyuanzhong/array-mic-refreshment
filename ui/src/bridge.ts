@@ -53,6 +53,7 @@ export interface SettingsDraft {
   wakeUseVadEndDetection: boolean;
 
   hudScreenCorner: HudScreenCorner;
+  useWebStatusHud: boolean;
   pttHotkey: string;
 
   selectedLlmPresetIndex: number;
@@ -240,6 +241,7 @@ export function createDefaultSettingsDraft(): SettingsDraft {
     wakeCommandSilenceMs: 3000,
     wakeUseVadEndDetection: true,
     hudScreenCorner: 'BottomRight',
+    useWebStatusHud: true,
     pttHotkey: 'Ctrl+Alt+Space',
     selectedLlmPresetIndex: 0,
     llmPresets: [

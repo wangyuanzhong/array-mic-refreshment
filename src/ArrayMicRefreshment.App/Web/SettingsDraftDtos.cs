@@ -47,6 +47,9 @@ public sealed class SettingsDraftDto
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public HudScreenCorner HudScreenCorner { get; set; } = HudScreenCorner.BottomRight;
 
+    /// <summary>WebView2 HUD experiment; restart app after change.</summary>
+    public bool UseWebStatusHud { get; set; } = true;
+
     public string PttHotkey { get; set; } = "Ctrl+Alt+Space";
 
     public int SelectedLlmPresetIndex { get; set; }

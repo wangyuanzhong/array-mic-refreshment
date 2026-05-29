@@ -43,4 +43,6 @@
 
 **自动化（Windows）：** `.\scripts\test-phase2-route-b.ps1`、`.\scripts\test-feature-presets.ps1`
 
+**Web HUD（Phase 4）：** 默认 `UseWebStatusHud`；设置页可关，或 `AMR_WEB_HUD=0` 强制原生条。修改后需重启应用。
+
 **Skill 调用（可选）：** `/frontend-design` — 见 [`.cursor/README.md`](.cursor/README.md)。CI 排错见 [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc)（不再使用 `github-actions-ci` skill）。

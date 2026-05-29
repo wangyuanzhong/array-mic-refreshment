@@ -30,6 +30,7 @@ public static class SettingsDraftMapper
             WakeCommandSilenceMs = settings.WakeCommandSilenceMs,
             WakeUseVadEndDetection = settings.WakeUseVadEndDetection,
             HudScreenCorner = settings.HudScreenCorner,
+            UseWebStatusHud = settings.UseWebStatusHud,
             PttHotkey = settings.PttHotkey,
             SelectedLlmPresetIndex = settings.SelectedLlmPresetIndex,
             LlmPresets = settings.LlmPresets
@@ -79,6 +80,7 @@ public static class SettingsDraftMapper
         settings.WakeCommandSilenceMs = Math.Clamp(draft.WakeCommandSilenceMs, 800, 8000);
         settings.WakeUseVadEndDetection = draft.WakeUseVadEndDetection;
         settings.HudScreenCorner = draft.HudScreenCorner;
+        settings.UseWebStatusHud = draft.UseWebStatusHud;
         settings.PttHotkey = draft.PttHotkey?.Trim() ?? settings.PttHotkey;
         settings.SelectedLlmPresetIndex = draft.SelectedLlmPresetIndex;
 

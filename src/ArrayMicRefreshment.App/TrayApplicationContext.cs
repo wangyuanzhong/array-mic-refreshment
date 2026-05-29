@@ -86,7 +86,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         };
         _trayIcon.DoubleClick += (_, _) => OnOpenSettings(null, EventArgs.Empty);
         _balloons = new TrayBalloonHelper(_trayIcon, _uiContext);
-        _feedback = new VoiceFeedbackPresenter(_trayIcon, _uiContext, UpdateTrayTooltip);
+        _feedback = new VoiceFeedbackPresenter(_trayIcon, _uiContext, _settings, UpdateTrayTooltip);
         _feedback.ApplyHudCorner(_settings.HudScreenCorner);
 
         _sink.Emitted += (text, paste) =>

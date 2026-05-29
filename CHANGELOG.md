@@ -1,5 +1,34 @@
 # Changelog
 
+## V0.4.4 — 2026-05-29
+
+路线 B Phase 4 可选项：**透明 WebView2 状态 HUD**（`#/hud`），与 Macaron token 一致；无法初始化时自动回退原生 `VoiceStatusHud`。
+
+### Added
+
+- `VoiceWebStatusHud` + `VoiceStatusHudFactory`：`WS_EX_NOACTIVATE` / `ShowWithoutActivation`，C# `PostWebMessageAsJson` 驱动 `ui/#/hud`
+- 设置页「使用 WebView2 状态 HUD（实验）」；`AppSettings.UseWebStatusHud`（默认开，**重启应用**生效）
+- 环境变量 `AMR_WEB_HUD=0|1` 覆盖设置
+- `VoiceStatusHudFactoryTests`
+
+### Changed
+
+- `VoiceFeedbackPresenter` 经工厂选择 Web / 原生 HUD
+- `docs/UI_ROUTE_B_WEBVIEW2.md` §16 Phase 4 Web HUD 勾选完成
+
+### Files / modules touched
+
+- `src/ArrayMicRefreshment.App/VoiceWebStatusHud.cs`、`VoiceStatusHudFactory.cs`、`IVoiceStatusHud.cs`、`VoiceFeedbackPresenter.cs`
+- `ui/src/pages/HudPage.ts`、`router.ts`、`components.css`
+- `AppSettings.cs`、`SettingsDraft*`、`SettingsPage.ts`、`bridge.ts`
+- `tests/ArrayMicRefreshment.App.Tests/VoiceStatusHudFactoryTests.cs`
+
+### Verify
+
+- Windows：`AMR_WEB_HUD=1` 且已 `npm run build` → PTT/唤醒时见 Web 条；`AMR_WEB_HUD=0` → 原生条
+- §10.2：确认 HUD **不抢焦点**、粘贴仍成功
+- `dotnet test` App.Tests 含 `VoiceStatusHudFactoryTests`
+
 ## V0.4.3 — 2026-05-29
 
 迁移 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.0**（`a121a4b`）：规则单目录同步，移除重复的 `github-actions-ci` skill。
