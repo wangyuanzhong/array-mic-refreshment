@@ -1,52 +1,99 @@
 ---
-description: Universal agent workflow — definition of done, doc/code priority, local vs cloud
+description: Core contract every task in this repo must follow. Read first; obey unconditionally.
 alwaysApply: true
 ---
 
-# Universal core (all projects using this rules pack)
+# Core contract (read first, obey unconditionally)
 
-Synced from [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule). Lock: see `.cursor/UNIVERSAL_RULE_LOCK`.
+These rules are a **hard contract**, not advice. If a rule conflicts with your default behavior, the rule wins. Do not paraphrase rules into softer commitments.
 
-## Definition of done
+## Mode detection (run exactly once per task, before any non-trivial action)
 
-A task is **not finished** until **all** of the following that apply are satisfied:
+Write one of these lines into your plan **before any tool call that mutates state**:
 
-1. **Code/build** matches user intent and passes relevant tests you can run in this environment.
-2. **Documentation**: every project `.md` and `.txt` is reviewed and updated if this change affects behavior, UI, CLI, config, or ops (see `docs-sync-before-finish.mdc`).
-3. **EXE packaging** (if this repo is an exe/desktop packager): local build or CI exe job per `exe-packaging-local-cloud.mdc`.
-4. **Git**: if you commit/push, `.cursor/` is tracked per `git-track-cursor-folder.mdc`.
-5. **Post-push CI** (cloud / after push): per `post-push-ci-green.mdc` — **no opt-out** (`.cursor/.local-skip-post-push-ci` is ignored).
+```
+MODE: Cloud
+MODE: Local
+MODE: ambiguous — blocking
+```
 
-## Local vs cloud (one rules pack, two behaviors)
+You are in `MODE: Cloud` if **any** of these signals is true:
 
-Detect mode **once per task**:
+1. The system prompt you are reading right now contains a `<cloud_task_instructions>` block, or the literal phrase `running as a CLOUD AGENT`.
+2. `uname -s` returns `Linux` **and** `pwd` starts with `/workspace` or `/home/ubuntu/`.
+3. Env `CI=true`, **or** the file `.cursor/cloud-agent-marker` exists at the repo root.
 
-| Mode | When |
-|------|------|
-| **Cloud** | Cursor Cloud Agent; or Linux/remote agent without the project's native desktop toolchain; or env `CI=true` on a push-monitoring task |
-| **Local** | Cursor Desktop on the developer machine with repo checkout |
+You are in `MODE: Local` only if **none** of the Cloud signals fire and your working tree is in a typical developer-home location (`C:\Users\...`, `/Users/...`, `/home/<dev>/...` with no `/workspace` prefix).
 
-Apply the **Cloud** or **Local** subsection in each rule file. Do **not** maintain separate rule files per environment.
+If signals are mixed (e.g. WSL on a developer machine: Linux uname but home-dir cwd) declare `MODE: ambiguous — blocking`, **stop, and ask the user**. Do **not** default to Local.
 
-**Post-push CI**: always run `post-push-ci-green.mdc` after `git push` (including Local mode). Do not document or rely on `.cursor/.local-skip-post-push-ci`.
+## "Project documentation" — what this term means
 
-## Conflict priority (fixes, CI, refactors)
+**The project's documentation** = every `**/*.md` and `**/*.txt` the project itself ships, scoped per `docs-sync-before-finish.mdc`. **Discover** these files by walking the repo; do not assume any specific filename. The only file this pack pins by name is `CHANGELOG.md` (per `versioning-and-changelog.mdc`). When multiple docs disagree on the same topic, prefer the one closer to the project root and to the user-facing surface.
 
-When code, tests, CI, and docs disagree, resolve in this order:
+## You MUST
 
-1. **Product truth** in project docs: root `README.md`, `docs/**/*.md`, `AGENTS.md`, `CHANGELOG.md`, and any `.txt` spec shipped with the app — **functionality and UI definitions in these files win** over ad-hoc agent guesses.
-2. **This conversation** and explicit user messages in the current task.
-3. **Code** (implementation) — update code *or* update docs deliberately; never silently diverge.
-4. **CI/workflow YAML** — must reflect (1) and (3).
+1. **Run the Done check below** before you (a) tell the user the task is done, or (b) open / update a PR. Output the checklist verbatim with each item marked `done`, `N/A: <reason>`, or `blocked: <reason>`.
+2. **Resolve conflicts** between code, docs, tests, and CI in this order — and never silently diverge:
+   1. Product truth in **the project's documentation** (defined above) — including `CHANGELOG.md`. Discover what the project ships; do not assume specific filenames.
+   2. Explicit user messages in **this** conversation.
+   3. Implementation code (update code **or** docs deliberately, in the same change set).
+   4. CI / workflow YAML (must reflect 1 + 3).
+3. **Execute the work yourself.** Rules do not run shell commands. Builds, tests, `gh`, and edits only happen because *you* do them. Never claim a step was done without doing it.
 
-If a CI fix would violate (1), **change the test or implementation** or **update the doc in the same PR** with a short note — do not "make CI green" by breaking documented behavior.
+## You MUST NOT
 
-## Honesty
+- Mark a task done while any Done-check item is unmet. Stop and report the blocker instead.
+- Claim a rule "doesn't apply" without naming the concrete trigger that fails (e.g. "no `scripts/build-release.ps1` and no `.csproj` → EXE rule N/A").
+- Silently skip a rule. If you skip, name the rule and the reason in your final message.
+- Weaken docs, tests, or documented UI strings just to make CI green. If a CI fix would violate priority 1 or 2 above, change the implementation **or** update the doc in the same change set.
 
-Rules do not run shell commands by themselves. **You (Agent) must execute** build, test, `gh`, and doc edits. Report blockers instead of claiming done.
+## Sub-agent commit/push policy
 
-**No exceptions for "small" changes** — if you `git push`, you still run post-push CI monitoring when the rule applies; if you changed behavior or agent docs, you still run docs sync. Skipping because the diff is only `.cursor/` or "just a fix" is a rule violation.
+A "sub-agent" is anything you spawn via the Task tool. Two scenarios:
+
+- **Scenario A** — sub-agent in an isolated worktree (type `best-of-n-runner`, or `git rev-parse --git-dir` differs from yours). MAY commit and push its own branch. Before returning to its caller it MUST own all of: own `CHANGELOG.md` entry, pre-push hygiene per `docs-sync-before-finish.mdc`, **watching its push's CI to a documented end state** per `post-push-ci-green.mdc`, and a verbatim Done check. If the sub-agent's environment cannot do all four (no `gh`, time/turn budget, missing tools), it MUST NOT push — leave changes for the parent or return `blocked: <reason>`.
+- **Scenario B** — sub-agent shares the parent's workspace (default for `generalPurpose`, `explore`, etc). MUST NOT `git add` / `git commit` / `git push`. Leaves modifications in the working tree; the top-level agent commits, pushes, runs Done check, watches CI.
+
+If unsure, treat as Scenario B.
+
+### Parent verification when a sub-agent returns — MUST
+
+Before declaring your own task done, verify for every sub-agent that returned:
+
+1. **Done check** present and clean (every item `done` or `N/A: <reason>`; any `blocked` propagates up).
+2. **CI** on the sub-agent's branch reached success or a documented stop. If absent → `blocked: sub-agent did not watch CI`; watch CI yourself (`gh run list --branch <sub-agent-branch>` then `gh run watch`).
+3. **CHANGELOG** entry present if the sub-agent's push changed project files. If absent → `blocked: sub-agent did not update CHANGELOG`; write the entry, push, watch CI again.
+4. **Docs review** enumerated per-file (a bare `Reviewed N docs, no edits needed` is not acceptable). If absent → `blocked: sub-agent docs review not enumerated`; enumerate yourself.
+
+Your Done check covers the union of (your own work) and (verification of every sub-agent's work).
+
+## Done check (output this list at end of every task)
+
+```
+[ ] MODE declared (Local | Cloud | ambiguous)
+[ ] Code/build matches user intent; available tests pass
+[ ] Docs review per docs-sync-before-finish.mdc — per-file enumeration (every project .md/.txt with edited / checked: ok / skipped: <reason>; bare aggregate counts are forbidden)
+[ ] .gitignore reviewed and updated per docs-sync-before-finish.mdc (no stray secrets, build outputs, transient logs)
+[ ] Deletion-rename grep sweep per docs-sync-before-finish.mdc (clean OR list intentional carryovers OR N/A: nothing deleted/renamed)
+[ ] EXE packaging satisfied per exe-packaging-local-cloud.mdc (or N/A with reason)
+[ ] .cursor/ tracked per git-track-cursor-folder.mdc (only if a commit/push happened)
+[ ] CHANGELOG.md entry + version bump per versioning-and-changelog.mdc (only if files changed)
+[ ] Local auto-push satisfied per local-auto-push-current-branch.mdc (or N/A: not Local, or no marker file)
+[ ] CI watched and green per post-push-ci-green.mdc (only if a push happened)
+```
+
+If any item is `blocked`, **stop and tell the user** — do not push past it.
 
 ## This repo (array-mic-refreshment)
 
-Also read [`AGENTS.md`](../../AGENTS.md) (任务收尾自检) and [`docs/LOCAL_DEVELOPMENT.md`](../../docs/LOCAL_DEVELOPMENT.md). Project-only Agent skills: `.cursor/skills/frontend-design/` (`/frontend-design`).
+Also read [`AGENTS.md`](../../AGENTS.md) and [`docs/LOCAL_DEVELOPMENT.md`](../../docs/LOCAL_DEVELOPMENT.md).
+
+| Topic | Where |
+|-------|--------|
+| 路线 B / WebView2 | [`docs/UI_ROUTE_B_WEBVIEW2.md`](../../docs/UI_ROUTE_B_WEBVIEW2.md) |
+| Windows 自动化测试 | `.\scripts\test-phase2-route-b.ps1`、`.\scripts\test-feature-presets.ps1` |
+| UI 视觉 | `.cursor/skills/frontend-design/` → `/frontend-design` |
+| CI 排错 | `.cursor/skills/github-actions-ci/` → `/github-actions-ci` |
+
+**Windows CI is mandatory for this EXE repo:** `ci.yml` job `build-windows` (App.Tests) **and** `build-release-exe.yml` must pass. Ubuntu-only green is not enough.

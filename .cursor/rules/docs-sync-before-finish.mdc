@@ -5,22 +5,11 @@ alwaysApply: true
 
 # Pre-push hygiene (mandatory)
 
-This rule covers four things you must do before any `git push` or before declaring a task done:
-
-1. **Project documentation** is consistent with the changes (`.md`, `.txt`).
-2. **`.gitignore`** correctly excludes things that must not be tracked.
-3. **No secret-shaped file** is about to land in the commit.
-4. **No stale references** to deleted / renamed identifiers remain in the project.
+Before any `git push` or task-done declaration: docs synced, `.gitignore` correct, no secrets staged, no stale references to deleted/renamed identifiers.
 
 ## When this rule fires
 
-Run it **before** any of:
-
-- `git push`
-- Telling the user the task is finished (no push in scope)
-- Marking the task complete in the Done check
-
-Also run it after any substantive code / config / UI change, even if the user only asked for a small fix.
+Before `git push`, before declaring the task finished, or before marking the task complete in the Done check. Also after substantive code/config/UI changes even if the user asked only for a small fix.
 
 ---
 
@@ -46,15 +35,15 @@ Do **not** skip files because they look "boring" (e.g. small READMEs in subfolde
 
 ### What to do
 
-- Update stale sections in **this same task**. Match the file's existing language and tone.
+- **Open and read** every file in scope. The required-report enumeration below forces this; you cannot skip files silently.
+- Update stale sections in this same task. Match the file's language.
 - Add a `CHANGELOG.md` entry per `versioning-and-changelog.mdc` whenever any file changed.
-- Fix the **code** when docs reflect intended product but code drifted.
-- Fix the **docs** when code is correct and docs are stale.
+- Fix the **code** when docs reflect intended product but code drifted; fix the **docs** when code is correct and docs are stale.
 
 ### MUST NOT
 
 - Push or declare done with a known doc/code mismatch.
-- Update only `README.md` and ignore `docs/**` or shipped `.txt` specs.
+- Use any aggregate-count shortcut (`Reviewed N docs, no edits needed`). Per-file enumeration only.
 
 ---
 
@@ -78,7 +67,7 @@ If any newly-appearing path matches a category below and is **not** already cove
 | Local-only Cursor state | `.cursor/agent-transcripts/`, `terminals/`, `.cursor/.local-auto-push` (the marker, not the rule) |
 | Secrets (see §3) | `.env*`, `*.pem`, `*.key`, `secrets.*`, `credentials*`, `id_rsa*` |
 
-Keep `.cursor/rules/`, `.cursor/skills/`, `.cursor/README.md` **tracked** (`git-track-cursor-folder.mdc`).
+Keep `.cursor/rules/` and `.cursor/skills/` **tracked** (`git-track-cursor-folder.mdc`). If the project also has its own `.cursor/README.md` describing the install, track that too — but it is not required.
 
 ---
 
@@ -97,17 +86,15 @@ If **any** of the following would be staged (and is **not** already in `.gitigno
 - `secrets.*`, `secret.*`, `credentials*`, `credentials.json`, `*.kdbx`
 - `aws_credentials`, `gcp-credentials*.json`, `azure-credentials*.json`, `service-account*.json`
 
-Treat this as a **safety stop**, not a normal failure: do **not** try to "auto-add to `.gitignore` and continue." Tell the user what was about to leak and let them decide. (Once they confirm and the file is gitignored or removed, you may continue.)
+This is a **safety stop**: do not auto-add to `.gitignore` and continue. Report what was about to leak; once the user confirms the file is gitignored or removed, you may continue.
 
-Files matching the **template** suffixes above (`.env.example` etc.) are fine to commit and do not trigger the stop.
+Template suffixes (`.env.example` etc.) do not trigger the stop.
 
 ---
 
 ## 4. Deletion / rename grep sweep — MUST
 
-The per-file walk in §1 catches drift in the files you remembered to look at. This step catches stale references in the files you didn't think to re-read.
-
-**When this step fires.** Whenever the change set in this task **deletes**, **renames**, or **removes** any user-visible identifier:
+When the change set deletes, renames, or removes any user-visible identifier:
 
 - A file or directory (e.g. `scripts/install-universal-rules.ps1`, `scripts/`).
 - A script / command name (e.g. `build-release.ps1`).
@@ -146,9 +133,30 @@ If the identifier is short and noisy (e.g. `id`, `x`, single letters), grep on a
 
 ## Required report (in your final message)
 
-Include all of:
+### Docs review (enumeration — mandatory)
 
-- `Docs edited: <relative paths>` **or** `Reviewed N project docs, no edits needed.` (give the actual count)
+Output a `Docs review:` section accounting for **every** project `.md`/`.txt` in scope (no aggregate-count shortcut). Per file, exactly one status:
+
+- `edited: <one-line summary>`
+- `checked: ok`
+- `skipped: <reason>` (vendored / out-of-scope path)
+
+Format (filenames are illustrative — list whatever your project actually ships, per `00-universal-core.mdc` "Project documentation"):
+
+```
+Docs review:
+- <root-readme>.md — edited: <summary>
+- CHANGELOG.md — edited: appended [X.Y.Z] entry
+- docs/<some-spec>.md — checked: ok (no relevant change)
+- docs/<subdir>/ (N files) — checked: ok (group: same status for all)
+- <vendored-path>/** (N files) — skipped: <reason>
+Total: M reviewed, A edited, B ok, C skipped
+```
+
+You **may** group `<dir>/ (N files) — <status>` only when every file in the group shares that status. The `Total:` line must equal the in-scope file count. A file appearing nowhere counts as missing.
+
+### Other sub-reports
+
 - `.gitignore: <unchanged | updated to add: <patterns>>`
-- `Secret-leak scan: clean` **or** `Secret-leak scan: BLOCKED on <paths>` (and the task must be in `blocked` state)
-- `Deletion-rename grep sweep: <N/A: nothing deleted or renamed | clean | <list of intentional carryovers and why>>`
+- `Secret-leak scan: clean` **or** `Secret-leak scan: BLOCKED on <paths>` (task must be `blocked`)
+- `Deletion-rename grep sweep: <N/A: nothing deleted or renamed | clean | <intentional carryovers and why>>`

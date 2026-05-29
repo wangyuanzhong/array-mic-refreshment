@@ -15,9 +15,10 @@ The directory `.cursor/` at the **repo root** must be versioned. This is **not**
    git check-ignore -v .cursor .cursor/rules .cursor/skills
    ```
 
-2. If `.gitignore` contains a blanket ignore (`.cursor/`, `.cursor/*`, `.cursor/**`), remove it. You may keep targeted ignores like:
+2. If `.gitignore` contains a blanket ignore (`.cursor/`, `.cursor/*`, `.cursor/**`), remove it. You may keep targeted ignores for genuinely local-only state, e.g.:
    - `.cursor/agent-transcripts/`
-   - `.cursor/.local-skip-post-push-ci`
+
+   Do **not** ignore `.cursor/.local-auto-push` — it is a project-level opt-in marker that all collaborators on the repo should share (see `local-auto-push-current-branch.mdc`).
 
    You MUST NOT un-ignore `rules/` while leaving `skills/` ignored — keep the pack consistent.
 

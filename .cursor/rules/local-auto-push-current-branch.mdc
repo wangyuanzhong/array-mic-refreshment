@@ -5,86 +5,48 @@ alwaysApply: true
 
 # Local auto-push (current branch)
 
-When enabled, this rule makes the agent commit and push at the end of any complete reply that actually modified project files. It is **opt-in per repo** and runs only in `MODE: Local`.
+Opt-in per repo, `MODE: Local` only. When active, the agent commits and pushes at end of any reply that modified project files.
 
-## Trigger gate (check first, in this order)
+## Trigger gate
 
-This rule is **active** only when **all** of the following are true:
+Active only when all are true:
 
-1. `MODE: Local` (per `00-universal-core.mdc`).
-2. The marker file `.cursor/.local-auto-push` exists at the repo root.
-3. This reply (the parent reply, including any sub-agent replies that returned to you) **modified at least one project file**, where "project file" means any path **outside** the following exclusion list:
-   - `.cursor/agent-transcripts/**`
-   - `terminals/**`
-   - `.cursor/.local-auto-push` (the marker itself)
-   - Any path matched by `.gitignore`
+1. `MODE: Local`.
+2. `.cursor/.local-auto-push` exists at the repo root.
+3. This reply (incl. any returned sub-agent reply) modified at least one project file — meaning any path outside `.cursor/agent-transcripts/**`, `terminals/**`, the marker itself, and gitignored paths. If only excluded paths changed, write `Auto-push: N/A (no project-file modifications)` in the Done check and skip.
 
-   If only excluded paths changed, write `Auto-push: N/A (no project-file modifications this reply)` in the Done check and skip the rest of this rule.
+If any of (1)–(3) fail, write the failing condition in the Done check and skip.
 
-If any of (1)–(3) fail: write the failing condition in the Done check and skip.
+To enable in a project: see `templates/local-auto-push-marker.md`.
 
 ## Preconditions (any failure → stop and report; do **not** push)
 
-Before staging, verify:
-
-1. **Not on a detached HEAD.** `git symbolic-ref --quiet HEAD` must succeed. If detached, stop and tell the user — do not commit a dangling SHA.
-2. **Pre-push hygiene done** per `docs-sync-before-finish.mdc`: docs synced, `.gitignore` reviewed, secret-leak scan **clean**.
-3. **`CHANGELOG.md` entry written and version bumped** per `versioning-and-changelog.mdc`.
-4. **No merge / rebase / cherry-pick / bisect in progress.** Check for `.git/MERGE_HEAD`, `.git/REBASE_HEAD`, `.git/CHERRY_PICK_HEAD`, `.git/BISECT_LOG`.
-5. **Fast-forward is possible.** Run `git fetch origin "$(git rev-parse --abbrev-ref HEAD)" || true`, then `git rev-list --left-right --count HEAD...@{u}` (if upstream exists). If remote has commits we don't have:
-   - Try `git pull --rebase origin "$(git rev-parse --abbrev-ref HEAD)"`.
-   - If the rebase has any conflict — even one file — abort with `git rebase --abort` and stop. Do not auto-resolve.
+1. **Not on detached HEAD** (`git symbolic-ref --quiet HEAD` must succeed).
+2. **Pre-push hygiene clean** per `docs-sync-before-finish.mdc` (docs synced, `.gitignore` reviewed, secret-leak scan clean, deletion-grep-sweep clean).
+3. **`CHANGELOG.md` entry + version bump** per `versioning-and-changelog.mdc`.
+4. **No merge / rebase / cherry-pick / bisect in progress** (no `.git/MERGE_HEAD`, `.git/REBASE_HEAD`, `.git/CHERRY_PICK_HEAD`, `.git/BISECT_LOG`).
+5. **Fast-forward is possible.** `git fetch origin "$(git rev-parse --abbrev-ref HEAD)"`, then check `git rev-list --left-right --count HEAD...@{u}`. If remote is ahead, try `git pull --rebase`; on any conflict, `git rebase --abort` and stop. Never auto-resolve.
 
 ## Push procedure — MUST
 
-1. Stage **everything**:
-
-   ```bash
-   git add -A
-   ```
-
-2. Commit using the Conventional Commits convention required by `versioning-and-changelog.mdc`:
-
-   ```bash
-   git commit -m "<type>(<scope>): <subject>" -m "<body explaining what + why>"
-   ```
-
-3. Push the **current branch** to its corresponding remote branch:
-   - First push of a new branch (no upstream set):
-
-     ```bash
-     git push -u origin HEAD
-     ```
-
-   - Subsequent pushes:
-
-     ```bash
-     git push origin HEAD
-     ```
-
-4. After push completes, `post-push-ci-green.mdc` fires automatically. You **must** watch CI to green (or to a documented stop condition). There is no Local opt-out.
+1. `git add -A`
+2. `git commit -m "<type>(<scope>): <subject>" -m "<body>"` per `versioning-and-changelog.mdc` (Conventional Commits).
+3. Push the **current branch**:
+   - First push of a new branch: `git push -u origin HEAD`
+   - Subsequent: `git push origin HEAD`
+4. Watch CI to a documented end state per `post-push-ci-green.mdc`.
 
 ## You MUST NOT
 
-- `git push --force` or `git push --force-with-lease`. Never. If the push is rejected, stop and tell the user.
-- Push to any branch other than the current branch. (You wanted current-branch behavior, not "always push to main".)
-- `git add` a file that triggered the secret-leak scan in `docs-sync-before-finish.mdc`. The scan is a hard stop.
-- Bypass the version bump — every push gets a new `CHANGELOG.md` entry.
-- Push when on a detached HEAD, in the middle of a merge/rebase, or after a non-fast-forward fetch you couldn't resolve cleanly.
-- Push from a Scenario-B sub-agent (shared workspace). See `00-universal-core.mdc` "Sub-agent commit/push policy".
+- Use `git push --force` or `--force-with-lease`. Ever. Push rejected → stop.
+- Push to any branch other than the current branch.
+- Stage a file that triggered the secret-leak hard stop.
+- Bypass the version bump.
+- Push on detached HEAD, mid-merge/rebase, or after a non-fast-forward you couldn't cleanly resolve.
+- Push from a Scenario B sub-agent (see `00-universal-core.mdc`).
 
-## Required report (in your final message)
+## Required report
 
 - `Auto-push: <pushed | N/A: <reason> | blocked: <reason>>`
-- If pushed: branch name, commit SHA, version bumped from `X.Y.Z` to `X.Y.Z'`.
+- If pushed: branch name, commit SHA, version `X.Y.Z` → `X.Y.Z'`.
 - If blocked: name the failing precondition.
-
-## How to enable in a repo
-
-```bash
-mkdir -p .cursor && touch .cursor/.local-auto-push
-git add .cursor/.local-auto-push
-git commit -m "chore(cursor): enable local auto-push for current branch"
-```
-
-The marker file itself is tracked (so all developers on the repo share the policy). To temporarily disable on one machine, rename it locally — but be aware your teammates still have auto-push on.

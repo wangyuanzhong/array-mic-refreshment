@@ -1,5 +1,32 @@
 # Changelog
 
+## V0.4.2 — 2026-05-29
+
+同步升级后的 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)（`96e3c5d`），强化 Agent 收尾契约，不改变应用运行时行为。
+
+### Added
+
+- 通用规则 `local-auto-push-current-branch.mdc`（须 `.cursor/.local-auto-push` 标记才在 Local 模式自动 push）
+- `00-universal-core`：强制 `MODE:` 声明、verbatim **Done check**、子 Agent push/CI/CHANGELOG 验证
+
+### Changed
+
+- `docs-sync-before-finish`：禁止「Reviewed N docs」聚合写法，要求逐文件 `Docs review:` 枚举
+- `post-push-ci-green`：明确「谁 push 谁 watch」；子 Agent 不能 push 后甩锅给父 Agent
+- `apply-amr-cursor-overlays.ps1` 改为**仅追加** AMR 专项段，避免覆盖弱化新版通用正文
+- `AGENTS.md`、`.cursor/README.md` 与新版规则对齐
+
+### Files / modules touched
+
+- `.cursor/rules/*.mdc` — 自 universal `96e3c5d` 刷新 + AMR 追加段
+- `scripts/apply-amr-cursor-overlays.ps1`、`scripts/sync-universal-cursor-rules.ps1`
+- `AGENTS.md`、`.cursor/README.md`、`.cursor/UNIVERSAL_RULE_LOCK`
+
+### Verify
+
+- 对比 `.cursor/UNIVERSAL_RULE_LOCK` 与 universal 仓库 `main` HEAD
+- 新开 Agent 任务应输出 `MODE:` 行与完整 Done check
+
 ## V0.4.1 — 2026-05-28
 
 本次 push 修复 Windows CI「假卡死」与规则收尾缺口，不改变音频/唤醒/ASR 管道行为。

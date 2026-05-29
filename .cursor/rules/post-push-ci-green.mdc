@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Post-push CI watch
 
-This rule applies in **both** `MODE: Cloud` and `MODE: Local`. There is no opt-out. (Earlier versions of this pack honored `.cursor/.local-skip-post-push-ci`; that file is now ignored — if your repo still has it you can delete it.)
+This rule applies in **both** `MODE: Cloud` and `MODE: Local`. There is no opt-out.
 
 ## When this rule fires
 
@@ -13,6 +13,16 @@ This rule applies in **both** `MODE: Cloud` and `MODE: Local`. There is no opt-o
 - You will mark work done / open / update a PR while commits are (or will be) on the remote.
 
 If the latest push **did not trigger** any workflow (check `on:` and `paths:` in `.github/workflows/*.yml`), state that explicitly and skip watching. This is the only legitimate skip.
+
+## Who watches — MUST
+
+**Whoever ran `git push` watches CI for that push** to a documented end state, before returning to their caller. Applies to top-level agents and to Scenario A sub-agents on their own branches (see `00-universal-core.mdc` "Sub-agent commit/push policy"). The pushing agent does not delegate the watch to its caller.
+
+If a sub-agent cannot watch CI in its environment (no `gh`, time/turn budget too short, missing tools), it MUST NOT push. Leave changes for the parent or return `blocked: cannot watch CI for required push`. Pushing without watching is a hard rule violation.
+
+## Parent verification (when a sub-agent returns) — MUST
+
+See `00-universal-core.mdc` § "Parent verification when a sub-agent returns".
 
 ## You MUST
 
@@ -26,7 +36,7 @@ If the latest push **did not trigger** any workflow (check `on:` and `paths:` in
 2. For EXE repos, the **Windows** jobs (e.g. App.Tests, Build release EXE) MUST pass. Ubuntu-only green is **not** enough.
 3. On red:
    1. `gh run view <run-id> --log-failed` — find the first real error.
-   2. Cross-check `README.md`, `docs/**`, `AGENTS.md`, `CHANGELOG.md`, and shipped `.txt` specs **before** changing behavior. If the fix would contradict them, update the doc in the same change set or change the implementation.
+   2. Cross-check **the project's documentation** (per `00-universal-core.mdc` "Project documentation — what this term means" — discover what the project actually ships, do not assume filenames) **before** changing behavior. If the fix would contradict any documented behavior, update the doc in the same change set or change the implementation.
    3. Fix in repo. Commit using the Conventional Commits convention required by `versioning-and-changelog.mdc`. CI fixes use `fix(ci): <reason>` so they are visually distinguishable from product fixes in `CHANGELOG.md`.
    4. Push, watch again.
 4. Report run IDs and the final state in your handoff.
