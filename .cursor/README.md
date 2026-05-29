@@ -1,13 +1,13 @@
 # `.cursor/` — 本地与 Cloud Agent 共用
 
-规则包：[cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.0**（版本见 [`UNIVERSAL_RULE_LOCK`](UNIVERSAL_RULE_LOCK)）。
+规则包：[cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.1**（版本见 [`UNIVERSAL_RULE_LOCK`](UNIVERSAL_RULE_LOCK)）。
 
 | 路径 | 作用 |
 |------|------|
 | [`rules/`](rules/) | 通用 `alwaysApply` 规则 + 本仓库追加段（`apply-amr-cursor-overlays.ps1`） |
 | [`skills/frontend-design/`](skills/frontend-design/) | 可选 Agent skill：UI 视觉（`/frontend-design`） |
 
-自 **0.9.0** 起，上游不再提供 `github-actions-ci` skill；CI 排错内容在 [`rules/post-push-ci-green.mdc`](rules/post-push-ci-green.mdc)（含通用 fix patterns 表与本仓库 workflow 段）。
+自 **0.9.0** 起无 `github-actions-ci` skill；CI 在 [`rules/post-push-ci-green.mdc`](rules/post-push-ci-green.mdc)。**0.9.1** 强化：计划须写 `MODE:` 与 `Closing: I will end this reply with the verbatim Done check.`；每轮回复**主动**输出 Done check。
 
 刷新：
 

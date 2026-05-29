@@ -6,11 +6,11 @@
 
 ## 通用 Cursor 规则（强制）
 
-本仓库已安装 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.0**（见 [`.cursor/UNIVERSAL_RULE_LOCK`](.cursor/UNIVERSAL_RULE_LOCK)）。**所有 Agent 任务**须遵守 `.cursor/rules/` 中 `alwaysApply` 规则。权威完成定义与收尾格式见 **[`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc)**（须在回复末尾输出 **Done check** 清单，逐项 `done` / `N/A` / `blocked`）。
+本仓库已安装 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.1**（见 [`.cursor/UNIVERSAL_RULE_LOCK`](.cursor/UNIVERSAL_RULE_LOCK)）。**所有 Agent 任务**须遵守 `.cursor/rules/` 中 `alwaysApply` 规则。权威收尾见 **[`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc)**：计划里写 **`MODE:`** 与 **`Closing: I will end this reply with the verbatim Done check.`**；每轮改文件的回复**末尾主动**输出 verbatim **Done check**（勿等用户追问）。
 
 | 规则 | 作用 |
 |------|------|
-| [`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc) | **每个 agent 跑完整规则**、MODE 声明、Done check、子 Agent 场景 + parent verification |
+| [`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc) | **最重要**：主动 Done check；计划两行 MODE + Closing；每个 agent 完整 hygiene；子 Agent + parent verification |
 | [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc) | push 后 `gh run watch` 至绿（含 **Common CI fix patterns**；**无跳过**；须 **Windows** `build-windows`） |
 | [`docs-sync-before-finish.mdc`](.cursor/rules/docs-sync-before-finish.mdc) | 逐文件 `Docs review:` + **change-impact grep sweep**（禁止聚合偷懒） |
 | [`versioning-and-changelog.mdc`](.cursor/rules/versioning-and-changelog.mdc) | 每次 push 写 CHANGELOG + 版本号 |
@@ -28,7 +28,7 @@
 
 ## Cloud Agent 必读（MODE: Cloud）
 
-1. 任务开始先写 `MODE: Cloud`（见 `00-universal-core.mdc`）。
+1. 任务开始计划在写 `MODE: Cloud` 的同时写 `Closing: I will end this reply with the verbatim Done check.`（见 `00-universal-core.mdc`）。
 2. **不能**在云端跑 WinForms exe / `watch-build-release.ps1`；用 CI 验证（`build-windows` + `build-release-exe`）。
 3. 使用 **Task 子 Agent** 时：默认 Scenario B（子 Agent **不得** push）；若子 Agent 自己 push，父 Agent 必须按 `00-universal-core` 验证其 Done check、CHANGELOG、CI。
 4. 收尾必须输出完整 **Done check** + `Docs review:` 逐文件列表 + CI run ID（若 push 过）。

@@ -48,7 +48,7 @@ if (-not $WhatIf) {
     $lockPath = Join-Path $ProjectRoot '.cursor\UNIVERSAL_RULE_LOCK'
     @(
         "cursor-universal-rule=$sha"
-        "universal-pack-version=0.9.0"
+        "universal-pack-version=0.9.1"
         "synced=$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK')"
         "url=https://github.com/wangyuanzhong/cursor-universal-rule"
     ) | Set-Content -Path $lockPath -Encoding UTF8

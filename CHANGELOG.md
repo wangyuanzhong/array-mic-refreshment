@@ -1,5 +1,24 @@
 # Changelog
 
+## V0.4.5 — 2026-05-29
+
+同步 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.1**（`ce5dad6`），强化 Agent **主动输出 Done check**（计划须含 `Closing:` 承诺行）。无应用运行时变更。
+
+### Changed
+
+- `.cursor/rules/00-universal-core.mdc` — 新增 “The single most important rule”；MODE 检测改为计划两行；禁止等用户追问才补 Done check
+- `AGENTS.md`、`.cursor/README.md`、`.cursor/UNIVERSAL_RULE_LOCK` 对齐 0.9.1
+
+### Files / modules touched
+
+- `.cursor/rules/*.mdc`、`.cursor/UNIVERSAL_RULE_LOCK`、`scripts/sync-universal-cursor-rules.ps1`
+- `AGENTS.md`、`.cursor/README.md`、`CHANGELOG.md`、`VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj`
+
+### Verify
+
+- `UNIVERSAL_RULE_LOCK` → `ce5dad6` / `0.9.1`
+- 新会话 Agent 计划应含 `Closing: I will end this reply with the verbatim Done check.`
+
 ## V0.4.4 — 2026-05-29
 
 路线 B Phase 4 可选项：**透明 WebView2 状态 HUD**（`#/hud`），与 Macaron token 一致；无法初始化时自动回退原生 `VoiceStatusHud`。

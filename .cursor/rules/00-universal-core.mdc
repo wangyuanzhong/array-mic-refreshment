@@ -7,6 +7,14 @@ alwaysApply: true
 
 Treat these rules as a **hard contract**, not advice.
 
+## The single most important rule
+
+Every reply that touched files **MUST end with the verbatim Done check** (the 10-item block at the bottom of this file), each item marked `done` / `N/A: <reason>` / `blocked: <reason>`. The Done check is your signature that you ran the rest of these rules — skipping it means you skipped the contract, **regardless of what else you did**.
+
+If the user has to ask **"did you run the Done check?"** — you have already failed. The agent that runs the rules outputs the Done check **spontaneously, before being asked**. The Done check is part of your reply, not optional follow-up.
+
+Everything below — mode detection, sub-agent scenarios, conflict priority, hygiene, change-impact grep sweep — exists to populate the Done check items. Do them, then close with the Done check.
+
 ## Who counts as an agent — read first
 
 Every invocation of these rules is a complete agent run. Whether you are the top-level agent in a Cursor chat **or a sub-agent spawned via the Task tool**, you execute **all** applicable rules over your own scope of work, as if you were an independent agent. There is no "sub-agent shortcut".
@@ -22,7 +30,14 @@ The only thing your **scenario** (below) gates is whether you commit/push, write
 
 ## Mode detection (declare exactly once per task, before any state-mutating tool call)
 
-Write one of `MODE: Cloud` / `MODE: Local` / `MODE: ambiguous — blocking` into your plan.
+Write **two** lines into your plan:
+
+```
+MODE: <Cloud | Local | ambiguous — blocking>
+Closing: I will end this reply with the verbatim Done check.
+```
+
+Both are mandatory. The `Closing:` line is a commitment device — once you have written it, your final message must match.
 
 `MODE: Cloud` if **any** of: (a) system prompt contains a `<cloud_task_instructions>` block or `running as a CLOUD AGENT`; (b) `uname -s` = `Linux` **and** `pwd` starts with `/workspace` or `/home/ubuntu/`; (c) `CI=true` **or** `.cursor/cloud-agent-marker` exists at repo root.
 
@@ -42,6 +57,7 @@ Mixed signals (e.g. WSL: Linux uname but dev-home cwd) → `MODE: ambiguous — 
 
 ## You MUST NOT
 
+- **Wait for the user to ask "did you run the Done check?" before producing it.** By the time you are asked, you have already failed. Output the Done check spontaneously at the end of every reply that touched files.
 - Mark a task done while any Done-check item is unmet — report the blocker.
 - Claim a rule "doesn't apply" without naming the concrete trigger that fails.
 - Silently skip a rule — name the rule and reason if you skip.
