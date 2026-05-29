@@ -6,13 +6,13 @@
 
 ## 通用 Cursor 规则（强制）
 
-本仓库已安装 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)。**所有 Agent 任务**须遵守 `.cursor/rules/` 中 `alwaysApply` 规则。权威完成定义与收尾格式见 **[`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc)**（须在回复末尾输出 **Done check** 清单，逐项 `done` / `N/A` / `blocked`）。
+本仓库已安装 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.0**（见 [`.cursor/UNIVERSAL_RULE_LOCK`](.cursor/UNIVERSAL_RULE_LOCK)）。**所有 Agent 任务**须遵守 `.cursor/rules/` 中 `alwaysApply` 规则。权威完成定义与收尾格式见 **[`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc)**（须在回复末尾输出 **Done check** 清单，逐项 `done` / `N/A` / `blocked`）。
 
 | 规则 | 作用 |
 |------|------|
-| [`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc) | **MODE 声明**、Done check、子 Agent 策略、文档冲突优先级 |
-| [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc) | push 后 `gh run watch` 至绿（**无跳过**；须 **Windows** `build-windows`） |
-| [`docs-sync-before-finish.mdc`](.cursor/rules/docs-sync-before-finish.mdc) | 逐文件 `Docs review:` 枚举（禁止「扫了 N 个文件」式偷懒） |
+| [`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc) | **每个 agent 跑完整规则**、MODE 声明、Done check、子 Agent 场景 + parent verification |
+| [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc) | push 后 `gh run watch` 至绿（含 **Common CI fix patterns**；**无跳过**；须 **Windows** `build-windows`） |
+| [`docs-sync-before-finish.mdc`](.cursor/rules/docs-sync-before-finish.mdc) | 逐文件 `Docs review:` + **change-impact grep sweep**（禁止聚合偷懒） |
 | [`versioning-and-changelog.mdc`](.cursor/rules/versioning-and-changelog.mdc) | 每次 push 写 CHANGELOG + 版本号 |
 | [`exe-packaging-local-cloud.mdc`](.cursor/rules/exe-packaging-local-cloud.mdc) | 本地 `watch-build-release.ps1 -Once`；云端验证 **Build release EXE** |
 | [`local-auto-push-current-branch.mdc`](.cursor/rules/local-auto-push-current-branch.mdc) | **仅 Local** 且存在 `.cursor/.local-auto-push` 时自动 commit/push |
@@ -43,4 +43,4 @@
 
 **自动化（Windows）：** `.\scripts\test-phase2-route-b.ps1`、`.\scripts\test-feature-presets.ps1`
 
-**Skill 调用（连字符）：** `/frontend-design`、 `/github-actions-ci` — 见 [`.cursor/README.md`](.cursor/README.md)
+**Skill 调用（可选）：** `/frontend-design` — 见 [`.cursor/README.md`](.cursor/README.md)。CI 排错见 [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc)（不再使用 `github-actions-ci` skill）。

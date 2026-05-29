@@ -9,7 +9,7 @@ param(
     [switch]$WhatIf
 )
 
-# sync-universal-cursor-rules.ps1 — refresh .cursor/rules from cursor-universal-rule
+# sync-universal-cursor-rules.ps1 — refresh .cursor/rules from cursor-universal-rule (rules-only, 0.9.0+)
 #
 #   .\scripts\sync-universal-cursor-rules.ps1
 #   .\scripts\sync-universal-cursor-rules.ps1 -Refresh
@@ -31,26 +31,24 @@ if ($Refresh -or -not (Test-Path (Join-Path $UniversalRepo 'rules'))) {
     }
 }
 
-$installer = Join-Path $UniversalRepo 'scripts\install-universal-rules.ps1'
-if (-not (Test-Path $installer)) {
-    throw "install-universal-rules.ps1 not found under $UniversalRepo"
+$srcRules = Join-Path $UniversalRepo 'rules'
+if (-not (Test-Path $srcRules)) {
+    throw "rules/ not found under $UniversalRepo — expected cursor-universal-rule 0.9.0+ layout"
 }
 
-Write-Host "→ Installing universal rules into $ProjectRoot" -ForegroundColor Cyan
-$installArgs = @{
-    ProjectRoot   = $ProjectRoot
-    UniversalRepo = $UniversalRepo
-    FixGitignore  = $true
+$destRules = Join-Path $ProjectRoot '.cursor\rules'
+Write-Host "→ Copying rules/*.mdc into $destRules" -ForegroundColor Cyan
+if (-not $WhatIf) {
+    New-Item -ItemType Directory -Path $destRules -Force | Out-Null
+    Copy-Item (Join-Path $srcRules '*.mdc') $destRules -Force
 }
-if ($WhatIf) { $installArgs['WhatIf'] = $true }
-
-& $installer @installArgs
 
 if (-not $WhatIf) {
     $sha = (git -C $UniversalRepo rev-parse HEAD).Trim()
     $lockPath = Join-Path $ProjectRoot '.cursor\UNIVERSAL_RULE_LOCK'
     @(
         "cursor-universal-rule=$sha"
+        "universal-pack-version=0.9.0"
         "synced=$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK')"
         "url=https://github.com/wangyuanzhong/cursor-universal-rule"
     ) | Set-Content -Path $lockPath -Encoding UTF8
@@ -59,58 +57,14 @@ if (-not $WhatIf) {
     $overlays = Join-Path $PSScriptRoot 'apply-amr-cursor-overlays.ps1'
     & $overlays -ProjectRoot $ProjectRoot
 
-    # Restore project README (universal installer may overwrite with generic)
-    $readmeSrc = Join-Path $ProjectRoot '.cursor\README.md'
-    if (Test-Path $readmeSrc) {
-        $body = Get-Content $readmeSrc -Raw -Encoding UTF8
-        if ($body -match 'local-skip-post-push-ci') {
-            Write-Host '  ⚠ .cursor/README.md still mentions local-skip — re-run apply-amr-cursor-overlays or restore from git' -ForegroundColor Yellow
-        }
-    }
-
-    # Merge github-actions-ci skill: universal + AMR
-    $skillPath = Join-Path $ProjectRoot '.cursor\skills\github-actions-ci\SKILL.md'
-    $amrTail = @'
-
-## Workflows in this repo (array-mic-refreshment)
-
-| Workflow file | Name | Runner | Notes |
-|---------------|------|--------|-------|
-| `.github/workflows/ci.yml` | CI | `ubuntu-latest` + `windows-latest` | Windows **App.Tests** |
-| `.github/workflows/build-release-exe.yml` | Build release EXE | `windows-latest` | `build-release.ps1`; robocopy → `$LASTEXITCODE = 0` |
-| `.github/workflows/release.yml` | Release | tags | Manual |
-
-## Common pitfalls (this repo)
-
-- **Intent router tests**: `skills/manifest.yaml` `intent_map` keys (e.g. `general_chat`, not `general_ai`).
-- **WebUiBridge JSON**: `WhenWritingNull`; no `"warning": null` in success JSON.
-- **Windows-only** App.Tests — Ubuntu green ≠ done.
-- **dotnet --filter**: separate test steps on Windows CI; no `&` in one shell line.
-
-## Optional: local pre-push
-
-```bash
-dotnet test ArrayMicRefreshment.CI.slnf -c Release
-dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.csproj -c Release  # Windows
-```
-'@
-    if (Test-Path $skillPath) {
-        $base = Get-Content $skillPath -Raw -Encoding UTF8
-        if ($base -notmatch '## Workflows in this repo') {
-            $front = @'
----
-name: github-actions-ci
-description: Post-push GitHub Actions triage (gh run watch, log-failed, Windows jobs). Use when CI is red, after git push, or /github-actions-ci.
----
-
-'@
-            if ($base -notmatch '^---') { $base = $front + $base }
-            Set-Content -Path $skillPath -Value ($base.TrimEnd() + $amrTail) -Encoding UTF8 -NoNewline
-            Write-Host '  ✔ Merged AMR tail into github-actions-ci skill' -ForegroundColor Green
-        }
+    # 0.9.0: github-actions-ci skill removed upstream — drop stale copy if present
+    $staleSkill = Join-Path $ProjectRoot '.cursor\skills\github-actions-ci'
+    if (Test-Path $staleSkill) {
+        Remove-Item $staleSkill -Recurse -Force
+        Write-Host '  ✔ Removed .cursor/skills/github-actions-ci (inlined in post-push-ci-green.mdc)' -ForegroundColor Green
     }
 }
 
 Write-Host ''
 Write-Host "Done. Project: $ProjectRoot" -ForegroundColor Cyan
-Write-Host 'Next: git add .cursor/ && commit && push && gh run watch (post-push-ci-green.mdc)' -ForegroundColor Gray
+Write-Host 'Next: git add .cursor/ scripts/ && commit && push && gh run watch (post-push-ci-green.mdc)' -ForegroundColor Gray

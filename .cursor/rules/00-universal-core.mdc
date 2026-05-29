@@ -5,27 +5,30 @@ alwaysApply: true
 
 # Core contract (read first, obey unconditionally)
 
-These rules are a **hard contract**, not advice. If a rule conflicts with your default behavior, the rule wins. Do not paraphrase rules into softer commitments.
+Treat these rules as a **hard contract**, not advice.
 
-## Mode detection (run exactly once per task, before any non-trivial action)
+## Who counts as an agent — read first
 
-Write one of these lines into your plan **before any tool call that mutates state**:
+Every invocation of these rules is a complete agent run. Whether you are the top-level agent in a Cursor chat **or a sub-agent spawned via the Task tool**, you execute **all** applicable rules over your own scope of work, as if you were an independent agent. There is no "sub-agent shortcut".
 
-```
-MODE: Cloud
-MODE: Local
-MODE: ambiguous — blocking
-```
+Your **round** ends when you return to your caller (sub-agent → parent; top-level → user). At that moment you MUST have:
 
-You are in `MODE: Cloud` if **any** of these signals is true:
+1. Declared `MODE: ...` in your plan.
+2. Run pre-push hygiene per `docs-sync-before-finish.mdc` over the files you touched — yes, even if you are not pushing (the parent needs your hygiene + change-impact report to verify before it pushes for you).
+3. Listed the user-visible identifiers your work touched and run the change-impact grep sweep over them (`docs-sync-before-finish.mdc` §4).
+4. Output a verbatim Done check in your final / return message.
 
-1. The system prompt you are reading right now contains a `<cloud_task_instructions>` block, or the literal phrase `running as a CLOUD AGENT`.
-2. `uname -s` returns `Linux` **and** `pwd` starts with `/workspace` or `/home/ubuntu/`.
-3. Env `CI=true`, **or** the file `.cursor/cloud-agent-marker` exists at the repo root.
+The only thing your **scenario** (below) gates is whether you commit/push, write `CHANGELOG.md`, and watch CI. Everything else applies to every agent.
 
-You are in `MODE: Local` only if **none** of the Cloud signals fire and your working tree is in a typical developer-home location (`C:\Users\...`, `/Users/...`, `/home/<dev>/...` with no `/workspace` prefix).
+## Mode detection (declare exactly once per task, before any state-mutating tool call)
 
-If signals are mixed (e.g. WSL on a developer machine: Linux uname but home-dir cwd) declare `MODE: ambiguous — blocking`, **stop, and ask the user**. Do **not** default to Local.
+Write one of `MODE: Cloud` / `MODE: Local` / `MODE: ambiguous — blocking` into your plan.
+
+`MODE: Cloud` if **any** of: (a) system prompt contains a `<cloud_task_instructions>` block or `running as a CLOUD AGENT`; (b) `uname -s` = `Linux` **and** `pwd` starts with `/workspace` or `/home/ubuntu/`; (c) `CI=true` **or** `.cursor/cloud-agent-marker` exists at repo root.
+
+`MODE: Local` only if no Cloud signal fires and the working tree is in a typical dev-home (`C:\Users\...`, `/Users/...`, `/home/<dev>/...` with no `/workspace` prefix).
+
+Mixed signals (e.g. WSL: Linux uname but dev-home cwd) → `MODE: ambiguous — blocking`. **Stop and ask the user**; never default to Local.
 
 ## "Project documentation" — what this term means
 
@@ -33,57 +36,54 @@ If signals are mixed (e.g. WSL on a developer machine: Linux uname but home-dir 
 
 ## You MUST
 
-1. **Run the Done check below** before you (a) tell the user the task is done, or (b) open / update a PR. Output the checklist verbatim with each item marked `done`, `N/A: <reason>`, or `blocked: <reason>`.
-2. **Resolve conflicts** between code, docs, tests, and CI in this order — and never silently diverge:
-   1. Product truth in **the project's documentation** (defined above) — including `CHANGELOG.md`. Discover what the project ships; do not assume specific filenames.
-   2. Explicit user messages in **this** conversation.
-   3. Implementation code (update code **or** docs deliberately, in the same change set).
-   4. CI / workflow YAML (must reflect 1 + 3).
-3. **Execute the work yourself.** Rules do not run shell commands. Builds, tests, `gh`, and edits only happen because *you* do them. Never claim a step was done without doing it.
+1. **Output the Done check verbatim** before you (a) tell the user the task is done, (b) open/update a PR, or (c) return to a parent agent. Each item marked `done` / `N/A: <reason>` / `blocked: <reason>`.
+2. **Resolve conflicts** between code, docs, tests, CI in this order — never silently diverge: (1) product truth in **the project's documentation** (incl. `CHANGELOG.md`; discover by walking, don't assume names); (2) explicit user messages in this conversation; (3) implementation code (update code **or** docs deliberately, in the same change set); (4) CI/workflow YAML (must reflect 1+3).
+3. **Execute the work yourself**; never claim a step was done without doing it.
 
 ## You MUST NOT
 
-- Mark a task done while any Done-check item is unmet. Stop and report the blocker instead.
-- Claim a rule "doesn't apply" without naming the concrete trigger that fails (e.g. "no `scripts/build-release.ps1` and no `.csproj` → EXE rule N/A").
-- Silently skip a rule. If you skip, name the rule and the reason in your final message.
-- Weaken docs, tests, or documented UI strings just to make CI green. If a CI fix would violate priority 1 or 2 above, change the implementation **or** update the doc in the same change set.
+- Mark a task done while any Done-check item is unmet — report the blocker.
+- Claim a rule "doesn't apply" without naming the concrete trigger that fails.
+- Silently skip a rule — name the rule and reason if you skip.
+- Weaken docs/tests/UI strings to greenwash CI; fix the implementation or update the doc in the same change set.
 
-## Sub-agent commit/push policy
+## Sub-agent commit/push scenarios
 
-A "sub-agent" is anything you spawn via the Task tool. Two scenarios:
+The "Who counts as an agent" section above is the contract for **all** agents. The scenario you fall into only gates commit/push and CI/CHANGELOG ownership:
 
-- **Scenario A** — sub-agent in an isolated worktree (type `best-of-n-runner`, or `git rev-parse --git-dir` differs from yours). MAY commit and push its own branch. Before returning to its caller it MUST own all of: own `CHANGELOG.md` entry, pre-push hygiene per `docs-sync-before-finish.mdc`, **watching its push's CI to a documented end state** per `post-push-ci-green.mdc`, and a verbatim Done check. If the sub-agent's environment cannot do all four (no `gh`, time/turn budget, missing tools), it MUST NOT push — leave changes for the parent or return `blocked: <reason>`.
-- **Scenario B** — sub-agent shares the parent's workspace (default for `generalPurpose`, `explore`, etc). MUST NOT `git add` / `git commit` / `git push`. Leaves modifications in the working tree; the top-level agent commits, pushes, runs Done check, watches CI.
+- **Scenario A** — isolated worktree (type `best-of-n-runner`, or `git rev-parse --git-dir` differs from parent's). MAY commit and push its own branch; if it does, it also writes a `CHANGELOG.md` entry per `versioning-and-changelog.mdc`, watches CI to a documented end state per `post-push-ci-green.mdc`, and reports run IDs in its return. If the environment cannot do all of that (no `gh`, time/turn budget, missing tools), MUST NOT push — leave changes for the parent or return `blocked: <reason>`.
+- **Scenario B** — shared workspace (default for `generalPurpose`, `explore`, etc.). MUST NOT `git add` / `git commit` / `git push`. Leaves modifications in the working tree. Top-level agent commits, pushes, writes the unified `CHANGELOG.md` entry covering all sub-agent changes, and watches CI.
 
-If unsure, treat as Scenario B.
+If unsure, treat as Scenario B. **Either way, the four "Who counts as an agent" obligations still apply** — Scenario B doesn't exempt you from MODE / hygiene / grep sweep / Done check.
 
 ### Parent verification when a sub-agent returns — MUST
 
-Before declaring your own task done, verify for every sub-agent that returned:
+Before declaring your own task done, for every returned sub-agent verify:
 
-1. **Done check** present and clean (every item `done` or `N/A: <reason>`; any `blocked` propagates up).
-2. **CI** on the sub-agent's branch reached success or a documented stop. If absent → `blocked: sub-agent did not watch CI`; watch CI yourself (`gh run list --branch <sub-agent-branch>` then `gh run watch`).
-3. **CHANGELOG** entry present if the sub-agent's push changed project files. If absent → `blocked: sub-agent did not update CHANGELOG`; write the entry, push, watch CI again.
-4. **Docs review** enumerated per-file (a bare `Reviewed N docs, no edits needed` is not acceptable). If absent → `blocked: sub-agent docs review not enumerated`; enumerate yourself.
+1. **Done check** present, every item `done` or `N/A`. Any `blocked` propagates up.
+2. **MODE declared** in the sub-agent's reply.
+3. **Hygiene + change-impact grep sweep** reports present (per-file enumeration, identifiers-touched list). A bare aggregate count is not acceptable.
+4. **CI status** (Scenario A only): sub-agent's branch reached success or a documented stop. If absent → `blocked: sub-agent did not watch CI`; watch CI yourself.
+5. **CHANGELOG** (Scenario A only, if files changed): entry present. If absent → `blocked: sub-agent did not update CHANGELOG`; write the entry, push, watch CI again.
 
-Your Done check covers the union of (your own work) and (verification of every sub-agent's work).
+Any item missing → treat as `blocked: sub-agent did not run full agent loop`. **Do not silently re-run for the sub-agent.** Either escalate to the user, or fix it forward and consider whether the sub-agent type is suitable for this kind of task.
 
-## Done check (output this list at end of every task)
+## Done check (output this list at end of every task / before returning)
 
 ```
 [ ] MODE declared (Local | Cloud | ambiguous)
 [ ] Code/build matches user intent; available tests pass
-[ ] Docs review per docs-sync-before-finish.mdc — per-file enumeration (every project .md/.txt with edited / checked: ok / skipped: <reason>; bare aggregate counts are forbidden)
-[ ] .gitignore reviewed and updated per docs-sync-before-finish.mdc (no stray secrets, build outputs, transient logs)
-[ ] Deletion-rename grep sweep per docs-sync-before-finish.mdc (clean OR list intentional carryovers OR N/A: nothing deleted/renamed)
-[ ] EXE packaging satisfied per exe-packaging-local-cloud.mdc (or N/A with reason)
-[ ] .cursor/ tracked per git-track-cursor-folder.mdc (only if a commit/push happened)
-[ ] CHANGELOG.md entry + version bump per versioning-and-changelog.mdc (only if files changed)
-[ ] Local auto-push satisfied per local-auto-push-current-branch.mdc (or N/A: not Local, or no marker file)
-[ ] CI watched and green per post-push-ci-green.mdc (only if a push happened)
+[ ] Docs review per docs-sync-before-finish.mdc — per-file enumeration (every project .md/.txt with edited / checked: ok / skipped: <reason>; aggregate counts forbidden)
+[ ] .gitignore reviewed (no stray secrets, build outputs, transient logs)
+[ ] Identifiers-touched listed + change-impact grep sweep clean (OR intentional carryovers OR N/A: no user-visible identifier touched)
+[ ] EXE packaging satisfied (or N/A: <reason>)
+[ ] .cursor/ tracked (only if commit/push happened)
+[ ] CHANGELOG.md entry + version bump (only if files changed AND you push; Scenario B sub-agents: N/A — parent writes)
+[ ] Local auto-push satisfied (or N/A: not Local, or no marker file)
+[ ] CI watched and green (only if a push happened by you)
 ```
 
-If any item is `blocked`, **stop and tell the user** — do not push past it.
+Any `blocked` → stop, report.
 
 ## This repo (array-mic-refreshment)
 
@@ -94,6 +94,6 @@ Also read [`AGENTS.md`](../../AGENTS.md) and [`docs/LOCAL_DEVELOPMENT.md`](../..
 | 路线 B / WebView2 | [`docs/UI_ROUTE_B_WEBVIEW2.md`](../../docs/UI_ROUTE_B_WEBVIEW2.md) |
 | Windows 自动化测试 | `.\scripts\test-phase2-route-b.ps1`、`.\scripts\test-feature-presets.ps1` |
 | UI 视觉 | `.cursor/skills/frontend-design/` → `/frontend-design` |
-| CI 排错 | `.cursor/skills/github-actions-ci/` → `/github-actions-ci` |
+| CI 排错 | [`post-push-ci-green.mdc`](post-push-ci-green.mdc)（含本仓库 workflow 表与常见坑） |
 
 **Windows CI is mandatory for this EXE repo:** `ci.yml` job `build-windows` (App.Tests) **and** `build-release-exe.yml` must pass. Ubuntu-only green is not enough.

@@ -9,37 +9,31 @@ Opt-in per repo, `MODE: Local` only. When active, the agent commits and pushes a
 
 ## Trigger gate
 
-Active only when all are true:
+Active only when all true: (1) `MODE: Local`; (2) `.cursor/.local-auto-push` exists at repo root; (3) this reply (incl. any returned sub-agent reply) modified at least one project file — i.e. any path outside `.cursor/agent-transcripts/**`, `terminals/**`, the marker itself, and gitignored paths.
 
-1. `MODE: Local`.
-2. `.cursor/.local-auto-push` exists at the repo root.
-3. This reply (incl. any returned sub-agent reply) modified at least one project file — meaning any path outside `.cursor/agent-transcripts/**`, `terminals/**`, the marker itself, and gitignored paths. If only excluded paths changed, write `Auto-push: N/A (no project-file modifications)` in the Done check and skip.
-
-If any of (1)–(3) fail, write the failing condition in the Done check and skip.
+If only excluded paths changed → `Auto-push: N/A (no project-file modifications)`. If any of (1)–(3) fails → name the failing condition in the Done check and skip.
 
 To enable in a project: see `templates/local-auto-push-marker.md`.
 
-## Preconditions (any failure → stop and report; do **not** push)
+## Preconditions (any failure → stop, do **not** push)
 
-1. **Not on detached HEAD** (`git symbolic-ref --quiet HEAD` must succeed).
-2. **Pre-push hygiene clean** per `docs-sync-before-finish.mdc` (docs synced, `.gitignore` reviewed, secret-leak scan clean, deletion-grep-sweep clean).
-3. **`CHANGELOG.md` entry + version bump** per `versioning-and-changelog.mdc`.
-4. **No merge / rebase / cherry-pick / bisect in progress** (no `.git/MERGE_HEAD`, `.git/REBASE_HEAD`, `.git/CHERRY_PICK_HEAD`, `.git/BISECT_LOG`).
-5. **Fast-forward is possible.** `git fetch origin "$(git rev-parse --abbrev-ref HEAD)"`, then check `git rev-list --left-right --count HEAD...@{u}`. If remote is ahead, try `git pull --rebase`; on any conflict, `git rebase --abort` and stop. Never auto-resolve.
+1. Not on detached HEAD (`git symbolic-ref --quiet HEAD`).
+2. Pre-push hygiene clean per `docs-sync-before-finish.mdc` (docs, `.gitignore`, secret-leak, change-impact grep sweep).
+3. `CHANGELOG.md` entry + version bump per `versioning-and-changelog.mdc`.
+4. No merge/rebase/cherry-pick/bisect in progress (no `.git/MERGE_HEAD`, `REBASE_HEAD`, `CHERRY_PICK_HEAD`, `BISECT_LOG`).
+5. Fast-forward possible: `git fetch origin "$(git rev-parse --abbrev-ref HEAD)"`; if remote ahead, `git pull --rebase`; any conflict → `git rebase --abort` and stop. Never auto-resolve.
 
 ## Push procedure — MUST
 
 1. `git add -A`
-2. `git commit -m "<type>(<scope>): <subject>" -m "<body>"` per `versioning-and-changelog.mdc` (Conventional Commits).
-3. Push the **current branch**:
-   - First push of a new branch: `git push -u origin HEAD`
-   - Subsequent: `git push origin HEAD`
+2. `git commit -m "<type>(<scope>): <subject>" -m "<body>"` (Conventional Commits per `versioning-and-changelog.mdc`).
+3. Push current branch: first push `git push -u origin HEAD`, subsequent `git push origin HEAD`.
 4. Watch CI to a documented end state per `post-push-ci-green.mdc`.
 
 ## You MUST NOT
 
-- Use `git push --force` or `--force-with-lease`. Ever. Push rejected → stop.
-- Push to any branch other than the current branch.
+- `git push --force` / `--force-with-lease`. Ever. Push rejected → stop.
+- Push any branch other than the current one.
 - Stage a file that triggered the secret-leak hard stop.
 - Bypass the version bump.
 - Push on detached HEAD, mid-merge/rebase, or after a non-fast-forward you couldn't cleanly resolve.
@@ -48,5 +42,5 @@ To enable in a project: see `templates/local-auto-push-marker.md`.
 ## Required report
 
 - `Auto-push: <pushed | N/A: <reason> | blocked: <reason>>`
-- If pushed: branch name, commit SHA, version `X.Y.Z` → `X.Y.Z'`.
+- If pushed: branch, commit SHA, version `X.Y.Z` → `X.Y.Z'`.
 - If blocked: name the failing precondition.

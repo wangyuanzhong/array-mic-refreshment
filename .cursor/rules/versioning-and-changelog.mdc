@@ -9,27 +9,14 @@ Every push (top-level agent or Scenario A sub-agent) bumps [SemVer](https://semv
 
 ## Authoritative artifact
 
-- `CHANGELOG.md` at the **repo root**, in [Keep a Changelog](https://keepachangelog.com) format.
-- Repo-root `VERSION` (plain text, single line) **if it already exists** — kept in sync with the latest CHANGELOG entry.
-- Language-specific version fields **if any of these files exist** — kept in sync at the same bump:
-  - `package.json` → `version`
-  - `Cargo.toml` → `[package].version`
-  - `pyproject.toml` → `[project].version` or `[tool.poetry].version`
-  - `*.csproj` → `<Version>` or `<VersionPrefix>`
-
-`CHANGELOG.md` is canonical: if the language version field disagrees, fix the language field.
+`CHANGELOG.md` at the repo root is canonical. Sync these too if present (any disagreement → fix the language field): `package.json#version`, `Cargo.toml#package.version`, `pyproject.toml#project.version` or `[tool.poetry].version`, `*.csproj#<Version>` or `<VersionPrefix>`, repo-root `VERSION` (single-line plaintext).
 
 ## Initialization (first time the repo lacks a CHANGELOG)
 
-1. Infer the **starting version** in this priority order; stop at the first hit:
-   1. Language-specific version metadata (priority order: `package.json#version`, `Cargo.toml#package.version`, `pyproject.toml#project.version` or `tool.poetry.version`, `*.csproj#Version` or `VersionPrefix`).
-   2. Repo-root `VERSION` file, if it parses as SemVer.
-   3. Latest annotated git tag matching `^v?\d+\.\d+\.\d+$` (`git tag -l --sort=-v:refname | head -n1`).
-   4. An existing `CHANGELOG.md` written in any other format whose top entry contains a SemVer-shaped string (regex `\b\d+\.\d+\.\d+\b`).
-   5. Fallback baseline: `0.0.0`.
-2. The **first push under this rule bumps that starting version normally** (default `PATCH`; per the bump rules below). If the inferred start was the `0.0.0` fallback, the first entry becomes `0.1.0` (treated as a `MINOR` from `0.0.0` — this signals "first tracked release").
-3. Create `CHANGELOG.md` from the template at `templates/CHANGELOG-initial.md` in this rules pack (or write the same structure inline).
-4. **Do not fabricate retroactive entries for past commits.** Start the changelog from this push forward. If the repo already had a `CHANGELOG.md` in another format, leave the old entries untouched below the new Keep a Changelog header.
+1. Infer **starting version** in priority order; first hit wins: (a) language metadata above; (b) repo-root `VERSION` if SemVer; (c) latest tag matching `^v?\d+\.\d+\.\d+$`; (d) SemVer-shaped string in pre-existing `CHANGELOG.md`; (e) fallback `0.0.0`.
+2. First push bumps that starting version normally. If start was `0.0.0`, the first entry is `0.1.0` (signals "first tracked release").
+3. Use `templates/CHANGELOG-initial.md` as the header template.
+4. **Do not back-fill retroactive entries.** If the repo had a CHANGELOG in another format, leave old entries untouched below the new Keep a Changelog header.
 
 ## Version bump rules — MUST
 
@@ -66,41 +53,26 @@ Banned entry content: `Updated some files`, `Various improvements`, `Refactor`, 
 
 ## Conventional Commits — MUST
 
-Every commit message uses:
+`<type>(<scope>): <subject>` on the first line, blank line, then `<body>`, then optional `<footer>`. Allowed types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, `revert`. `<scope>` is an optional short noun (`rules`, `auth`, `ui`, ...). `<subject>` is imperative, ≤ 72 chars, no trailing period. `<body>` explains what and why. Breaking changes: `BREAKING CHANGE: <description>` in the footer **and** bump `MAJOR`.
 
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-Allowed `type`s: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`, `perf`, `revert`.
-
-- `<scope>` is a short noun for the area touched (`rules`, `installer`, `auth`, `ui`, etc.). Optional but recommended.
-- `<subject>` is imperative, ≤ 72 chars, no trailing period.
-- `<body>` (blank line after subject) explains **what and why**, not how.
-- Breaking changes: include `BREAKING CHANGE: <description>` in the footer **and** bump `MAJOR`.
-
-### Type → SemVer mapping (must be consistent)
+### Type → SemVer mapping
 
 | Commit type | Default bump |
 |-------------|--------------|
 | `feat` | `MINOR` |
 | `fix`, `perf` | `PATCH` |
 | `docs`, `refactor`, `test`, `chore`, `build`, `ci` | `PATCH` |
-| Any commit with `BREAKING CHANGE:` in the footer | `MAJOR` |
+| any commit with `BREAKING CHANGE:` footer | `MAJOR` |
 
-If a single push contains multiple commits of mixed type, the bump matches the **highest-impact** commit in the set.
+Multi-commit push: bump matches the highest-impact commit.
 
 ## Language
 
-Write CHANGELOG entries and commit bodies in the **same language as the project's primary user-facing documentation** (whatever the project's introduction / overview doc is called — see `00-universal-core.mdc` "Project documentation"). Do not mix languages within an entry. If the project has no clear primary doc, default to the language of the user's most recent message in this conversation. Conventional Commits keywords (`feat`, `fix`, etc.) stay in English regardless.
+Use the **project's primary user-facing documentation** language (see `00-universal-core.mdc` "Project documentation"); fallback = language of the user's most recent message. Don't mix within an entry. Conventional Commits keywords stay English.
 
 ## Tagging
 
-Do **not** auto-create git tags for every patch — that would be noise. Tagging is the user's call.
+Do not auto-tag every patch. Tagging is the user's call.
 
 ## Required report (in your final message)
 

@@ -1,151 +1,112 @@
 ---
-description: Before push or declaring done — sync every project .md/.txt, the .gitignore, scan for secret leaks, and grep-sweep deletions/renames.
+description: Before push, return, or declaring done — sync project docs (per-file), .gitignore, secret-leak scan, change-impact grep sweep.
 alwaysApply: true
 ---
 
 # Pre-push hygiene (mandatory)
 
-Before any `git push` or task-done declaration: docs synced, `.gitignore` correct, no secrets staged, no stale references to deleted/renamed identifiers.
-
-## When this rule fires
-
-Before `git push`, before declaring the task finished, or before marking the task complete in the Done check. Also after substantive code/config/UI changes even if the user asked only for a small fix.
-
----
+Before any `git push`, return-to-caller (sub-agent), or task-done: docs synced, `.gitignore` correct, no secrets staged, identifiers-touched grep sweep clean. Applies to every agent — including sub-agents that don't push (the parent needs your reports to verify before pushing).
 
 ## 1. Documentation sync — MUST
 
 ### Scope
 
-Walk the repo and review **all** `**/*.md` and `**/*.txt`.
-
-Skip only these (unless the user explicitly included them):
-
-- `node_modules/`, `dist/`, `bin/`, `obj/`, `.git/`, `vendor/`, large `models/`
-- `skills/upstream/**` unless you changed that subtree
-
-Do **not** skip files because they look "boring" (e.g. small READMEs in subfolders, `scripts/*.txt`).
+Walk **all** `**/*.md` and `**/*.txt` in the repo. Skip only `node_modules/`, `dist/`, `bin/`, `obj/`, `.git/`, `vendor/`, large `models/`, and any vendored / upstream subtree the project explicitly excludes (unless you changed it). Do not skip a file because it looks "boring".
 
 ### What to verify per file
 
-1. Commands, paths, version numbers, and feature lists still match the code you just changed.
+1. Commands, paths, version numbers, feature lists still match the code.
 2. UI / route / tray / CLI descriptions match current behavior.
 3. New options, env vars, breaking changes are documented.
-4. Cross-links resolve to existing files.
+4. Cross-links resolve.
 
 ### What to do
 
-- **Open and read** every file in scope. The required-report enumeration below forces this; you cannot skip files silently.
-- Update stale sections in this same task. Match the file's language.
-- Add a `CHANGELOG.md` entry per `versioning-and-changelog.mdc` whenever any file changed.
-- Fix the **code** when docs reflect intended product but code drifted; fix the **docs** when code is correct and docs are stale.
+- **Open and read** every file in scope. The per-file enumeration in the required report below forces this.
+- Update stale sections in the same task; match the file's language.
+- Add a `CHANGELOG.md` entry per `versioning-and-changelog.mdc` when any file changed (Scenario B sub-agents: defer to parent, but list your changes for them).
+- If docs reflect intended product and code drifted → fix the code. If code is correct and docs are stale → fix the docs.
 
 ### MUST NOT
 
-- Push or declare done with a known doc/code mismatch.
-- Use any aggregate-count shortcut (`Reviewed N docs, no edits needed`). Per-file enumeration only.
+- Push, return, or declare done with a known doc/code mismatch.
+- Use any aggregate-count shortcut (`Reviewed N docs, no edits needed`).
 
 ---
 
 ## 2. `.gitignore` review — MUST
 
-Before staging changes, scan the working tree for paths that should not be tracked:
+Before staging, run `git status --porcelain` + `git ls-files --others --exclude-standard`. If any new path matches a category below and is not gitignored, add the right pattern then re-check:
 
-```bash
-git status --porcelain
-git ls-files --others --exclude-standard
-```
-
-If any newly-appearing path matches a category below and is **not** already covered by `.gitignore`, **add the appropriate pattern** to `.gitignore`, then re-check:
-
-| Category | Examples |
+| Category | Patterns |
 |----------|----------|
 | Build outputs | `dist/`, `build/`, `out/`, `bin/`, `obj/`, `target/`, `*.dll`, `*.exe`, `*.pdb`, `*.o`, `*.class` |
 | Dependency caches | `node_modules/`, `.venv/`, `__pycache__/`, `.gradle/`, `.cargo/registry/` |
-| Editor / OS junk | `.DS_Store`, `Thumbs.db`, `.idea/`, `.vscode/` (per project policy), `*.swp` |
+| Editor / OS junk | `.DS_Store`, `Thumbs.db`, `.idea/`, `.vscode/` (per policy), `*.swp` |
 | Logs / transient | `*.log`, `logs/`, `tmp/`, `*.cache` |
-| Local-only Cursor state | `.cursor/agent-transcripts/`, `terminals/`, `.cursor/.local-auto-push` (the marker, not the rule) |
+| Local-only Cursor state | `.cursor/agent-transcripts/`, `terminals/` |
 | Secrets (see §3) | `.env*`, `*.pem`, `*.key`, `secrets.*`, `credentials*`, `id_rsa*` |
 
-Keep `.cursor/rules/` and `.cursor/skills/` **tracked** (`git-track-cursor-folder.mdc`). If the project also has its own `.cursor/README.md` describing the install, track that too — but it is not required.
-
----
+Keep `.cursor/rules/` tracked (`git-track-cursor-folder.mdc`). Do **not** ignore `.cursor/.local-auto-push` (the auto-push marker is shared, not local).
 
 ## 3. Secret-leak scan — MUST (hard stop)
 
-Before staging, run this scan against the set of files that would be added by `git add -A`:
+Before staging, scan `git status --porcelain | awk '{print $2}'` against these patterns: `.env`, `.env.*` (except `.env.example|sample|template`), `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_rsa*`, `id_ed25519*`, `secrets.*`, `secret.*`, `credentials*`, `credentials.json`, `*.kdbx`, `aws_credentials`, `gcp-credentials*.json`, `azure-credentials*.json`, `service-account*.json`.
+
+If any match would be staged and is not gitignored: **stop the entire task** (no commit, no push, no return). Report paths to the user. Do **not** auto-`.gitignore` and continue. Once the user confirms it is gitignored or removed, you may continue.
+
+## 4. Change-impact grep sweep — MUST
+
+Triggers when the change set **touches any user-visible identifier** — newly added, renamed, removed, or behavior-changed (not just deletion). Examples:
+
+- File / directory paths, marker / sentinel files, scripts.
+- Command / script names, CLI flags, env vars, config keys.
+- Public function / class / module / API symbols.
+- UI strings, route paths, API endpoints.
+
+If the change set touches no user-visible identifier (e.g. private refactor, comment-only change), this step is `N/A`.
+
+### How — list, then grep
+
+**Step 1.** Before writing your `Docs review:` block, list every user-visible identifier this change touched, with how. Put this list at the top of the Docs review (see Required report below). Source: your own diff (`git diff` if you committed, working-tree edits otherwise).
+
+**Step 2.** For each listed identifier, grep the repo across text files:
 
 ```bash
-git status --porcelain | awk '{print $2}'
+grep -RIn --binary-files=without-match \
+  --exclude-dir={.git,node_modules,dist,build,bin,obj,target,vendor} \
+  '<identifier>' .
 ```
 
-If **any** of the following would be staged (and is **not** already in `.gitignore`), **stop the entire task, do not commit, do not push**, and report the file paths to the user:
+**Step 3.** Reconcile every hit:
 
-- Any of: `.env`, `.env.*` (other than `.env.example` / `.env.sample` / `.env.template`)
-- Filenames matching: `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_rsa*`, `id_ed25519*`
-- `secrets.*`, `secret.*`, `credentials*`, `credentials.json`, `*.kdbx`
-- `aws_credentials`, `gcp-credentials*.json`, `azure-credentials*.json`, `service-account*.json`
+- **Update** the doc to the new behavior, **or**
+- **Add** the new identifier to the doc (if you introduced it), **or**
+- **Remove** the reference (if the identifier is gone), **or**
+- **Preserve with one-line reason** (e.g. `kept in CHANGELOG.md historical entry — intentional`).
 
-This is a **safety stop**: do not auto-add to `.gitignore` and continue. Report what was about to leak; once the user confirms the file is gitignored or removed, you may continue.
+You MUST NOT push, return, or declare done while unjustified hits remain.
 
-Template suffixes (`.env.example` etc.) do not trigger the stop.
+For short / noisy identifiers (e.g. `id`, single-letter names), grep on a longer surrounding token to avoid false positives. The goal is reconciliation, not literal completeness.
 
 ---
 
-## 4. Deletion / rename grep sweep — MUST
+## Required report (in your final message / return)
 
-When the change set deletes, renames, or removes any user-visible identifier:
-
-- A file or directory (e.g. `scripts/install-universal-rules.ps1`, `scripts/`).
-- A script / command name (e.g. `build-release.ps1`).
-- A CLI flag, env var, or configuration key (e.g. `-CopyTemplates`, `CURSOR_AGENT_LEGACY`).
-- A public function / class / module / API symbol.
-- A marker file or sentinel path (e.g. `.cursor/.local-skip-post-push-ci`).
-- A URL, route, or endpoint.
-
-If the change only adds or modifies content **without** removing any identifier, this step is `N/A` and you may skip it.
-
-**What to do.** For **each** deleted / renamed identifier, run a project-wide grep across all text files and reconcile every remaining hit:
-
-```bash
-grep -RIn \
-  --include='*.md' --include='*.txt' --include='*.mdc' \
-  --include='*.yml' --include='*.yaml' --include='*.json' \
-  --include='*.toml' --include='*.ps1' --include='*.sh' \
-  --include='*.py' --include='*.ts' --include='*.tsx' \
-  --include='*.js' --include='*.jsx' --include='*.cs' \
-  --include='*.csproj' --include='*.sln' \
-  '<old-identifier>' .
-```
-
-Then, for **every** remaining hit:
-
-- **Update or remove it** to reflect the new state, **or**
-- **Explicitly preserve it with a one-line reason** in your required report (e.g. `kept in CHANGELOG.md historical entries describing past state — intentional`, or `kept in vendored upstream skills/upstream/** — out of scope`).
-
-**You MUST NOT** push or declare the task done while there are unjustified hits.
-
-When the rename is partial (e.g. you renamed `foo_old` to `foo_new` in code but old name appears in a help string), update both. When the deletion is complete (file gone), every hit is either an update target or a justified historical reference.
-
-If the identifier is short and noisy (e.g. `id`, `x`, single letters), grep on a longer surrounding token to avoid false positives — the goal is reconciliation, not literal completeness.
-
----
-
-## Required report (in your final message)
-
-### Docs review (enumeration — mandatory)
-
-Output a `Docs review:` section accounting for **every** project `.md`/`.txt` in scope (no aggregate-count shortcut). Per file, exactly one status:
-
-- `edited: <one-line summary>`
-- `checked: ok`
-- `skipped: <reason>` (vendored / out-of-scope path)
+### Docs review (mandatory; identifiers-touched preamble + per-file enumeration)
 
 Format (filenames are illustrative — list whatever your project actually ships, per `00-universal-core.mdc` "Project documentation"):
 
 ```
 Docs review:
-- <root-readme>.md — edited: <summary>
+
+Identifiers touched this task (for change-impact grep sweep):
+- <id-1> — <added | renamed from X | removed | behavior changed: <how>>
+- <id-2> — <...>
+(Or: Identifiers touched: none — N/A: only private/internal refactor.)
+
+Per-file enumeration (every project .md/.txt in scope):
+- <root-readme>.md — edited: <one-line summary>
 - CHANGELOG.md — edited: appended [X.Y.Z] entry
 - docs/<some-spec>.md — checked: ok (no relevant change)
 - docs/<subdir>/ (N files) — checked: ok (group: same status for all)
@@ -153,10 +114,10 @@ Docs review:
 Total: M reviewed, A edited, B ok, C skipped
 ```
 
-You **may** group `<dir>/ (N files) — <status>` only when every file in the group shares that status. The `Total:` line must equal the in-scope file count. A file appearing nowhere counts as missing.
+Group `<dir>/ (N files) — <status>` only when every file in the group shares that status. `Total:` must equal the in-scope file count. A file appearing nowhere counts as missing.
 
 ### Other sub-reports
 
 - `.gitignore: <unchanged | updated to add: <patterns>>`
 - `Secret-leak scan: clean` **or** `Secret-leak scan: BLOCKED on <paths>` (task must be `blocked`)
-- `Deletion-rename grep sweep: <N/A: nothing deleted or renamed | clean | <intentional carryovers and why>>`
+- `Change-impact grep sweep: <N/A: no user-visible identifier touched | clean | <intentional carryovers and why>>`

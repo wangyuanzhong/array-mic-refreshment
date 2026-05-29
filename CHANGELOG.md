@@ -1,5 +1,35 @@
 # Changelog
 
+## V0.4.3 — 2026-05-29
+
+迁移 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.0**（`a121a4b`）：规则单目录同步，移除重复的 `github-actions-ci` skill。
+
+### Added
+
+- `post-push-ci-green.mdc` 本仓库段：workflow 表、常见 CI 坑、本地 pre-push 命令（原 skill 内容）
+
+### Changed
+
+- `.cursor/rules/*.mdc` 自 universal **0.9.0** 刷新（含 change-impact grep sweep、「每个 agent 跑完整规则」）
+- `scripts/sync-universal-cursor-rules.ps1`：按 README 仅 `cp rules/*.mdc`，不再调用已删除的安装脚本
+- `apply-amr-cursor-overlays.ps1`：CI 指引改指向 `post-push-ci-green.mdc`
+- `AGENTS.md`、`.cursor/README.md`、`docs/LOCAL_DEVELOPMENT.md` 与 0.9.0 对齐
+
+### Removed
+
+- `.cursor/skills/github-actions-ci/`（上游 0.9.0 已删除；内容并入规则）
+
+### Files / modules touched
+
+- `.cursor/rules/`、`.cursor/UNIVERSAL_RULE_LOCK`、`scripts/sync-universal-cursor-rules.ps1`、`scripts/apply-amr-cursor-overlays.ps1`
+- `AGENTS.md`、`.cursor/README.md`、`docs/LOCAL_DEVELOPMENT.md`、`CHANGELOG.md`、`VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj`
+
+### Verify
+
+- `.cursor/UNIVERSAL_RULE_LOCK` 含 `universal-pack-version=0.9.0` 与 `a121a4b`
+- `grep -R github-actions-ci .cursor/rules` 无 SKILL 引用
+- `test ! -d .cursor/skills/github-actions-ci`
+
 ## V0.4.2 — 2026-05-29
 
 同步升级后的 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)（`96e3c5d`），强化 Agent 收尾契约，不改变应用运行时行为。

@@ -5,51 +5,32 @@ alwaysApply: true
 
 # EXE packaging — Local build & Cloud CI
 
-## Trigger gate (check first)
+## Trigger gate
 
-This rule is **active** only if **any** of the following exists at repo root:
-
-- `scripts/watch-build-release.ps1`
-- `scripts/build-release.ps1`
-- `scripts/build_exe.ps1`
-- `scripts/pack-ready.ps1`
-- `scripts/ci_and_build.ps1`
-- A `.csproj`/`.sln` whose docs state a shipped desktop `.exe`
-
-If none match: write `EXE packaging: N/A (no build script, no shipped .exe)` in the Done check and skip the rest of this rule.
+Active only if any of these exists at repo root: `scripts/watch-build-release.ps1`, `scripts/build-release.ps1`, `scripts/build_exe.ps1`, `scripts/pack-ready.ps1`, `scripts/ci_and_build.ps1`, or a `.csproj`/`.sln` whose docs state a shipped desktop `.exe`. Otherwise write `EXE packaging: N/A (no build script, no shipped .exe)` in the Done check and skip.
 
 ## Local mode — MUST
 
-When `MODE: Local` and this task touched `src/`, `ui/`, `wwwroot/`, or any packaging script:
+When `MODE: Local` and this task touched `src/`, `ui/`, `wwwroot/`, or any packaging script (and the user did not say "docs only / no build"):
 
-1. Run **one** release build before declaring done (unless the user said "docs only / no build"):
-
-   ```powershell
-   .\scripts\watch-build-release.ps1 -Once
-   ```
-
-   Fallback order if the primary script is absent:
-   1. `.\scripts\build-release.ps1 -Mode self-contained`
-   2. `.\scripts\build_exe.ps1`
-   3. `.\scripts\ci_and_build.ps1`
-
+1. Run one release build: `.\scripts\watch-build-release.ps1 -Once`. Fallback order if primary is absent: `.\scripts\build-release.ps1 -Mode self-contained` → `.\scripts\build_exe.ps1` → `.\scripts\ci_and_build.ps1`.
 2. If `dist/` is locked, stop the running app and retry.
-3. Report the resulting `.exe` **full path** and **LastWriteTime** in your final message.
+3. Report `.exe` full path and LastWriteTime in your final message.
 
 ## Cloud mode — MUST
 
-You cannot run a Windows desktop `.exe` here. Therefore:
+You cannot run a Windows desktop `.exe` here.
 
-1. Open `.github/workflows/` and confirm a workflow builds the release `.exe` on `windows-latest` (e.g. `build-release-exe.yml` calling `scripts/build-release.ps1`).
-2. If missing in an EXE repo, **add** a minimal Windows workflow in this same task. Path filters must include `src/`, `ui/`, `scripts/build-release.ps1`, the `.sln`/`.csproj`. A starter template exists at `templates/github-workflow-build-release-exe.yml` in the cursor-universal-rule repo.
-3. After push, verify that workflow is among the **triggered** runs and reaches **success** (see `post-push-ci-green.mdc`).
-4. State explicitly in the handoff: `Local exe not built here; verified via CI run <id>.`
+1. Confirm `.github/workflows/` has a workflow that builds the release `.exe` on `windows-latest` (e.g. `build-release-exe.yml` calling `scripts/build-release.ps1`).
+2. Missing in an EXE repo → add a minimal Windows workflow in this task. Path filters must include `src/`, `ui/`, `scripts/build-release.ps1`, the `.sln`/`.csproj`. Template: `templates/github-workflow-build-release-exe.yml`.
+3. After push, verify that workflow triggered and reaches `success` per `post-push-ci-green.mdc`.
+4. State in handoff: `Local exe not built here; verified via CI run <id>.`
 
 ## You MUST NOT
 
-- Skip the build because "the change was just a merge" if `src/` or `ui/` actually changed on disk.
+- Skip the build because "the change was just a merge" if `src/` or `ui/` actually changed.
 - Mark cloud work done when only Ubuntu jobs are green and the Windows EXE job is missing or red.
-- Change the `.exe` output path, WebView2/wwwroot layout, or `models/` paths without updating **the project's documentation** in the same task (per `00-universal-core.mdc` "Project documentation" and `docs-sync-before-finish.mdc`). Whatever the project calls its install/run instructions doc, update it.
+- Change `.exe` output path, WebView2/wwwroot layout, or `models/` paths without updating the project's documentation in the same task.
 
 ## This repo (array-mic-refreshment)
 
