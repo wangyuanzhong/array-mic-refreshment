@@ -5,6 +5,7 @@ import {
   type ForcedIntent,
   type HudScreenCorner,
   type OnRefineFailure,
+  type FeaturePresetDraft,
   type OptionalOverlaySkillItem,
   type SettingsDraft,
   type TriggerMode,
@@ -22,7 +23,7 @@ type SectionId =
   | 'asr'
   | 'llm'
   | 'trigger'
-  | 'refine'
+  | 'feature'
   | 'paths';
 
 interface ListData {
@@ -74,7 +75,7 @@ const SECTION_NAV: Array<{ id: SectionId; label: string }> = [
   { id: 'asr', label: 'ASR 模型' },
   { id: 'llm', label: 'LLM 预设' },
   { id: 'trigger', label: '触发与 HUD' },
-  { id: 'refine', label: '提示词整理' },
+  { id: 'feature', label: '功能预设' },
   { id: 'paths', label: '目录' },
 ];
 
@@ -103,11 +104,48 @@ function fieldErrorHtml(errors: Map<string, string>, field: string): string {
   return msg ? `<p class="field-error">${escapeHtml(msg)}</p>` : '';
 }
 
+function scrollSettingsSection(root: HTMLElement, sectionId: SectionId): void {
+  const container = root.querySelector<HTMLElement>('.settings-sections');
+  const section = root.querySelector<HTMLElement>(`#section-${sectionId}`);
+  if (!container || !section) return;
+
+  const top =
+    section.getBoundingClientRect().top -
+    container.getBoundingClientRect().top +
+    container.scrollTop;
+  container.scrollTo({ top: Math.max(0, top - 16), behavior: 'smooth' });
+}
+
+function setTestConnectionUi(root: HTMLElement, running: boolean): void {
+  const testBtn = root.querySelector<HTMLButtonElement>('#btnTestLlm');
+  const saveBtn = root.querySelector<HTMLButtonElement>('#btnSave');
+  if (testBtn) {
+    testBtn.disabled = running;
+    testBtn.textContent = running ? '测试中…' : '测试连接';
+  }
+  if (saveBtn) saveBtn.disabled = running;
+}
+
 export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   root.innerHTML = `<div class="app-shell"><main class="app-content"><p>加载设置…</p></main></div>`;
 
   const bridge = await getBridge();
   let draft = await bridge.loadSettingsDraft();
+  if (!draft.featurePresets?.length) {
+    draft = {
+      ...draft,
+      featurePresets: [
+        {
+          name: '默认',
+          llmPresetName: draft.llmPresets[0]?.name ?? '预设1',
+          forcedIntent: draft.forcedIntent,
+          onRefineFailure: draft.onRefineFailure,
+          optionalOverlaySkills: [...draft.optionalOverlaySkills],
+        },
+      ],
+      selectedFeaturePresetIndex: 0,
+    };
+  }
   const runtime = await bridge.getRuntimeState().catch(() => null);
   if (runtime?.triggerMode) {
     draft = { ...draft, triggerMode: runtime.triggerMode };
@@ -123,7 +161,10 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     skillsMissing: [],
   };
 
-  await refreshSkillsLists(bridge, draft.skillsDirectory, lists, draft.optionalOverlaySkills);
+  const initialFpOverlays =
+    draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
+    draft.optionalOverlaySkills;
+  await refreshSkillsLists(bridge, draft.skillsDirectory, lists, initialFpOverlays);
 
   let activeSection: SectionId = 'general';
   let testConnectionRunning = false;
@@ -135,6 +176,12 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       Math.max(draft.llmPresets.length - 1, 0),
     );
     const preset = draft.llmPresets[presetIdx];
+    const fpIdx = Math.min(
+      Math.max(draft.selectedFeaturePresetIndex, 0),
+      Math.max(draft.featurePresets.length - 1, 0),
+    );
+    const fp = draft.featurePresets[fpIdx];
+    const llmPresetNameOptions = draft.llmPresets.map((p) => p.name);
     const wakeVisible = wakeModeActive(draft.triggerMode);
     const globalError = fieldErrors.get('_global');
     const mockBanner = isMockBridge()
@@ -152,7 +199,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       : '';
 
     root.innerHTML = `
-      <div class="app-shell">
+      <div class="app-shell app-shell--settings">
         ${renderAppNav('settings')}
         <main class="app-content settings-page">
           <div class="settings-inner">
@@ -346,24 +393,54 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                 </div>
               </section>
 
-              <section id="section-refine" class="settings-section card">
-                <h2 class="card-title">提示词整理</h2>
+              <section id="section-feature" class="settings-section card">
+                <h2 class="card-title">功能预设</h2>
+                <p class="card-subtitle">将 LLM 预设（API）与整理风格、叠加 skill 组合为一键切换的功能配置；保存后写入 settings.json。</p>
                 <div class="form-grid">
-                  <div class="form-check">
-                    <input type="checkbox" id="promptRefineEnabled"${draft.promptRefineEnabled ? ' checked' : ''} />
-                    <label for="promptRefineEnabled">启用提示词整理（默认建议关闭）</label>
+                  <div class="form-field">
+                    <label for="activeFeaturePreset">当前使用的功能预设</label>
+                    <select id="activeFeaturePreset">
+                      ${draft.featurePresets
+                        .map(
+                          (p, i) =>
+                            `<option value="${i}"${i === fpIdx ? ' selected' : ''}>${escapeHtml(p.name)}</option>`,
+                        )
+                        .join('')}
+                    </select>
+                    <p class="form-hint">切换后编辑下方字段并保存；托盘「功能模式」可快速切换。</p>
+                  </div>
+                  <div class="feature-preset-toolbar">
+                    <button type="button" class="btn-ghost btn-sm" id="btnAddFeaturePreset">新建预设</button>
+                    <button type="button" class="btn-ghost btn-sm" id="btnDeleteFeaturePreset"${draft.featurePresets.length <= 1 ? ' disabled' : ''}>删除当前</button>
+                  </div>
+                  <div class="form-field${fieldErrorClass(fieldErrors, `featurePresets[${fpIdx}].name`)}">
+                    <label for="featurePresetName">预设名称</label>
+                    <input type="text" id="featurePresetName" value="${escapeHtml(fp.name)}" />
+                    ${fieldErrorHtml(fieldErrors, `featurePresets[${fpIdx}].name`)}
+                  </div>
+                  <div class="form-field${fieldErrorClass(fieldErrors, `featurePresets[${fpIdx}].llmPresetName`)}">
+                    <label for="featurePresetLlm">关联 LLM 预设</label>
+                    <select id="featurePresetLlm">
+                      ${llmPresetNameOptions
+                        .map(
+                          (name) =>
+                            `<option value="${escapeHtml(name)}"${name === fp.llmPresetName ? ' selected' : ''}>${escapeHtml(name)}</option>`,
+                        )
+                        .join('')}
+                    </select>
+                    ${fieldErrorHtml(fieldErrors, `featurePresets[${fpIdx}].llmPresetName`)}
                   </div>
                   <div class="form-field">
-                    <label for="forcedIntent">整理风格</label>
-                    <select id="forcedIntent">${optionTags(FORCED_INTENT_OPTIONS, draft.forcedIntent)}</select>
+                    <label for="featurePresetIntent">整理风格</label>
+                    <select id="featurePresetIntent">${optionTags(FORCED_INTENT_OPTIONS, fp.forcedIntent)}</select>
                   </div>
                   <div class="form-field">
-                    <label for="onRefineFailure">整理失败时</label>
-                    <select id="onRefineFailure">${optionTags(ON_REFINE_FAILURE_OPTIONS, draft.onRefineFailure)}</select>
+                    <label for="featurePresetOnFailure">整理失败时</label>
+                    <select id="featurePresetOnFailure">${optionTags(ON_REFINE_FAILURE_OPTIONS, fp.onRefineFailure)}</select>
                   </div>
                   <div class="form-field">
                     <span class="form-label">附加叠加 skill</span>
-                    <div class="checkbox-list" id="optionalOverlaySkills">
+                    <div class="checkbox-list" id="featurePresetOverlaySkills">
                       ${
                         lists.overlaySkills.length === 0
                           ? '<span class="form-hint">（无 optional skills 或目录无效）</span>'
@@ -371,7 +448,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                               .map(
                                 (s) => `
                         <label>
-                          <input type="checkbox" data-overlay-key="${escapeHtml(s.key)}"${draft.optionalOverlaySkills.includes(s.key) ? ' checked' : ''} />
+                          <input type="checkbox" data-fp-overlay-key="${escapeHtml(s.key)}"${fp.optionalOverlaySkills.includes(s.key) ? ' checked' : ''} />
                           ${escapeHtml(s.label || s.key)}
                         </label>`,
                               )
@@ -425,13 +502,36 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     preset.apiModel = root.querySelector<HTMLInputElement>('#apiModel')?.value.trim() ?? preset.apiModel;
   }
 
+  function saveFeaturePresetFieldsFromDom(): void {
+    if (draft.featurePresets.length === 0) return;
+    const idx = Math.min(
+      Math.max(
+        parseInt(root.querySelector<HTMLSelectElement>('#activeFeaturePreset')?.value ?? '0', 10),
+        0,
+      ),
+      draft.featurePresets.length - 1,
+    );
+    draft.selectedFeaturePresetIndex = idx;
+    const fp = draft.featurePresets[idx];
+    fp.name = root.querySelector<HTMLInputElement>('#featurePresetName')?.value.trim() ?? fp.name;
+    fp.llmPresetName =
+      root.querySelector<HTMLSelectElement>('#featurePresetLlm')?.value ?? fp.llmPresetName;
+    fp.forcedIntent =
+      (root.querySelector<HTMLSelectElement>('#featurePresetIntent')?.value as ForcedIntent) ??
+      fp.forcedIntent;
+    fp.onRefineFailure =
+      (root.querySelector<HTMLSelectElement>('#featurePresetOnFailure')?.value as OnRefineFailure) ??
+      fp.onRefineFailure;
+    const overlay: string[] = [];
+    root.querySelectorAll<HTMLInputElement>('[data-fp-overlay-key]').forEach((el) => {
+      if (el.checked && el.dataset.fpOverlayKey) overlay.push(el.dataset.fpOverlayKey);
+    });
+    fp.optionalOverlaySkills = overlay;
+  }
+
   function readDraftFromDom(): SettingsDraft {
     savePresetFieldsFromDom();
-
-    const overlay: string[] = [];
-    root.querySelectorAll<HTMLInputElement>('[data-overlay-key]').forEach((el) => {
-      if (el.checked && el.dataset.overlayKey) overlay.push(el.dataset.overlayKey);
-    });
+    saveFeaturePresetFieldsFromDom();
 
     const deviceSelect = root.querySelector<HTMLSelectElement>('#selectedDeviceId');
     const speakerSelect = root.querySelector<HTMLSelectElement>('#currentSpeakerUserId');
@@ -442,13 +542,10 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       pasteToCaretEnabled:
         root.querySelector<HTMLInputElement>('#pasteToCaretEnabled')?.checked ?? draft.pasteToCaretEnabled,
       launchAtStartup: root.querySelector<HTMLInputElement>('#launchAtStartup')?.checked ?? draft.launchAtStartup,
-      promptRefineEnabled:
-        root.querySelector<HTMLInputElement>('#promptRefineEnabled')?.checked ?? draft.promptRefineEnabled,
-      forcedIntent:
-        (root.querySelector<HTMLSelectElement>('#forcedIntent')?.value as ForcedIntent) ?? draft.forcedIntent,
+      promptRefineEnabled: draft.featurePresets.length > 0 ? true : draft.promptRefineEnabled,
+      forcedIntent: draft.featurePresets[draft.selectedFeaturePresetIndex]?.forcedIntent ?? draft.forcedIntent,
       onRefineFailure:
-        (root.querySelector<HTMLSelectElement>('#onRefineFailure')?.value as OnRefineFailure) ??
-        draft.onRefineFailure,
+        draft.featurePresets[draft.selectedFeaturePresetIndex]?.onRefineFailure ?? draft.onRefineFailure,
       selectedDeviceId: deviceSelect?.value || null,
       currentSpeakerUserId: speakerSelect?.value || null,
       speakerVerifyThreshold: parseFloat(
@@ -480,9 +577,13 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
         (root.querySelector<HTMLSelectElement>('#hudScreenCorner')?.value as HudScreenCorner) ??
         draft.hudScreenCorner,
       pttHotkey: root.querySelector<HTMLInputElement>('#pttHotkey')?.value ?? draft.pttHotkey,
-      optionalOverlaySkills: overlay,
+      optionalOverlaySkills:
+        draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
+        draft.optionalOverlaySkills,
       llmPresets: draft.llmPresets,
       selectedLlmPresetIndex: draft.selectedLlmPresetIndex,
+      featurePresets: draft.featurePresets,
+      selectedFeaturePresetIndex: draft.selectedFeaturePresetIndex,
     };
   }
 
@@ -494,7 +595,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
         root.querySelectorAll('.settings-section-nav__link').forEach((link) => {
           link.classList.toggle('is-active', link === btn);
         });
-        root.querySelector(`#section-${activeSection}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollSettingsSection(root, activeSection);
       });
     });
 
@@ -511,7 +612,10 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     root.querySelector('#skillsDirectory')?.addEventListener('change', () => {
       void (async () => {
         draft = readDraftFromDom();
-        await refreshSkillsLists(bridge, draft.skillsDirectory, lists, draft.optionalOverlaySkills);
+        const fpOverlays =
+          draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
+          draft.optionalOverlaySkills;
+        await refreshSkillsLists(bridge, draft.skillsDirectory, lists, fpOverlays);
         render();
       })();
     });
@@ -522,6 +626,38 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
         draft.selectedLlmPresetIndex = parseInt(btn.dataset.presetIndex ?? '0', 10);
         render();
       });
+    });
+
+    root.querySelector('#activeFeaturePreset')?.addEventListener('change', () => {
+      saveFeaturePresetFieldsFromDom();
+      draft.selectedFeaturePresetIndex = parseInt(
+        root.querySelector<HTMLSelectElement>('#activeFeaturePreset')?.value ?? '0',
+        10,
+      );
+      render();
+    });
+
+    root.querySelector('#btnAddFeaturePreset')?.addEventListener('click', () => {
+      saveFeaturePresetFieldsFromDom();
+      const next: FeaturePresetDraft = {
+        name: `功能预设 ${draft.featurePresets.length + 1}`,
+        llmPresetName: draft.llmPresets[0]?.name ?? '预设1',
+        forcedIntent: 'PlainText',
+        onRefineFailure: 'UseRawTranscript',
+        optionalOverlaySkills: [],
+      };
+      draft.featurePresets.push(next);
+      draft.selectedFeaturePresetIndex = draft.featurePresets.length - 1;
+      render();
+    });
+
+    root.querySelector('#btnDeleteFeaturePreset')?.addEventListener('click', () => {
+      if (draft.featurePresets.length <= 1) return;
+      saveFeaturePresetFieldsFromDom();
+      const removeIdx = draft.selectedFeaturePresetIndex;
+      draft.featurePresets.splice(removeIdx, 1);
+      draft.selectedFeaturePresetIndex = Math.min(removeIdx, draft.featurePresets.length - 1);
+      render();
     });
 
     root.querySelector('#btnCaptureHotkey')?.addEventListener('click', () => {
@@ -544,7 +680,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   async function handleTestConnection(): Promise<void> {
     if (testConnectionRunning) return;
     testConnectionRunning = true;
-    render();
+    setTestConnectionUi(root, true);
 
     try {
       const payload = readDraftFromDom();
@@ -564,13 +700,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       }
     } finally {
       testConnectionRunning = false;
-      const saveBtn = root.querySelector<HTMLButtonElement>('#btnSave');
-      const testBtn = root.querySelector<HTMLButtonElement>('#btnTestLlm');
-      if (saveBtn) saveBtn.disabled = false;
-      if (testBtn) {
-        testBtn.disabled = false;
-        testBtn.textContent = '测试连接';
-      }
+      setTestConnectionUi(root, false);
     }
   }
 
@@ -607,7 +737,10 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       draft = { ...draft, triggerMode: runtime.triggerMode };
     }
     fieldErrors.clear();
-    await refreshSkillsLists(bridge, draft.skillsDirectory, lists, draft.optionalOverlaySkills);
+    const cancelFpOverlays =
+      draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
+      draft.optionalOverlaySkills;
+    await refreshSkillsLists(bridge, draft.skillsDirectory, lists, cancelFpOverlays);
     render();
   }
 

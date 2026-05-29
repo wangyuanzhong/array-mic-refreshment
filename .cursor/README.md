@@ -7,24 +7,12 @@
 | [`rules/`](rules/) | 通用 `alwaysApply` 规则 + 本仓库覆盖（`apply-amr-cursor-overlays.ps1`） |
 | [`skills/`](skills/) | Agent skill：`frontend-design`、`github-actions-ci` |
 
-## 刷新通用规则
+刷新：`.\scripts\sync-universal-cursor-rules.ps1 -Refresh`
 
-```powershell
-.\scripts\sync-universal-cursor-rules.ps1 -Refresh
-```
+**Skill 调用：** `/frontend-design`、`/github-actions-ci`（连字符）。`SKILL.md` 须有 `name` + `description` frontmatter。
 
-（从 GitHub 拉最新 `cursor-universal-rule`，复制 rules/skill，再跑 AMR 覆盖。）
+**Push 后 CI（强制）：** 见 [`rules/post-push-ci-green.mdc`](rules/post-push-ci-green.mdc)。`gh run watch` 直到当前分支触发的工作流全绿；EXE 仓库须含 **Windows** `build-windows`（App.Tests）与 **Build release EXE**。`.cursor/.local-skip-post-push-ci` **已废弃**，勿再使用。
 
-## Skill 调用
-
-`/frontend-design`、`/github-actions-ci`（**连字符**）。`SKILL.md` 须有 YAML `name` + `description`。
-
-## 本地跳过 push 后盯 CI
-
-`.cursor/.local-skip-post-push-ci` 或 `.\scripts\cursor-local-opt-out-post-push-ci.ps1`
-
-Cloud Agent **不会**因该文件跳过 CI 规则。
-
-勿在 `.cursor/` 提交密钥。
+勿提交 `.cursor/` 内的密钥。
 
 根目录 [`skills/`](../skills/) 为 **App 运行时** LLM manifest/upstream，不是 Cursor `/` skill。

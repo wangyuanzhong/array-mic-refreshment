@@ -5,7 +5,7 @@ using ArrayMicRefreshment.Prompt;
 
 namespace ArrayMicRefreshment.App.Web;
 
-/// <summary>Validates settings drafts (mirrors <see cref="SettingsForm"/> save rules without UI).</summary>
+/// <summary>Validates settings drafts (mirrors legacy WinForms save rules without UI).</summary>
 public static class SettingsDraftValidator
 {
     public static SettingsValidationResultDto Validate(SettingsDraftDto draft, AppSettings template)
@@ -99,6 +99,47 @@ public static class SettingsDraftValidator
                 Field = "skillsDirectory",
                 Message = $"Skills 目录错误: {ex.Message}",
             });
+        }
+
+        if (draft.FeaturePresets is { Count: > 0 })
+        {
+            var llmNames = new HashSet<string>(
+                (draft.LlmPresets ?? [])
+                    .Select(p => p.Name ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase);
+
+            for (var i = 0; i < draft.FeaturePresets.Count; i++)
+            {
+                var fp = draft.FeaturePresets[i];
+                if (string.IsNullOrWhiteSpace(fp.Name))
+                {
+                    errors.Add(new SettingsValidationErrorDto
+                    {
+                        Field = $"featurePresets[{i}].name",
+                        Message = "功能预设名称不能为空。",
+                    });
+                }
+
+                if (!string.IsNullOrWhiteSpace(fp.LlmPresetName)
+                    && !llmNames.Contains(fp.LlmPresetName))
+                {
+                    errors.Add(new SettingsValidationErrorDto
+                    {
+                        Field = $"featurePresets[{i}].llmPresetName",
+                        Message = $"功能预设「{fp.Name}」引用的 LLM 预设「{fp.LlmPresetName}」不存在。",
+                    });
+                }
+            }
+
+            if (draft.SelectedFeaturePresetIndex < 0
+                || draft.SelectedFeaturePresetIndex >= draft.FeaturePresets.Count)
+            {
+                errors.Add(new SettingsValidationErrorDto
+                {
+                    Field = "selectedFeaturePresetIndex",
+                    Message = "所选功能预设索引无效。",
+                });
+            }
         }
 
         return new SettingsValidationResultDto

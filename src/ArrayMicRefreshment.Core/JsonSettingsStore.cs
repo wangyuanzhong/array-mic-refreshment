@@ -24,7 +24,10 @@ public sealed class JsonSettingsStore : ISettingsStore
     {
         if (!File.Exists(_path))
         {
-            return new AppSettings();
+            var settings = new AppSettings();
+            settings.MigrateLegacyApiSettings();
+            settings.MigrateLegacyFeaturePresets();
+            return settings;
         }
 
         try
@@ -42,11 +45,15 @@ public sealed class JsonSettingsStore : ISettingsStore
             }
 
             settings.MigrateLegacyApiSettings();
+            settings.MigrateLegacyFeaturePresets();
             return settings;
         }
         catch
         {
-            return new AppSettings();
+            var settings = new AppSettings();
+            settings.MigrateLegacyApiSettings();
+            settings.MigrateLegacyFeaturePresets();
+            return settings;
         }
     }
 

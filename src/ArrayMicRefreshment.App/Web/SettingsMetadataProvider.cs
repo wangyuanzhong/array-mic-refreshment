@@ -6,7 +6,7 @@ using ArrayMicRefreshment.Speaker;
 
 namespace ArrayMicRefreshment.App.Web;
 
-/// <summary>Read-only settings metadata queries shared by Web bridge and WinForms.</summary>
+/// <summary>Read-only settings metadata queries shared by Web bridge.</summary>
 public static class SettingsMetadataProvider
 {
     public sealed record AudioDeviceEntry(string Id, string DisplayName, bool IsDefault);

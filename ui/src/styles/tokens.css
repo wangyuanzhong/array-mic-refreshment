@@ -88,8 +88,16 @@ body {
   color: var(--color-text);
   background: linear-gradient(165deg, var(--color-bg) 0%, var(--color-bg-gradient-end) 55%, var(--color-bg) 100%);
   background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 #app {
   min-height: 100vh;
+}
+
+#app:has(.app-shell--settings) {
+  height: 100vh;
+  overflow: hidden;
 }

@@ -2,38 +2,39 @@
 
 > **文档目的**：在对话上下文耗尽或人员交接后，任何 Agent / 工程师阅读本文即可按 **路线 B** 继续执行，无需依赖历史聊天记录。  
 > **产品版本基准**：V0.3（`main` 分支，2026-05-26 前后）  
-> **最后更新**：2026-05-26
+> **最后更新**：2026-05-28
 
 ---
 
-## 0.1 与仓库对齐的现状快照（2026-05-26，集成负责人维护）
+## 0.1 与仓库对齐的现状快照（2026-05-28）
 
 > **用途**：把「路线 B 规划」与 **当前代码事实** 绑在一起。  
-> **分支参考**：`cursor/ui-route-b-integration-f621`（五路 Agent 并行实现后的集成结果）。
+> **分支参考**：`cursor/feature-presets-phase45-f621`（V0.4 + 功能预设 + Phase 4–5 收尾）。
 
-| 维度 | 规划（§1.1） | **集成分支实测** |
+| 维度 | 规划（§1.1） | **当前代码** |
 |------|----------------|------------------|
-| 产品对外版本 | V0.3（README） | README 仍 V0.3；csproj 仍 `V0.2` — **Phase 5 待对齐** |
+| 产品对外版本 | V0.4 | ✅ `VERSION.txt` / `AppInfo` / csproj `0.4.x` 对齐 |
 | WebView2 | 目标引入 | ✅ `Microsoft.Web.WebView2` + `Web/` 宿主与 Bridge |
-| `ui/` + `wwwroot/` | Vite 前端 | ✅ 已建；`wwwroot/` **gitignore**，Release 前 `npm run build` |
-| `SettingsApplyService` | Phase 0 | ✅ 已提取；WinForms / Web 共用 `TraySettingsApplyHost` |
-| 设置入口 | Web 为主 | ✅ 默认 `WebUiHostForm` `#/settings`；`AMR_USE_WINFORMS_SETTINGS=1` 回退 WinForms |
-| 注册入口 | Web `#/enroll` | ✅ 优先 Web；Runtime/wwwroot 缺失时回退 `EnrollmentDialog` |
-| `SettingsForm` | Phase 5 删除 | ⚠️ **仍保留**（菜单可开 WinForms 设置作对照） |
-| CI（Linux） | build 可过 | ✅ `dotnet build` 0 错误；`ArrayMicRefreshment.CI.slnf` **82** 项测试通过 |
-| App.Tests | 新增 | ⚠️ 引用 WinForms/WebView2 App；**需在 Windows 跑** `dotnet test` |
-| §10.2 手测 | 发布前 | ❌ **未在本环境执行**（需 Windows 实机 + 麦克风） |
+| `ui/` + `wwwroot/` | Vite 前端 | ✅ Release 前 `npm ci && npm run build` |
+| `SettingsApplyService` | Phase 0 | ✅ Web / 托盘共用 |
+| 设置入口 | Web 为主 | ✅ 托盘「设置」→ `WebUiHostForm` `#/settings`（**无** WinForms 降级） |
+| 注册入口 | Web `#/enroll` | ✅ Web 注册；`EnrollmentDialog` 已删除 |
+| 功能预设 | — | ✅ 设置页「功能预设」+ 托盘「功能模式」；`FeaturePresetApplier` |
+| CI Linux | build 可过 | ✅ `build-and-test`（Core/Audio/Prompt） |
+| CI Windows | App.Tests | ✅ `build-windows` App.Tests（40 项）；`--blame-hang-timeout 2m` |
+| 自动化验收 | Phase 2 | ✅ `scripts/test-phase2-route-b.ps1`、`scripts/test-feature-presets.ps1` |
+| §10.2 手测 | 发布前 | ❌ **须 Windows 实机**（PTT/唤醒/麦克风，脚本不覆盖） |
 
-**结论**：路线 B **约完成 Phase 0–3 的工程骨架**（约 70% 文档工作量）；**Phase 2 验收、Phase 4–5、V0.4 发布** 仍待 Windows 回归与产品签收。
+**结论**：路线 B **工程与自动化验收已完成**；发布前仍须 **§10.2 手动回归**。
 
 **与本仓库其他文档**：
 
 | 文档 | 与路线 B 关系 |
 |------|----------------|
-| [`README.md`](../README.md) | 仍描述 WinForms 设置窗；Phase 2 验收后改 WebView2 |
+| [`README.md`](../README.md) | WebView2 设置 + 功能预设（V0.4） |
 | [`docs/HANDOFF_PHASE5.md`](HANDOFF_PHASE5.md) | 音频/Sherpa/打包；**不替代** UI 升级 |
-| [`docs/LOCAL_DEVELOPMENT.md`](LOCAL_DEVELOPMENT.md) | 开发环境；未来需增加 `ui/` 的 `npm ci` 步骤（Phase 1+） |
-| [`AGENTS.md`](../AGENTS.md) | Agent 应先读 LOCAL_DEVELOPMENT；UI 大改再读 **本文** |
+| [`docs/LOCAL_DEVELOPMENT.md`](LOCAL_DEVELOPMENT.md) | 含 `ui/` 构建与 Windows 测试脚本 |
+| [`AGENTS.md`](../AGENTS.md) | 任务收尾自检 + push 后 CI（无跳过） |
 
 ---
 
@@ -755,19 +756,19 @@ dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.cs
 - [x] Bridge API 实现（见 §17 已知缺口）
 - [x] SettingsPage 字段 parity（§7.3 + WinForms-only 项见 A3 对照表）
 - [x] 保存逻辑 parity（§2.3，经 `SettingsApplyService`）
-- [ ] SettingsForm **已替换** — 当前为 Web 默认 + WinForms 降级菜单，**未删除**
+- [x] SettingsForm **已删除** — 仅 WebView2 设置入口
 
 ### Phase 3
 - [x] Enroll + Privacy Web 化（Onboarding 骨架）
 - [x] build-release 含前端构建
 
 ### Phase 4（可选）
-- [ ] HUD token 统一
+- [x] HUD token 统一（`DesignTokens` + `VoiceStatusHud` 对齐 `tokens.css`）
 - [ ] Web HUD 实验（或明确放弃）
 
 ### Phase 5
-- [ ] 旧 Form 删除
-- [ ] V0.4 发布说明 / 版本号对齐
+- [x] 旧 Form 删除（`SettingsForm`、`EnrollmentDialog`、`WebUiFeatureFlags`）
+- [x] V0.4 发布说明 / 版本号对齐
 - [ ] §10.2 手动回归通过
 
 ---
@@ -796,24 +797,22 @@ dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.cs
 
 1. **Windows 实机 §10.2**：PTT / 唤醒 / 粘贴 / Web 设置保存 — **未测**。
 2. **App.Tests**：需在安装 `Microsoft.WindowsDesktop.App` 的 Windows 上跑全量。
-3. **Bridge**：ASR 模型下载按钮无 Web API；隐私仍可能弹 WinForms `MessageBox`；`ListOptionalOverlaySkills` 用已持久化目录非 draft。
-4. **产品**：保留「设置（WinForms）…」直到 Phase 2 签收；再删 `SettingsForm`。
-5. **版本**：csproj `V0.2` vs README `V0.3` — Phase 5 统一为 V0.4。
+3. **Bridge**：ASR 模型下载按钮无 Web API；远程 API 隐私在**有窗体**时仍弹 `MessageBox`（无 owner 时 headless/CI 不阻塞）；`ListOptionalOverlaySkills` 用已持久化目录非 draft。
+4. **CI**：`build-windows` 须绿；勿在单元测试构造 `NAudioPushToTalkSource`（会泄漏 WinForms `Timer` 导致 testhost 挂死）。
 
 ### 17.3 回退方案
 
 | 场景 | 操作 |
 |------|------|
-| Web 设置不可用 | 设环境变量 `AMR_USE_WINFORMS_SETTINGS=1` 或托盘「设置（WinForms）…」 |
-| WebView2 Runtime 缺失 | 自动 MessageBox + 不打开 Web 窗；注册回退 `EnrollmentDialog` |
-| 音频/唤醒异常 | 与 UI 无关时查 `docs/HANDOFF_PHASE5.md`；若仅 Web 保存后异常，对比 WinForms 保存同配置 |
+| Web 设置不可用 | 安装 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)；查日志 `%AppData%\ArrayMicRefreshment\logs\` |
+| WebView2 Runtime 缺失 | 启动时检测并提示；无法打开 Web 设置窗 |
+| 音频/唤醒异常 | 查 `docs/HANDOFF_PHASE5.md`；与 Web 保存无关时对比 `settings.json` 与托盘运行时状态 |
 
-### 17.4 下一步（完成整条路线 B）
+### 17.4 下一步（发布前）
 
-1. Windows：**§10.2 手动回归** + 勾选 Phase 2 验收项（§8）。
-2. 修复 Bridge 缺口（ASR 下载、隐私纯 Web、draft skills 目录）。
-3. Phase 5：删 `SettingsForm` / `EnrollmentDialog`、更新 README/CHANGELOG、对齐版本号。
-4. （可选）Phase 4：HUD 读 `tokens.css` 同源 JSON。
+1. Windows：**§10.2 手动回归**（`docs/LOCAL_DEVELOPMENT.md`）。
+2. 修复 Bridge 缺口（ASR 下载 API、draft skills 目录）。
+3. （可选）Web HUD 实验或明确放弃（§Phase 4）。
 
 ---
 

@@ -40,6 +40,9 @@ public class WebUiBridgeSettingsTests
     public void SaveSettingsDraft_without_apply_host_persists_with_warning()
     {
         var settings = new AppSettings { PttHotkey = "Ctrl+Alt+Space" };
+        settings.MigrateLegacyApiSettings();
+        settings.MigrateLegacyFeaturePresets();
+        settings.PrivacyAcceptedHost = "api.openai.com";
         var store = new InMemorySettingsStore(settings);
         var bridge = CreateBridge(settings, store);
 
@@ -58,6 +61,9 @@ public class WebUiBridgeSettingsTests
     public void SaveSettingsDraft_with_apply_host_invokes_service()
     {
         var settings = new AppSettings { PttHotkey = "Ctrl+Alt+Space" };
+        settings.MigrateLegacyApiSettings();
+        settings.MigrateLegacyFeaturePresets();
+        settings.PrivacyAcceptedHost = "api.openai.com";
         var store = new InMemorySettingsStore(settings);
         var host = new RecordingApplyHost(settings);
         var bridge = CreateBridge(settings, store, host);

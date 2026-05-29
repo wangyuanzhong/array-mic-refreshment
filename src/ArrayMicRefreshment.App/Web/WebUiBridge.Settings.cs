@@ -45,6 +45,59 @@ public sealed partial class WebUiBridge
         return Serialize(skills);
     }
 
+    public string ListFeaturePresets()
+    {
+        _context.Settings.MigrateLegacyApiSettings();
+        _context.Settings.MigrateLegacyFeaturePresets();
+
+        var presets = _context.Settings.FeaturePresets
+            .Select((p, i) => new
+            {
+                index = i,
+                name = p.Name,
+                llmPresetName = p.LlmPresetName,
+                forcedIntent = p.ForcedIntent.ToString(),
+                onRefineFailure = p.OnRefineFailure.ToString(),
+                optionalOverlaySkills = p.OptionalOverlaySkills,
+                selected = i == _context.Settings.SelectedFeaturePresetIndex,
+            });
+        return Serialize(presets);
+    }
+
+    public string ApplyFeaturePreset(int index)
+    {
+        return RunOnUiForJson(() => ApplyFeaturePresetCore(index));
+    }
+
+    private string ApplyFeaturePresetCore(int index)
+    {
+        _context.Settings.MigrateLegacyApiSettings();
+        _context.Settings.MigrateLegacyFeaturePresets();
+
+        if (_context.Settings.FeaturePresets is not { Count: > 0 })
+        {
+            return Serialize(new { ok = false, error = "未配置功能预设。" });
+        }
+
+        var previous = SettingsApplyService.CloneSnapshot(_context.Settings);
+        FeaturePresetApplier.ApplyFeaturePreset(_context.Settings, index);
+
+        if (_context.SettingsApplyHost is not null)
+        {
+            var applyService = _context.SettingsApplyService ?? _settingsApplyService;
+            applyService.Apply(previous, _context.Settings, _context.SettingsApplyHost);
+            return Serialize(new { ok = true, selectedFeaturePresetIndex = _context.Settings.SelectedFeaturePresetIndex });
+        }
+
+        _context.SettingsStore.Save(_context.Settings);
+        return Serialize(new
+        {
+            ok = true,
+            selectedFeaturePresetIndex = _context.Settings.SelectedFeaturePresetIndex,
+            warning = "SettingsApplyHost 未配置：已写入 settings.json，但未应用 pipeline 运行时变更。",
+        });
+    }
+
     public string GetSkillsCatalogStatus()
     {
         var missing = SettingsMetadataProvider.GetSkillsCatalogMissingFiles(_context.Settings.SkillsDirectory);

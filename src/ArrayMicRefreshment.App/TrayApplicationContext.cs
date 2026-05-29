@@ -18,6 +18,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _masterSwitchItem;
     private readonly ToolStripMenuItem _pasteSwitchItem;
     private readonly ToolStripMenuItem _statusItem;
+    private ToolStripMenuItem? _featurePresetMenu;
     private readonly IPushToTalkSource _ptt;
     private readonly PttCaptureService _pttCaptureService;
     private readonly VoiceCaptureOrchestrator _voiceOrchestrator;
@@ -72,6 +73,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("强制结束录音（卡住时用）", null, OnSimulatePttRelease));
         menu.Items.Add(BuildTriggerModeMenu());
+        menu.Items.Add(BuildFeaturePresetMenu());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("退出", null, OnExit));
 
@@ -149,11 +151,21 @@ public sealed class TrayApplicationContext : ApplicationContext
             _ptt.HotkeyDisplay,
             pttRegistered);
 
+        _settings.MigrateLegacyApiSettings();
+        _settings.MigrateLegacyFeaturePresets();
+        if (_settings.FeaturePresets is { Count: > 0 })
+        {
+            FeaturePresetApplier.ApplyFeaturePreset(_settings, _settings.SelectedFeaturePresetIndex);
+        }
+
         var startupPreset = _settings.CurrentPreset;
         Log.Information(
             "[DIAGNOSTIC] Startup settings: PromptRefineEnabled={RefineEnabled}, " +
-            "Preset={PresetName}, Url={ApiUrl}, Model={ApiModel}",
+            "FeaturePreset={FeaturePreset}, LlmPreset={PresetName}, Url={ApiUrl}, Model={ApiModel}",
             _settings.PromptRefineEnabled,
+            _settings.FeaturePresets.Count > 0
+                ? _settings.FeaturePresets[_settings.SelectedFeaturePresetIndex].Name
+                : "(legacy)",
             startupPreset.Name,
             startupPreset.ApiBaseUrl,
             startupPreset.ApiModel);
@@ -273,35 +285,31 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
 
 #if WINDOWS
-        if (TryOpenWebEnroll(gate))
-        {
-            return;
-        }
-
-        ShowEnrollmentDialogFallback(gate);
+        OpenWebEnroll(gate);
 #else
         _ = sender;
 #endif
     }
 
 #if WINDOWS
-    /// <summary>
-    /// Opens WebView2 enrollment at <c>#/enroll</c>. Returns true when Web UI was shown
-    /// (including user cancel). Returns false when WebView2 runtime or wwwroot is unavailable
-    /// so the caller can fall back to <see cref="EnrollmentDialog"/>.
-    /// </summary>
-    private bool TryOpenWebEnroll(SpeakerGate gate)
+    /// <summary>Opens WebView2 enrollment at <c>#/enroll</c>.</summary>
+    private void OpenWebEnroll(SpeakerGate gate)
     {
-        if (!WebView2RuntimeChecker.IsRuntimeAvailable(out _))
+        if (!WebView2RuntimeChecker.TryEnsureAvailable(null))
         {
-            return false;
+            return;
         }
 
         var wwwRootIndex = Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html");
         if (!File.Exists(wwwRootIndex))
         {
-            Log.Warning("Web UI wwwroot missing at {Path}; falling back to EnrollmentDialog.", wwwRootIndex);
-            return false;
+            Log.Warning("Web UI wwwroot missing at {Path}; cannot open enrollment.", wwwRootIndex);
+            _balloons.Show(
+                8000,
+                "Array Mic",
+                "未找到 Web 界面文件（wwwroot）。请先运行 ui 目录下的 npm run build，或使用 scripts\\build-release.ps1 打包。",
+                ToolTipIcon.Warning);
+            return;
         }
 
         IEnrollmentUtteranceSource? capture;
@@ -314,8 +322,13 @@ public sealed class TrayApplicationContext : ApplicationContext
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to create enrollment capture for Web UI; falling back to EnrollmentDialog.");
-            return false;
+            Log.Warning(ex, "Failed to create enrollment capture for Web UI.");
+            _balloons.Show(
+                6000,
+                "Array Mic",
+                "无法初始化麦克风采集，请检查录音设备设置。",
+                ToolTipIcon.Warning);
+            return;
         }
 
         var context = CreateWebUiBridgeContext(
@@ -336,39 +349,13 @@ public sealed class TrayApplicationContext : ApplicationContext
         form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
         form.ShowDialog();
         _settingsWindowHandle = IntPtr.Zero;
-
-        return true;
-    }
-
-    private void ShowEnrollmentDialogFallback(SpeakerGate gate)
-    {
-        using var capture = new EnrollmentUtteranceCapture(
-            _settings,
-            new NAudioDeviceEnumerator(),
-            new NAudioCaptureStreamFactory());
-        using var dialog = new EnrollmentDialog(gate.Enrollment, capture);
-        if (dialog.ShowDialog() == DialogResult.OK)
-        {
-            _settings.CurrentSpeakerUserId = gate.Enrollment.CurrentUserId;
-            _settingsStore.Save(_settings);
-            _balloons.Show(
-                5000,
-                "Array Mic",
-                "说话人注册成功。请在「设置」中将「当前用户」选为刚注册的用户以启用声纹校验。",
-                ToolTipIcon.Info);
-        }
     }
 #endif
 
     private void OnOpenSettings(object? sender, EventArgs e)
     {
-        if (WebUiFeatureFlags.UseWebSettings)
-        {
-            OnOpenWebSettings();
-            return;
-        }
-
-        OnOpenWinFormsSettings(sender, e);
+        _ = sender;
+        OnOpenWebSettings();
     }
 
     private void OnOpenWebSettings()
@@ -418,50 +405,6 @@ public sealed class TrayApplicationContext : ApplicationContext
         };
     }
 
-    private void OnOpenWinFormsSettings(object? sender, EventArgs e)
-    {
-        IAudioDeviceEnumerator? deviceEnumerator = null;
-        IEnrollmentUtteranceSource? enrollmentCapture = null;
-#if WINDOWS
-        deviceEnumerator = new NAudioDeviceEnumerator();
-        enrollmentCapture = new EnrollmentUtteranceCapture(
-            _settings,
-            deviceEnumerator,
-            new NAudioCaptureStreamFactory());
-#endif
-
-        IUserEnrollmentService? enrollment = null;
-        if (_sherpaComponents?.Speaker is SpeakerGate gate)
-        {
-            enrollment = gate.Enrollment;
-        }
-
-        using var form = new SettingsForm(
-            _settings,
-            deviceEnumerator,
-            enrollment,
-            enrollmentCapture,
-            _sherpaComponents?.SpeakerModelMissing == true)
-        {
-            RuntimeTriggerMode = _voiceTriggerMode,
-        };
-        form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
-        if (form.ShowDialog() == DialogResult.OK)
-        {
-            var previous = SettingsApplyService.CloneSnapshot(_settings);
-            _settingsApplyService.Apply(previous, form.Settings, new TraySettingsApplyHost(this));
-        }
-
-#if WINDOWS
-        if (enrollmentCapture is IDisposable disposableCapture)
-        {
-            disposableCapture.Dispose();
-        }
-#endif
-
-        _settingsWindowHandle = IntPtr.Zero;
-    }
-
     private void RememberPasteTarget(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero || IsExcludedPasteRoot(hwnd))
@@ -505,6 +448,63 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private bool IsExcludedPasteRoot(IntPtr hwnd)
         => WindowsPasteHelper.IsExcludedWindow(hwnd, GetExcludedPasteWindows());
+
+    private ToolStripMenuItem BuildFeaturePresetMenu()
+    {
+        _featurePresetMenu = new ToolStripMenuItem("功能模式");
+        _featurePresetMenu.DropDownOpening += (_, _) => RefreshFeaturePresetMenuItems();
+        RefreshFeaturePresetMenuItems();
+        return _featurePresetMenu;
+    }
+
+    private void RefreshFeaturePresetMenuItems()
+    {
+        if (_featurePresetMenu is null)
+        {
+            return;
+        }
+
+        _featurePresetMenu.DropDownItems.Clear();
+        _settings.MigrateLegacyApiSettings();
+        _settings.MigrateLegacyFeaturePresets();
+
+        if (_settings.FeaturePresets is not { Count: > 0 })
+        {
+            _featurePresetMenu.Enabled = false;
+            _featurePresetMenu.DropDownItems.Add(new ToolStripMenuItem("(未配置)") { Enabled = false });
+            return;
+        }
+
+        _featurePresetMenu.Enabled = true;
+        for (var i = 0; i < _settings.FeaturePresets.Count; i++)
+        {
+            var index = i;
+            var preset = _settings.FeaturePresets[i];
+            var label = string.IsNullOrWhiteSpace(preset.LlmPresetName)
+                ? preset.Name
+                : $"{preset.Name} → {preset.LlmPresetName}";
+            _featurePresetMenu.DropDownItems.Add(new ToolStripMenuItem(
+                label,
+                null,
+                (_, _) => ApplyFeaturePresetAtRuntime(index))
+            {
+                Checked = index == _settings.SelectedFeaturePresetIndex,
+            });
+        }
+    }
+
+    private void ApplyFeaturePresetAtRuntime(int index)
+    {
+        var previous = SettingsApplyService.CloneSnapshot(_settings);
+        FeaturePresetApplier.ApplyFeaturePreset(_settings, index);
+        _settingsApplyService.Apply(previous, _settings, new TraySettingsApplyHost(this));
+        RefreshFeaturePresetMenuItems();
+        UpdateTrayTooltip();
+
+        var name = _settings.FeaturePresets[index].Name;
+        _balloons.Show(3000, "Array Mic", $"已切换功能模式：{name}", ToolTipIcon.Info);
+        Log.Information("Feature preset applied from tray: {Name} (index={Index})", name, index);
+    }
 
     private ToolStripMenuItem BuildTriggerModeMenu()
     {

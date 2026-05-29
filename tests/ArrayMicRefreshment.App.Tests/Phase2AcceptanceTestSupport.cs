@@ -39,6 +39,8 @@ internal static class Phase2AcceptanceTestSupport
         "selectedLlmPresetIndex",
         "llmPresets",
         "optionalOverlaySkills",
+        "selectedFeaturePresetIndex",
+        "featurePresets",
     ];
 
     internal static string SerializeDraft(SettingsDraftDto draft) =>
@@ -75,7 +77,7 @@ internal static class Phase2AcceptanceTestSupport
             SelectedDeviceId = "device-1",
             CurrentSpeakerUserId = "user-a",
             SpeakerVerifyThreshold = 0.55f,
-            SelectedAsrModelId = "sense-voice",
+            SelectedAsrModelId = string.Empty,
             SkillsDirectory = "skills",
             ModelsDirectory = "models",
             TriggerMode = VoiceTriggerMode.Both,
@@ -89,13 +91,14 @@ internal static class Phase2AcceptanceTestSupport
             LlmPresets =
             [
                 new() { Name = "Local", ApiBaseUrl = "http://127.0.0.1:11434/v1", ApiKey = "k1", ApiModel = "m1" },
-                new() { Name = "Cloud", ApiBaseUrl = "https://api.example.com/v1", ApiKey = "k2", ApiModel = "m2" },
-                new() { Name = "Backup" },
+                new() { Name = "Cloud", ApiBaseUrl = "http://127.0.0.1:8080/v1", ApiKey = "k2", ApiModel = "m2" },
+                new() { Name = "Backup", ApiBaseUrl = "http://127.0.0.1:9000/v1" },
             ],
             OptionalOverlaySkills = ["voice_refine"],
-            PrivacyAcceptedHost = "api.example.com",
+            PrivacyAcceptedHost = "127.0.0.1",
         };
         settings.MigrateLegacyApiSettings();
+        settings.MigrateLegacyFeaturePresets();
         return settings;
     }
 
@@ -133,7 +136,14 @@ internal static class Phase2AcceptanceTestSupport
 
     internal sealed class Phase2RecordingApplyHost : ISettingsApplyHost
     {
-        public Phase2RecordingApplyHost(AppSettings settings) => TargetSettings = settings;
+        private readonly ISettingsStore? _settingsStore;
+
+        public Phase2RecordingApplyHost(AppSettings settings, ISettingsStore? settingsStore = null)
+        {
+            TargetSettings = settings;
+            _settingsStore = settingsStore;
+            RegisteredPttHotkey = settings.PttHotkey;
+        }
 
         public AppSettings TargetSettings { get; }
 
@@ -202,7 +212,11 @@ internal static class Phase2AcceptanceTestSupport
         {
         }
 
-        public void PersistAndRefresh() => ApplyCount++;
+        public void PersistAndRefresh()
+        {
+            ApplyCount++;
+            _settingsStore?.Save(TargetSettings);
+        }
 
         public void RefreshAudioCaptureAfterSettings()
         {

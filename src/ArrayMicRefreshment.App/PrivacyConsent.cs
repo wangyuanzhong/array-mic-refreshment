@@ -27,6 +27,12 @@ internal static class PrivacyConsent
             return true;
         }
 
+        // Headless CI / unit tests: never block on a modal dialog when there is no owner window.
+        if (owner is null)
+        {
+            return false;
+        }
+
         var message = $"提示词整理将把识别文本发送到 {host}。继续？";
         var result = MessageBox.Show(
             owner,
