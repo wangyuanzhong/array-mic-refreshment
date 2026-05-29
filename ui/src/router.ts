@@ -1,9 +1,10 @@
 import { mountEnrollPage } from './pages/EnrollPage';
+import { mountHudPage } from './pages/HudPage';
 import { mountOnboardingPage } from './pages/OnboardingPage';
 import { mountPrivacyPage } from './pages/PrivacyPage';
 import { mountSettingsPage } from './pages/SettingsPage';
 
-export type RouteId = 'settings' | 'enroll' | 'onboarding' | 'privacy';
+export type RouteId = 'settings' | 'enroll' | 'onboarding' | 'privacy' | 'hud';
 
 type RouteHandler = (root: HTMLElement) => void | Promise<void>;
 
@@ -12,6 +13,7 @@ const routes: Record<RouteId, RouteHandler> = {
   enroll: mountEnrollPage,
   onboarding: mountOnboardingPage,
   privacy: mountPrivacyPage,
+  hud: mountHudPage,
 };
 
 const DEFAULT_ROUTE: RouteId = 'settings';
@@ -36,6 +38,7 @@ export function navigate(route: RouteId, replace = false): void {
 export function startRouter(root: HTMLElement): void {
   const render = async () => {
     const route = normalizeHash(window.location.hash);
+    document.body.classList.remove('hud-mode');
     root.innerHTML = '';
     root.dataset.route = route;
     await routes[route](root);

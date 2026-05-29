@@ -5,36 +5,16 @@ alwaysApply: true
 
 # Track `.cursor/` in git
 
-The directory `.cursor/` at the **repo root** must be versioned. This is **not** the user-level `%USERPROFILE%\.cursor\` (editor global config) — never add that to the repo.
+`.cursor/` at the **repo root** must be versioned. This is NOT the user-level `%USERPROFILE%\.cursor\` / `~/.cursor/` — never add that to the repo.
 
 ## Before any commit or push — MUST
 
-1. Check ignore status:
-
-   ```bash
-   git check-ignore -v .cursor .cursor/rules .cursor/skills
-   ```
-
-2. If `.gitignore` contains a blanket ignore (`.cursor/`, `.cursor/*`, `.cursor/**`), remove it. You may keep targeted ignores like:
-   - `.cursor/agent-transcripts/`
-   - `.cursor/.local-skip-post-push-ci`
-
-   You MUST NOT un-ignore `rules/` while leaving `skills/` ignored — keep the pack consistent.
-
-3. Stage the directory:
-
-   ```bash
-   git add .cursor/
-   ```
-
-4. Confirm `git status` shows the intended `.cursor/**` changes before pushing.
+1. Check: `git check-ignore -v .cursor .cursor/rules`.
+2. If `.gitignore` has a blanket ignore (`.cursor/`, `.cursor/*`, `.cursor/**`), remove it. You may keep targeted ignores for genuinely local-only state (e.g. `.cursor/agent-transcripts/`). Do **not** ignore `.cursor/.local-auto-push` — it is a shared project-level marker (see `local-auto-push-current-branch.mdc`).
+3. `git add .cursor/`. Confirm `git status` shows the intended changes.
 
 ## You MUST NOT
 
-- Push only part of `.cursor/` without an explicit user request.
+- Push only part of `.cursor/` without explicit user request.
 - Commit secrets (e.g. tokens in `mcp.json`) under `.cursor/`. Use env vars or untracked local files.
-- Add `%USERPROFILE%\.cursor\` (or `~/.cursor/`) into the project repo.
-
-## Tip
-
-If `.gitignore` already had a blanket `.cursor/` ignore from before this pack was installed, you must remove it once. There is no installer for this rules pack — copy `rules/` and `skills/` directly into the target repo's `.cursor/`.
+- Add the user-level `~/.cursor/` into the project repo.

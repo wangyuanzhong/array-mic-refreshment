@@ -381,6 +381,12 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                     <select id="hudScreenCorner">${optionTags(HUD_CORNER_OPTIONS, draft.hudScreenCorner)}</select>
                   </div>
 
+                  <div class="form-check">
+                    <input type="checkbox" id="useWebStatusHud"${draft.useWebStatusHud ? ' checked' : ''} />
+                    <label for="useWebStatusHud">使用 WebView2 状态 HUD（实验）</label>
+                    <p class="form-hint">与 Macaron 样式一致；无 WebView2 时自动回退原生条。修改后需<strong>重启应用</strong>生效。环境变量 <code>AMR_WEB_HUD=0</code> 可强制原生。</p>
+                  </div>
+
                   <div class="form-field${fieldErrorClass(fieldErrors, 'pttHotkey')}">
                     <span class="form-label">PTT 热键</span>
                     <div class="hotkey-field">
@@ -576,6 +582,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       hudScreenCorner:
         (root.querySelector<HTMLSelectElement>('#hudScreenCorner')?.value as HudScreenCorner) ??
         draft.hudScreenCorner,
+      useWebStatusHud: root.querySelector<HTMLInputElement>('#useWebStatusHud')?.checked ?? draft.useWebStatusHud,
       pttHotkey: root.querySelector<HTMLInputElement>('#pttHotkey')?.value ?? draft.pttHotkey,
       optionalOverlaySkills:
         draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml?query=branch%3Amain)
 
-**当前版本：V0.4.1**
+**当前版本：V0.4.2**
 
 本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理**（纯文本润色或多 Skill 意图改写）→ 剪贴板 / 光标粘贴。
 

@@ -7,9 +7,6 @@ namespace ArrayMicRefreshment.App.Web;
 /// <summary>WinForms shell hosting the unified Web UI (Route B). WebView2 is created on demand when the form loads.</summary>
 public sealed class WebUiHostForm : Form
 {
-    /// <summary>Virtual host for local wwwroot (avoid file:// — ES modules often stay blank).</summary>
-    private const string WwwRootVirtualHost = "amr.local";
-
     private readonly string _hashRoute;
     private readonly WebUiBridgeContext? _context;
     private readonly WebView2 _webView = new() { Dock = DockStyle.Fill };
@@ -107,7 +104,7 @@ public sealed class WebUiHostForm : Form
         try
         {
             _webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                WwwRootVirtualHost,
+                WebUiConstants.WwwRootVirtualHost,
                 wwwRootDir,
                 CoreWebView2HostResourceAccessKind.Allow);
         }
@@ -126,7 +123,7 @@ public sealed class WebUiHostForm : Form
         }
 
         // https://amr.local/... serves files from wwwroot; file:// breaks Vite ES module bundles (white screen).
-        var navigateUrl = $"https://{WwwRootVirtualHost}/index.html{_hashRoute}";
+        var navigateUrl = WebUiConstants.HashUrl(_hashRoute);
         _webView.CoreWebView2.Navigate(navigateUrl);
         Log.Information("WebUiHostForm navigating to {Uri} (wwwroot={Dir})", navigateUrl, wwwRootDir);
     }

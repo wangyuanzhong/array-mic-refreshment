@@ -3,7 +3,7 @@ using ArrayMicRefreshment.Core;
 namespace ArrayMicRefreshment.App;
 
 /// <summary>Small always-on-top overlay for fast in-session status (replaces mid-flow tray balloons).</summary>
-internal sealed class VoiceStatusHud : Form
+internal sealed class VoiceStatusHud : Form, IVoiceStatusHud
 {
     private const int HideDelayMs = 120;
     private const int MarginPx = 16;
@@ -49,6 +49,8 @@ internal sealed class VoiceStatusHud : Form
     }
 
     public VoiceActivityPhase Phase => _phase;
+
+    IntPtr IVoiceStatusHud.Handle => IsHandleCreated ? base.Handle : IntPtr.Zero;
 
     public void SetCorner(HudScreenCorner corner)
     {

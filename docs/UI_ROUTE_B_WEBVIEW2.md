@@ -23,7 +23,8 @@
 | CI Linux | build 可过 | ✅ `build-and-test`（Core/Audio/Prompt） |
 | CI Windows | App.Tests | ✅ `build-windows` App.Tests（40 项）；`--blame-hang-timeout 2m` |
 | 自动化验收 | Phase 2 | ✅ `scripts/test-phase2-route-b.ps1`、`scripts/test-feature-presets.ps1` |
-| §10.2 手测 | 发布前 | ❌ **须 Windows 实机**（PTT/唤醒/麦克风，脚本不覆盖） |
+| Web HUD | Phase 4 可选 | ✅ `VoiceWebStatusHud`（默认开启，可关；`AMR_WEB_HUD=0` 强制原生） |
+| §10.2 手测 | 发布前 | ❌ **须 Windows 实机**（PTT/唤醒/麦克风/粘贴/Web HUD 焦点，脚本不覆盖） |
 
 **结论**：路线 B **工程与自动化验收已完成**；发布前仍须 **§10.2 手动回归**。
 
@@ -764,7 +765,7 @@ dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.cs
 
 ### Phase 4（可选）
 - [x] HUD token 统一（`DesignTokens` + `VoiceStatusHud` 对齐 `tokens.css`）
-- [ ] Web HUD 实验（或明确放弃）
+- [x] Web HUD 实验（`VoiceWebStatusHud` + `#/hud`；`WS_EX_NOACTIVATE`；设置项「WebView2 状态 HUD」；失败回退原生）
 
 ### Phase 5
 - [x] 旧 Form 删除（`SettingsForm`、`EnrollmentDialog`、`WebUiFeatureFlags`）

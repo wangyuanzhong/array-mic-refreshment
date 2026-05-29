@@ -6,45 +6,43 @@
 
 ## 通用 Cursor 规则（强制）
 
-本仓库已安装 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)。**所有 Agent 任务**须遵守 `.cursor/rules/` 中 `alwaysApply` 规则：
+本仓库已安装 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.1**（见 [`.cursor/UNIVERSAL_RULE_LOCK`](.cursor/UNIVERSAL_RULE_LOCK)）。**所有 Agent 任务**须遵守 `.cursor/rules/` 中 `alwaysApply` 规则。权威收尾见 **[`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc)**：计划里写 **`MODE:`** 与 **`Closing: I will end this reply with the verbatim Done check.`**；每轮改文件的回复**末尾主动**输出 verbatim **Done check**（勿等用户追问）。
 
 | 规则 | 作用 |
 |------|------|
-| [`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc) | 完成定义、本地/云端分工、文档优先于随意改 CI |
-| [`exe-packaging-local-cloud.mdc`](.cursor/rules/exe-packaging-local-cloud.mdc) | 本地 `watch-build-release.ps1 -Once`；云端验证 Build release EXE |
-| [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc) | push 后盯 Actions 至绿（**无跳过**；Windows `build-windows` 必须过） |
-| [`docs-sync-before-finish.mdc`](.cursor/rules/docs-sync-before-finish.mdc) | 任务结束前同步全仓库 `.md` / `.txt` |
+| [`00-universal-core.mdc`](.cursor/rules/00-universal-core.mdc) | **最重要**：主动 Done check；计划两行 MODE + Closing；每个 agent 完整 hygiene；子 Agent + parent verification |
+| [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc) | push 后 `gh run watch` 至绿（含 **Common CI fix patterns**；**无跳过**；须 **Windows** `build-windows`） |
+| [`docs-sync-before-finish.mdc`](.cursor/rules/docs-sync-before-finish.mdc) | 逐文件 `Docs review:` + **change-impact grep sweep**（禁止聚合偷懒） |
+| [`versioning-and-changelog.mdc`](.cursor/rules/versioning-and-changelog.mdc) | 每次 push 写 CHANGELOG + 版本号 |
+| [`exe-packaging-local-cloud.mdc`](.cursor/rules/exe-packaging-local-cloud.mdc) | 本地 `watch-build-release.ps1 -Once`；云端验证 **Build release EXE** |
+| [`local-auto-push-current-branch.mdc`](.cursor/rules/local-auto-push-current-branch.mdc) | **仅 Local** 且存在 `.cursor/.local-auto-push` 时自动 commit/push |
 | [`git-track-cursor-folder.mdc`](.cursor/rules/git-track-cursor-folder.mdc) | `.cursor/` 必须进 git |
-| [`versioning-and-changelog.mdc`](.cursor/rules/versioning-and-changelog.mdc) | 版本号与 CHANGELOG 同步 |
 
-刷新通用规则：`.\scripts\sync-universal-cursor-rules.ps1 -Refresh`（版本锁定见 `.cursor/UNIVERSAL_RULE_LOCK`）
+刷新通用规则：
 
-## 任务收尾自检（不可跳过）
+```powershell
+.\scripts\sync-universal-cursor-rules.ps1 -Refresh
+```
 
-规则不会替你执行命令。**每次**改代码并 `git push`（或向用户报「做完」）前，Agent 必须自己跑完 applicable 项；不得以「改动小」省略。
+版本锁定见 [`.cursor/UNIVERSAL_RULE_LOCK`](.cursor/UNIVERSAL_RULE_LOCK)。同步后会自动执行 `apply-amr-cursor-overlays.ps1`（**追加**本仓库专项，不覆盖通用正文）。
 
-| 步骤 | 条件 | 动作 |
-|------|------|------|
-| 文档同步 | 任何实质性改动 | 按 `docs-sync-before-finish.mdc` 扫 `.md`/`.txt`；收尾列出改过哪些文档 |
-| 打包 exe | 动了 `src/`、`ui/`、打包脚本 | 本地：`.\scripts\watch-build-release.ps1 -Once`；云端：确认 **Build release EXE** workflow 已绿 |
-| push 后 CI | 已 `git push` | `gh run list --branch "$(git rev-parse --abbrev-ref HEAD)"` + `gh run watch --exit-status`；**Ubuntu-only 绿不算完成**；红则修→push→再看 |
-| `.cursor/` 进库 | 改了 `.cursor/**` | `git add .cursor/` 并确认未被子目录 ignore |
+## Cloud Agent 必读（MODE: Cloud）
 
-**Cursor skill 调用名** 与文件夹一致、用连字符，例如 `/frontend-design`（不是 `/frontend design`）。Skill 的 `SKILL.md` 须有 `name` + `description` frontmatter。
+1. 任务开始计划在写 `MODE: Cloud` 的同时写 `Closing: I will end this reply with the verbatim Done check.`（见 `00-universal-core.mdc`）。
+2. **不能**在云端跑 WinForms exe / `watch-build-release.ps1`；用 CI 验证（`build-windows` + `build-release-exe`）。
+3. 使用 **Task 子 Agent** 时：默认 Scenario B（子 Agent **不得** push）；若子 Agent 自己 push，父 Agent 必须按 `00-universal-core` 验证其 Done check、CHANGELOG、CI。
+4. 收尾必须输出完整 **Done check** + `Docs review:` 逐文件列表 + CI run ID（若 push 过）。
 
-## 本仓库专项
+## 本仓库专项文档
 
-该文档包含：
+| 文档 | 内容 |
+|------|------|
+| [`README.md`](README.md) | 产品架构与已定稿决策 |
+| [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md) | WebView2 路线 B、Bridge API、Phase 验收 |
+| [`CHANGELOG.md`](CHANGELOG.md) | 版本变更 |
 
-- Windows / .NET 8 SDK 前置条件  
-- 克隆 → 下载模型 → 编译 → 测试 → 运行的完整步骤  
-- `models/` 迁移与 gitignore 说明  
-- 唤醒词、日志路径、打包命令与常见问题  
-- Agent 改代码后的验证清单  
+**自动化（Windows）：** `.\scripts\test-phase2-route-b.ps1`、`.\scripts\test-feature-presets.ps1`
 
-产品架构与已定稿决策见 [`README.md`](README.md)。
+**Web HUD（Phase 4）：** 默认 `UseWebStatusHud`；设置页可关，或 `AMR_WEB_HUD=0` 强制原生条。修改后需重启应用。
 
-**WebView2 统一 UI（路线 B）** 见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md)。自动化：`.\scripts\test-phase2-route-b.ps1`、`.\scripts\test-feature-presets.ps1`（Windows）。  
-**Web UI 视觉（马卡龙色系）** 见 [`.cursor/skills/frontend-design/SKILL.md`](.cursor/skills/frontend-design/SKILL.md)；Agent 内手动调用：**`/frontend-design`**。  
-**CI 排错** 见 [`.cursor/skills/github-actions-ci/SKILL.md`](.cursor/skills/github-actions-ci/SKILL.md)。  
-**Cursor 目录说明** 见 [`.cursor/README.md`](.cursor/README.md)。
+**Skill 调用（可选）：** `/frontend-design` — 见 [`.cursor/README.md`](.cursor/README.md)。CI 排错见 [`post-push-ci-green.mdc`](.cursor/rules/post-push-ci-green.mdc)（不再使用 `github-actions-ci` skill）。

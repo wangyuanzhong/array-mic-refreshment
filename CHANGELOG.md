@@ -1,5 +1,110 @@
 # Changelog
 
+## V0.4.5 — 2026-05-29
+
+同步 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.1**（`ce5dad6`），强化 Agent **主动输出 Done check**（计划须含 `Closing:` 承诺行）。无应用运行时变更。
+
+### Changed
+
+- `.cursor/rules/00-universal-core.mdc` — 新增 “The single most important rule”；MODE 检测改为计划两行；禁止等用户追问才补 Done check
+- `AGENTS.md`、`.cursor/README.md`、`.cursor/UNIVERSAL_RULE_LOCK` 对齐 0.9.1
+
+### Files / modules touched
+
+- `.cursor/rules/*.mdc`、`.cursor/UNIVERSAL_RULE_LOCK`、`scripts/sync-universal-cursor-rules.ps1`
+- `AGENTS.md`、`.cursor/README.md`、`CHANGELOG.md`、`VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj`
+
+### Verify
+
+- `UNIVERSAL_RULE_LOCK` → `ce5dad6` / `0.9.1`
+- 新会话 Agent 计划应含 `Closing: I will end this reply with the verbatim Done check.`
+
+## V0.4.4 — 2026-05-29
+
+路线 B Phase 4 可选项：**透明 WebView2 状态 HUD**（`#/hud`），与 Macaron token 一致；无法初始化时自动回退原生 `VoiceStatusHud`。
+
+### Added
+
+- `VoiceWebStatusHud` + `VoiceStatusHudFactory`：`WS_EX_NOACTIVATE` / `ShowWithoutActivation`，C# `PostWebMessageAsJson` 驱动 `ui/#/hud`
+- 设置页「使用 WebView2 状态 HUD（实验）」；`AppSettings.UseWebStatusHud`（默认开，**重启应用**生效）
+- 环境变量 `AMR_WEB_HUD=0|1` 覆盖设置
+- `VoiceStatusHudFactoryTests`
+
+### Changed
+
+- `VoiceFeedbackPresenter` 经工厂选择 Web / 原生 HUD
+- `docs/UI_ROUTE_B_WEBVIEW2.md` §16 Phase 4 Web HUD 勾选完成
+
+### Files / modules touched
+
+- `src/ArrayMicRefreshment.App/VoiceWebStatusHud.cs`、`VoiceStatusHudFactory.cs`、`IVoiceStatusHud.cs`、`VoiceFeedbackPresenter.cs`
+- `ui/src/pages/HudPage.ts`、`router.ts`、`components.css`
+- `AppSettings.cs`、`SettingsDraft*`、`SettingsPage.ts`、`bridge.ts`
+- `tests/ArrayMicRefreshment.App.Tests/VoiceStatusHudFactoryTests.cs`
+
+### Verify
+
+- Windows：`AMR_WEB_HUD=1` 且已 `npm run build` → PTT/唤醒时见 Web 条；`AMR_WEB_HUD=0` → 原生条
+- §10.2：确认 HUD **不抢焦点**、粘贴仍成功
+- `dotnet test` App.Tests 含 `VoiceStatusHudFactoryTests`
+
+## V0.4.3 — 2026-05-29
+
+迁移 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule) **0.9.0**（`a121a4b`）：规则单目录同步，移除重复的 `github-actions-ci` skill。
+
+### Added
+
+- `post-push-ci-green.mdc` 本仓库段：workflow 表、常见 CI 坑、本地 pre-push 命令（原 skill 内容）
+
+### Changed
+
+- `.cursor/rules/*.mdc` 自 universal **0.9.0** 刷新（含 change-impact grep sweep、「每个 agent 跑完整规则」）
+- `scripts/sync-universal-cursor-rules.ps1`：按 README 仅 `cp rules/*.mdc`，不再调用已删除的安装脚本
+- `apply-amr-cursor-overlays.ps1`：CI 指引改指向 `post-push-ci-green.mdc`
+- `AGENTS.md`、`.cursor/README.md`、`docs/LOCAL_DEVELOPMENT.md` 与 0.9.0 对齐
+
+### Removed
+
+- `.cursor/skills/github-actions-ci/`（上游 0.9.0 已删除；内容并入规则）
+
+### Files / modules touched
+
+- `.cursor/rules/`、`.cursor/UNIVERSAL_RULE_LOCK`、`scripts/sync-universal-cursor-rules.ps1`、`scripts/apply-amr-cursor-overlays.ps1`
+- `AGENTS.md`、`.cursor/README.md`、`docs/LOCAL_DEVELOPMENT.md`、`CHANGELOG.md`、`VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj`
+
+### Verify
+
+- `.cursor/UNIVERSAL_RULE_LOCK` 含 `universal-pack-version=0.9.0` 与 `a121a4b`
+- `grep -R github-actions-ci .cursor/rules` 无 SKILL 引用
+- `test ! -d .cursor/skills/github-actions-ci`
+
+## V0.4.2 — 2026-05-29
+
+同步升级后的 [cursor-universal-rule](https://github.com/wangyuanzhong/cursor-universal-rule)（`96e3c5d`），强化 Agent 收尾契约，不改变应用运行时行为。
+
+### Added
+
+- 通用规则 `local-auto-push-current-branch.mdc`（须 `.cursor/.local-auto-push` 标记才在 Local 模式自动 push）
+- `00-universal-core`：强制 `MODE:` 声明、verbatim **Done check**、子 Agent push/CI/CHANGELOG 验证
+
+### Changed
+
+- `docs-sync-before-finish`：禁止「Reviewed N docs」聚合写法，要求逐文件 `Docs review:` 枚举
+- `post-push-ci-green`：明确「谁 push 谁 watch」；子 Agent 不能 push 后甩锅给父 Agent
+- `apply-amr-cursor-overlays.ps1` 改为**仅追加** AMR 专项段，避免覆盖弱化新版通用正文
+- `AGENTS.md`、`.cursor/README.md` 与新版规则对齐
+
+### Files / modules touched
+
+- `.cursor/rules/*.mdc` — 自 universal `96e3c5d` 刷新 + AMR 追加段
+- `scripts/apply-amr-cursor-overlays.ps1`、`scripts/sync-universal-cursor-rules.ps1`
+- `AGENTS.md`、`.cursor/README.md`、`.cursor/UNIVERSAL_RULE_LOCK`
+
+### Verify
+
+- 对比 `.cursor/UNIVERSAL_RULE_LOCK` 与 universal 仓库 `main` HEAD
+- 新开 Agent 任务应输出 `MODE:` 行与完整 Done check
+
 ## V0.4.1 — 2026-05-28
 
 本次 push 修复 Windows CI「假卡死」与规则收尾缺口，不改变音频/唤醒/ASR 管道行为。

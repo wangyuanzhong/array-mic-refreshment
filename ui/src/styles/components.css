@@ -623,3 +623,48 @@
   gap: var(--space-3);
 }
 
+/* Voice status HUD overlay (#/hud) — WebView2 shell; body transparent */
+body.hud-mode {
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body.hud-mode #app {
+  min-height: 0;
+}
+
+.voice-hud {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 300px;
+  min-height: 52px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--hud-bg);
+  color: var(--hud-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+  box-shadow: var(--shadow-md);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.voice-hud__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-hud[data-phase='Error'] {
+  color: var(--hud-error);
+}
+
+.voice-hud[data-phase='Recording'],
+.voice-hud[data-phase='Recognizing'],
+.voice-hud[data-phase='WakePrompt'] {
+  color: var(--hud-accent);
+}
+

@@ -455,7 +455,7 @@ gh run list --branch "$(git rev-parse --abbrev-ref HEAD)" --limit 10
 gh run watch --exit-status
 ```
 
-`App.Tests` 在 CI 上若挂数分钟，常见原因：测试里构造了 `NAudioPushToTalkSource`（WinForms 定时器泄漏），或 `MessageBox` 阻塞无窗体进程 — 见 `.cursor/skills/github-actions-ci/SKILL.md`。
+`App.Tests` 在 CI 上若挂数分钟，常见原因：测试里构造了 `NAudioPushToTalkSource`（WinForms 定时器泄漏），或 `MessageBox` 阻塞无窗体进程 — 见 [`.cursor/rules/post-push-ci-green.mdc`](../.cursor/rules/post-push-ci-green.mdc) 本仓库常见坑一节。
 
 ### 14.3 日志分析
 

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Post-push CI watch
 
-This rule applies in **both** `MODE: Cloud` and `MODE: Local`. There is no opt-out. (Earlier versions of this pack honored `.cursor/.local-skip-post-push-ci`; that file is now ignored — if your repo still has it you can delete it.)
+This rule applies in **both** `MODE: Cloud` and `MODE: Local`. There is no opt-out.
 
 ## When this rule fires
 
@@ -14,26 +14,24 @@ This rule applies in **both** `MODE: Cloud` and `MODE: Local`. There is no opt-o
 
 If the latest push **did not trigger** any workflow (check `on:` and `paths:` in `.github/workflows/*.yml`), state that explicitly and skip watching. This is the only legitimate skip.
 
+## Who watches — MUST
+
+**Whoever ran `git push` watches CI for that push** to a documented end state, before returning to their caller. Applies to top-level agents and to Scenario A sub-agents on their own branches. Pushing agents do not delegate the watch.
+
+If a sub-agent cannot watch CI in its environment (no `gh`, time/turn budget), it MUST NOT push. Leave changes for the parent or return `blocked: cannot watch CI for required push`. Pushing without watching is a hard rule violation.
+
+Parent verification of returned sub-agents: see `00-universal-core.mdc` § "Parent verification when a sub-agent returns".
+
 ## You MUST
 
-1. Watch only runs **triggered by the latest push** on the **current branch**:
-
-   ```bash
-   gh run list --branch "$(git rev-parse --abbrev-ref HEAD)" --limit 10
-   gh run watch --exit-status
-   ```
-
-2. For EXE repos, the **Windows** jobs (e.g. App.Tests, Build release EXE) MUST pass. Ubuntu-only green is **not** enough.
-3. On red:
-   1. `gh run view <run-id> --log-failed` — find the first real error.
-   2. Cross-check `README.md`, `docs/**`, `AGENTS.md`, `CHANGELOG.md`, and shipped `.txt` specs **before** changing behavior. If the fix would contradict them, update the doc in the same change set or change the implementation.
-   3. Fix in repo. Commit using the Conventional Commits convention required by `versioning-and-changelog.mdc`. CI fixes use `fix(ci): <reason>` so they are visually distinguishable from product fixes in `CHANGELOG.md`.
-   4. Push, watch again.
-4. Report run IDs and the final state in your handoff.
+1. Watch only runs triggered by the latest push on the current branch: `gh run list --branch "$(git rev-parse --abbrev-ref HEAD)" --limit 10` then `gh run watch --exit-status`.
+2. EXE repos: the Windows jobs (e.g. App.Tests, Build release EXE) MUST pass. Ubuntu-only green is not enough.
+3. On red: `gh run view <run-id> --log-failed` for the first real error. Cross-check the project's documentation (per `00-universal-core.mdc` "Project documentation"; discover, do not assume filenames) before changing behavior — if the fix would contradict documented behavior, update the doc in the same change set or change the implementation. Commit using Conventional Commits; CI fixes use `fix(ci): <reason>` so they are distinguishable in `CHANGELOG.md`. Push, watch again.
+4. Report run IDs and final state in your handoff.
 
 ## You MUST NOT
 
-- "Greenwash" by weakening a test or rewriting documented UI strings.
+- Greenwash by weakening tests or rewriting documented UI strings.
 - Make empty commits to retrigger CI when the cause is infra/secrets.
 - Loop forever — stop at the first matching condition below.
 - Chase old SHAs or unrelated branches.
@@ -48,4 +46,37 @@ If the latest push **did not trigger** any workflow (check `on:` and `paths:` in
 | Same failure after **2** fix-and-push rounds | Escalate with `gh run view --log-failed` excerpt. |
 | Required Windows job cannot run in this environment | Report; do **not** claim full CI green. |
 
-See `.cursor/skills/github-actions-ci/SKILL.md` for command-level details. If `gh` is unavailable, use the run URL / GitHub API with the same loop and stop rules.
+If `gh` is unavailable, use the run URL / GitHub API with the same loop and stop rules.
+
+## Common CI fix patterns
+
+| Symptom | Things to try |
+|---------|---------------|
+| Test name / assertion drift | Align test with the project's documentation (per `00-universal-core.mdc` "Project documentation" — discover what the project ships, do not assume filenames). If behavior intentionally changed, update the doc in the same change set. |
+| `robocopy` exit code 1 on success | Reset `$global:LASTEXITCODE = 0` after `robocopy` in PowerShell build scripts. |
+| npm / frontend | `cd ui && npm ci && npm run build`. |
+| dotnet | Match CI's `dotnet test` project paths locally on Windows when possible. |
+| Workflow syntax | Validate `on`, `paths`, job `needs`. Discover workflows: `ls .github/workflows/`, then read each YAML for `on.push` paths, job names, `runs-on`. |
+
+## This repo (array-mic-refreshment)
+
+| Workflow file | Name | Runner | Notes |
+|---------------|------|--------|-------|
+| `.github/workflows/ci.yml` | CI | `ubuntu-latest` + `windows-latest` | Windows **App.Tests** |
+| `.github/workflows/build-release-exe.yml` | Build release EXE | `windows-latest` | `build-release.ps1`; robocopy → `$LASTEXITCODE = 0` |
+| `.github/workflows/release.yml` | Release | tags | Manual |
+
+### Common pitfalls (this repo)
+
+- **Intent router tests**: `skills/manifest.yaml` `intent_map` keys (e.g. `general_chat`, not `general_ai`).
+- **WebUiBridge JSON**: `WhenWritingNull`; no `"warning": null` in success JSON.
+- **Windows-only** App.Tests — Ubuntu green ≠ done.
+- **dotnet --filter**: separate test steps on Windows CI; no `&` in one shell line.
+- **Job stuck on App.Tests for hours**: usually `vstest` never exits (leaked WinForms `Timer` / undisposed PTT). Fix tests to use stub PTT; CI uses `--blame-hang-timeout` and job `timeout-minutes`.
+
+### Optional: local pre-push
+
+```bash
+dotnet test ArrayMicRefreshment.CI.slnf -c Release
+dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.csproj -c Release  # Windows
+```

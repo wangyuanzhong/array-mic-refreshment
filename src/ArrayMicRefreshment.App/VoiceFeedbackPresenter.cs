@@ -6,7 +6,7 @@ namespace ArrayMicRefreshment.App;
 internal sealed class VoiceFeedbackPresenter : IDisposable
 {
     private readonly NotifyIcon _trayIcon;
-    private readonly VoiceStatusHud _hud;
+    private readonly IVoiceStatusHud _hud;
     private readonly SynchronizationContext _uiContext;
     private VoiceActivityPhase _phase = VoiceActivityPhase.Idle;
     private string _activityHint = string.Empty;
@@ -16,12 +16,13 @@ internal sealed class VoiceFeedbackPresenter : IDisposable
     public VoiceFeedbackPresenter(
         NotifyIcon trayIcon,
         SynchronizationContext uiContext,
+        AppSettings settings,
         Action? onPhaseChanged = null)
     {
         _trayIcon = trayIcon;
         _uiContext = uiContext;
         _onPhaseChanged = onPhaseChanged;
-        _hud = new VoiceStatusHud();
+        _hud = VoiceStatusHudFactory.Create(settings);
         ApplyTrayIcon(VoiceActivityPhase.Idle);
     }
 
@@ -29,7 +30,7 @@ internal sealed class VoiceFeedbackPresenter : IDisposable
 
     public string ActivityHint => _activityHint;
 
-    public IntPtr HudHandle => _hud.IsHandleCreated ? _hud.Handle : IntPtr.Zero;
+    public IntPtr HudHandle => _hud.Handle;
 
     public void ApplyHudCorner(HudScreenCorner corner)
     {
@@ -74,7 +75,11 @@ internal sealed class VoiceFeedbackPresenter : IDisposable
     {
         RunOnUiSync(() =>
         {
-            _hud.Close();
+            if (_hud is Form form)
+            {
+                form.Close();
+            }
+
             _hud.Dispose();
         });
     }
