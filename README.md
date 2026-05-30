@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml?query=branch%3Amain)
 
-**当前版本：V0.5.0**（见 [`VERSION.txt`](VERSION.txt)）
+**当前版本：V0.5.2**（见 [`VERSION.txt`](VERSION.txt)）
 
 本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。触发方式：**PTT 按住**、**手动热键开关**、**唤醒词**（可组合）→ **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理** → 剪贴板 / 光标粘贴。
 

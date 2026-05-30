@@ -27,12 +27,13 @@ ASR 原文
 |---------------------|-------------------|------------------|
 | `write_code` | `code-editing` | minimal cleanup + `software-product-requirements` + fidelity（产品/流程需求，非 code-editing.md） |
 | `general_chat` | `general-ai` | minimal + general-prompt + fidelity |
-| `summarize` | `research` | minimal + deep-research-prompt + research-fidelity + fidelity |
+| `summarize` | `research` | minimal + `array-mic/deep-research-prompt` + research-fidelity（同语言、多角度长提示词；无 stack-output-fidelity） |
 | `create_file` | `task-plan` | minimal + to-do-list + fidelity |
 
 设置页 **强制意图** 时跳过 LLM #1，直接选 specialist 键名（`forcedSpecialistKey`，与「整理风格管理」表格、功能预设下拉同源）。
 
-用户可在 Skills 目录下 `refinement-styles/*.md` 增加自定义风格（YAML frontmatter：`name`、`description`、`id`、可选 `stack`；无 stack 时正文为 system prompt）。
+- **预制整理风格**：安装目录旁 `skills/manifest.yaml` 的 `specialists`（及 `upstream/` 栈文件），不在 `refinement-styles/`。
+- **设置里的 Skills 绝对路径**：运行时整套 Skills 根目录（须含 `manifest.yaml` 才能实际整理）；「增加」仅向该路径下 `refinement-styles/*.md` 写入自定义风格（YAML frontmatter：`name`、`description`、`id`、可选 `stack`；无 stack 时正文为 system prompt）。
 
 ## 维护
 

@@ -42,4 +42,35 @@ public static class SkillsPathResolver
 
         return GetAllCandidates(skillsDirectory)[0];
     }
+
+    /// <summary>
+    /// Skills tree shipped beside the executable (<c>skills/manifest.yaml</c>), independent of user settings path.
+    /// </summary>
+    public static bool TryGetBundledSkillsRoot(out string bundledRoot)
+    {
+        foreach (var candidate in GetAllCandidates("skills"))
+        {
+            if (File.Exists(Path.Combine(candidate, "manifest.yaml")))
+            {
+                bundledRoot = candidate;
+                return true;
+            }
+        }
+
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var root = Path.Combine(dir.FullName, "skills");
+            if (File.Exists(Path.Combine(root, "manifest.yaml")))
+            {
+                bundledRoot = root;
+                return true;
+            }
+
+            dir = dir.Parent;
+        }
+
+        bundledRoot = string.Empty;
+        return false;
+    }
 }

@@ -40,12 +40,11 @@ specialists:
 
   research:
     name: "深度研究 Prompt"
-    description: "口述研究意图 → 给 Deep Research 等工具用的检索提示（与待办列表无关）"
+    description: "口述（中文→中文）→ 多角度拆解的长研究提示词，可适度拓宽主题；非待办/非产品需求"
     stack:
       - upstream/danielrosehill/stt-basic-cleanup.minimal.md
-      - upstream/danielrosehill/text-transform/deep-research-prompt.md
+      - upstream/array-mic/deep-research-prompt.md
       - upstream/array-mic/stack-research-fidelity.md
-      - upstream/array-mic/stack-output-fidelity.md
 
   task-plan:
     name: "待办列表"

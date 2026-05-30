@@ -5,6 +5,15 @@ namespace ArrayMicRefreshment.Prompt.Tests;
 public sealed class RefinementStyleServiceTests
 {
     [Fact]
+    public void List_invalid_directory_returns_builtin_fallback()
+    {
+        var styles = RefinementStyleService.List(@"Z:\nonexistent\skills-dir-xyz");
+        Assert.Contains(styles, s => s.Key == "plain-text");
+        Assert.Contains(styles, s => s.Key == "code-editing");
+        Assert.True(styles.Count >= 5);
+    }
+
+    [Fact]
     public void List_includes_manifest_specialists()
     {
         var repoRoot = FindRepoRoot();

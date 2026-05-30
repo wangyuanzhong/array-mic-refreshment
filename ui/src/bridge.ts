@@ -362,9 +362,51 @@ export function resolveFeaturePresetStyleKey(fp: FeaturePresetDraft): string {
   return fp.forcedSpecialistKey?.trim() || forcedIntentToSpecialistKey(fp.forcedIntent);
 }
 
-function parseJson<T>(raw: string, label: string): T {
+/** Shipped manifest specialists — keep in sync with skills/manifest.yaml (UI fallback). */
+export const BUILTIN_REFINEMENT_STYLES: RefinementStyleItem[] = [
+  {
+    key: 'plain-text',
+    name: '纯文本整理',
+    description: '去除口误、加标点、修正语序，输出适合人类阅读的书面语（短 prompt，省 token）',
+    deletable: false,
+  },
+  {
+    key: 'general-ai',
+    name: '通用 AI Prompt',
+    description: '把语音整理成通用 AI 提示词（不扩写）',
+    deletable: false,
+  },
+  {
+    key: 'code-editing',
+    name: '软件开发需求（产品视角）',
+    description: '口述需求 → 页面/流程/步骤化说明；不写接口、框架、函数名（避免误导）',
+    deletable: false,
+  },
+  {
+    key: 'research',
+    name: '深度研究 Prompt',
+    description: '同语言、多角度拆解的长研究提示词（可适度拓宽主题）；非待办/非产品需求',
+    deletable: false,
+  },
+  {
+    key: 'task-plan',
+    name: '待办列表',
+    description: '口述 → 简短可执行待办（动词开头）；不是产品需求长文，也不是深度研究',
+    deletable: false,
+  },
+];
+
+function parseJson<T>(raw: unknown, label: string): T {
   try {
-    return JSON.parse(raw) as T;
+    if (typeof raw === 'string') {
+      return JSON.parse(raw) as T;
+    }
+
+    if (raw !== null && typeof raw === 'object') {
+      return raw as T;
+    }
+
+    throw new Error(`Unexpected ${label} payload type: ${typeof raw}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`Failed to parse ${label}: ${message}`);
@@ -407,10 +449,23 @@ function wrapHostObject(host: AmrHostObject): AmrBridge {
       );
     },
     async listRefinementStyles(skillsDirectory: string) {
-      return parseJson<RefinementStyleItem[]>(
-        await host.ListRefinementStyles(skillsDirectory),
-        'ListRefinementStyles',
-      );
+      const listFn = (host as AmrHostObject & { ListRefinementStyles?: (dir: string) => Promise<string> })
+        .ListRefinementStyles;
+      if (typeof listFn !== 'function') {
+        console.warn('[bridge] host.ListRefinementStyles missing — using built-in style list');
+        return structuredClone(BUILTIN_REFINEMENT_STYLES);
+      }
+
+      try {
+        const styles = parseJson<RefinementStyleItem[]>(
+          await listFn.call(host, skillsDirectory),
+          'ListRefinementStyles',
+        );
+        return styles.length > 0 ? styles : structuredClone(BUILTIN_REFINEMENT_STYLES);
+      } catch (err) {
+        console.warn('[bridge] ListRefinementStyles failed — using built-in style list', err);
+        return structuredClone(BUILTIN_REFINEMENT_STYLES);
+      }
     },
     async addRefinementStyle(skillsDirectory: string) {
       return parseJson<AddRefinementStyleResult>(

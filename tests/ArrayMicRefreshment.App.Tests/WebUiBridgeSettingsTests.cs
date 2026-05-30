@@ -199,6 +199,19 @@ public class WebUiBridgeSettingsTests
         }
     }
 
+    [Fact]
+    public void ListRefinementStyles_returns_builtin_specialists()
+    {
+        var settings = new AppSettings { SkillsDirectory = "skills" };
+        var bridge = CreateBridge(settings);
+        using var doc = JsonDocument.Parse(bridge.ListRefinementStyles(settings.SkillsDirectory));
+        Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
+        var keys = doc.RootElement.EnumerateArray().Select(e => e.GetProperty("key").GetString()).ToList();
+        Assert.Contains("plain-text", keys);
+        Assert.Contains("code-editing", keys);
+        Assert.True(keys.Count >= 5);
+    }
+
     private sealed class NoOpPtt : IPushToTalkSource
     {
         public string HotkeyDisplay => "Ctrl+Space";

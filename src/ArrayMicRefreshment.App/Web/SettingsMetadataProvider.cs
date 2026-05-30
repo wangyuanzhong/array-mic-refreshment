@@ -100,16 +100,9 @@ public static class SettingsMetadataProvider
 
     public static IReadOnlyList<RefinementStyleEntry> ListRefinementStyles(string skillsDirectory)
     {
-        try
-        {
-            return RefinementStyleService.List(skillsDirectory)
-                .Select(e => new RefinementStyleEntry(e.Key, e.Name, e.Description, e.Deletable, e.FileName))
-                .ToArray();
-        }
-        catch
-        {
-            return Array.Empty<RefinementStyleEntry>();
-        }
+        return RefinementStyleService.List(skillsDirectory)
+            .Select(e => new RefinementStyleEntry(e.Key, e.Name, e.Description, e.Deletable, e.FileName))
+            .ToArray();
     }
 
     public static IReadOnlyList<string> GetSkillsCatalogMissingFiles(string skillsDirectory)

@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.5.2] - 2026-05-26
+
+### Changed
+
+- **深度研究**整理风格：替换英文 upstream `deep-research-prompt.md` 为 `array-mic/deep-research-prompt.md`（**同语言输出**：中文口述 → 中文研究提示词）
+- 去掉研究栈上的 `stack-output-fidelity`（「不扩写」）；重写 `stack-research-fidelity`：允许多角度拆解、150～400 字量级、可基于常识适度拓宽主题（标明「建议探索」）
+
+### Verify
+
+- 功能预设选「深度研究」，中文口述约 20 字 → 输出为**中文**、含多条子问题/研究角度、明显长于纯文本整理
+- `dotnet test`；`npm run build`；`.\scripts\watch-build-release.ps1 -Once`
+
+## [0.5.1] - 2026-05-26
+
+### Fixed
+
+- 整理风格列表为空：改为仅读 `manifest.yaml` 列举内置风格（不再依赖完整 `SkillsCatalog.Load`），并遍历多个 Skills 路径候选；读不到时使用内置五项兜底
+- 设置页：`listRefinementStyles` 失败时不再清空 overlay skills；JS 对缺失 Bridge 方法 / 解析失败使用 `BUILTIN_REFINEMENT_STYLES` 兜底
+- **预制 vs 路径**：预制五项始终从安装目录旁 `skills/manifest.yaml` 读取；用户填的绝对路径仅用于整套 Skills 运行时与 `refinement-styles/` 下自定义 .md（「增加」不会把预制写进该子目录）
+
+### Files / modules touched
+
+- `RefinementStyleService.cs`、`SkillsPathResolver.cs`、`RefinementStyleDefaults.cs`
+- `SettingsPage.ts`、`bridge.ts`、`SettingsMetadataProvider.cs`
+- `VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj` — **V0.5.1**
+
+### Verify
+
+- 设置 → 整理风格管理：表格与功能预设下拉均含 5 种预制 +「自动判断」；改 Skills 路径为无 manifest 的目录时预制仍可见
+- 预制不在 `refinement-styles/`；「增加」仅在该子目录生成 .md
+- `dotnet test`；`npm run build`；`.\scripts\watch-build-release.ps1 -Once`；启动日志 `V0.5.1 starting`
+
 ## [0.5.0] - 2026-05-26
 
 V0.5 大版本：设置页「整理风格管理」与功能预设整理风格共用同一数据源；支持在 Skills 目录下增删自定义 `.md` 风格。

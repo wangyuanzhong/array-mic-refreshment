@@ -13,6 +13,7 @@ import {
   type WakeWordSensitivity,
   type WakeWordModelStatus,
   forcedIntentToSpecialistKey,
+  BUILTIN_REFINEMENT_STYLES,
   getBridge,
   getBridgeSource,
   isMockBridge,
@@ -535,7 +536,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
 
               <section id="section-paths" class="settings-section card${activeSection === 'paths' ? ' is-active' : ''}">
                 <h2 class="card-title">整理风格管理</h2>
-                <p class="card-subtitle">内置风格来自 <code>manifest.yaml</code>；自定义风格为 <code>refinement-styles/*.md</code>（YAML 头可写 name、description、stack）。与「功能预设 → 整理风格」下拉共用同一列表。</p>
+                <p class="card-subtitle">预制整理风格在安装目录旁的 <code>skills/manifest.yaml</code>（不放在 <code>refinement-styles/</code>）。下方路径用于整套 Skills（含整理时的 prompt 栈）以及 <code>refinement-styles/*.md</code> 自定义项；与「功能预设 → 整理风格」下拉同源。</p>
                 <div class="form-grid">
                   <div class="form-field${fieldErrorClass(fieldErrors, 'skillsDirectory')}">
                     <span class="form-label">Skills 目录</span>
@@ -543,7 +544,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                       <input type="text" id="skillsDirectory" value="${escapeHtml(draft.skillsDirectory)}" />
                       <button type="button" class="btn-ghost btn-sm" id="btnBrowseSkills">浏览…</button>
                     </div>
-                    <p class="form-hint">须包含 <code>manifest.yaml</code>；保存为绝对路径。新增风格复制到 <code>refinement-styles/</code> 子目录。</p>
+                    <p class="form-hint">保存为绝对路径，默认指向程序旁的 <code>skills\</code>（含预制 <code>manifest.yaml</code>）。「增加」仅向该路径下的 <code>refinement-styles\</code> 复制 .md，不会改动预制 manifest。</p>
                     ${fieldErrorHtml(fieldErrors, 'skillsDirectory')}
                   </div>
                   <div class="form-field">
@@ -985,12 +986,22 @@ async function refreshSkillsLists(
     for (const item of lists.overlaySkills) {
       item.checked = selected.includes(item.key);
     }
-    const status = await bridge.getSkillsCatalogStatus(skillsDirectory);
-    lists.skillsMissing = status.missingFiles ?? [];
-    lists.refinementStyles = await bridge.listRefinementStyles(skillsDirectory);
   } catch {
     lists.overlaySkills = [];
+  }
+
+  try {
+    const status = await bridge.getSkillsCatalogStatus(skillsDirectory);
+    lists.skillsMissing = status.missingFiles ?? [];
+  } catch {
     lists.skillsMissing = [];
-    lists.refinementStyles = [];
+  }
+
+  try {
+    const styles = await bridge.listRefinementStyles(skillsDirectory);
+    lists.refinementStyles =
+      styles.length > 0 ? styles : structuredClone(BUILTIN_REFINEMENT_STYLES);
+  } catch {
+    lists.refinementStyles = structuredClone(BUILTIN_REFINEMENT_STYLES);
   }
 }

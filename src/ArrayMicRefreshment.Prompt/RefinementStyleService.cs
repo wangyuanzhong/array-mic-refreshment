@@ -20,14 +20,129 @@ public static class RefinementStyleService
 
     public static IReadOnlyList<RefinementStyleEntry> List(string skillsDirectory)
     {
-        var root = SkillsPathResolver.Resolve(skillsDirectory);
         var entries = new List<RefinementStyleEntry>();
+        var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Built-in specialists always come from the shipped skills tree (exe-adjacent skills/), not from refinement-styles/.
+        string? bundledRoot = null;
+        if (SkillsPathResolver.TryGetBundledSkillsRoot(out var bundled))
+        {
+            bundledRoot = bundled;
+            TryAppendManifestSpecialists(bundled, entries, seenKeys);
+        }
+
+        var userRoot = ResolveUserSkillsRoot(skillsDirectory);
+        if (!string.IsNullOrEmpty(userRoot)
+            && (bundledRoot is null || !PathsEqual(userRoot, bundledRoot)))
+        {
+            TryAppendManifestSpecialists(userRoot, entries, seenKeys);
+        }
+
+        // User-added .md files live only under {Skills 目录}/refinement-styles/.
+        if (!string.IsNullOrEmpty(userRoot))
+        {
+            AppendUserStyleFiles(userRoot, entries, seenKeys);
+        }
+
+        if (entries.Count > 0)
+        {
+            return entries;
+        }
+
+        return RefinementStyleDefaults.BuiltinEntries.ToList();
+    }
+
+    private static string ResolveUserSkillsRoot(string skillsDirectory)
+    {
+        foreach (var root in EnumerateSkillsRoots(skillsDirectory))
+        {
+            if (File.Exists(Path.Combine(root, "manifest.yaml"))
+                || Directory.Exists(GetUserStylesDirectory(root)))
+            {
+                return root;
+            }
+        }
 
         try
         {
-            var catalog = SkillsCatalog.Load(root);
-            foreach (var (key, specialist) in catalog.Manifest.Specialists.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+            return Path.GetFullPath(skillsDirectory.Trim());
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static bool PathsEqual(string a, string b) =>
+        string.Equals(
+            Path.GetFullPath(a.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+            Path.GetFullPath(b.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)),
+            StringComparison.OrdinalIgnoreCase);
+
+    private static IEnumerable<string> EnumerateSkillsRoots(string skillsDirectory)
+    {
+        var ordered = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Add(string? path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
             {
+                return;
+            }
+
+            try
+            {
+                var full = Path.GetFullPath(path);
+                if (seen.Add(full))
+                {
+                    ordered.Add(full);
+                }
+            }
+            catch
+            {
+                // ignore invalid paths
+            }
+        }
+
+        foreach (var candidate in SkillsPathResolver.GetAllCandidates(skillsDirectory))
+        {
+            Add(candidate);
+        }
+
+        try
+        {
+            Add(SkillsPathResolver.Resolve(skillsDirectory));
+        }
+        catch
+        {
+            // ignore
+        }
+
+        return ordered;
+    }
+
+    private static bool TryAppendManifestSpecialists(
+        string root,
+        List<RefinementStyleEntry> entries,
+        HashSet<string> seenKeys)
+    {
+        var manifestPath = Path.Combine(root, "manifest.yaml");
+        if (!File.Exists(manifestPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var doc = SkillsManifestLoader.LoadFromFile(manifestPath);
+            foreach (var (key, specialist) in doc.Specialists.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                if (!seenKeys.Add(key))
+                {
+                    continue;
+                }
+
                 entries.Add(new RefinementStyleEntry(
                     key,
                     specialist.Name,
@@ -35,16 +150,24 @@ public static class RefinementStyleService
                     Deletable: false,
                     FileName: null));
             }
+
+            return doc.Specialists.Count > 0;
         }
         catch
         {
-            // manifest missing — still list user files below
+            return false;
         }
+    }
 
+    private static void AppendUserStyleFiles(
+        string root,
+        List<RefinementStyleEntry> entries,
+        HashSet<string> seenKeys)
+    {
         var userDir = GetUserStylesDirectory(root);
         if (!Directory.Exists(userDir))
         {
-            return entries;
+            return;
         }
 
         foreach (var file in Directory.EnumerateFiles(userDir, "*.md", SearchOption.TopDirectoryOnly))
@@ -59,7 +182,7 @@ public static class RefinementStyleService
             {
                 var text = File.ReadAllText(file, Encoding.UTF8);
                 var meta = RefinementStyleFrontmatter.Parse(text, Path.GetFileNameWithoutExtension(file));
-                if (entries.Any(e => string.Equals(e.Key, meta.Key, StringComparison.OrdinalIgnoreCase)))
+                if (!seenKeys.Add(meta.Key))
                 {
                     continue;
                 }
@@ -76,8 +199,6 @@ public static class RefinementStyleService
                 // skip unreadable files
             }
         }
-
-        return entries;
     }
 
     public static string AddFromSourceFile(string skillsDirectory, string sourceFilePath)
