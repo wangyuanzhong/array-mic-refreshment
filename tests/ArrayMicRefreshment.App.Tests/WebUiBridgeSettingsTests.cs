@@ -190,6 +190,10 @@ public class WebUiBridgeSettingsTests
         {
         }
 
+        public void SyncPttHotkeyInteraction(VoiceTriggerMode triggerMode)
+        {
+        }
+
         public void ShowWakePhraseWarning(string message)
         {
         }

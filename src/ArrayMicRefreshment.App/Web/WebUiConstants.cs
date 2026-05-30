@@ -9,6 +9,9 @@ internal static class WebUiConstants
     public static string HashUrl(string hashRoute) =>
         $"{WwwRootBaseUrl}index.html{NormalizeHashRoute(hashRoute)}";
 
+    /// <summary>Standalone HUD page (no SPA router / no 100vh layout).</summary>
+    public static string HudOverlayUrl => $"{WwwRootBaseUrl}hud.html";
+
     private static string NormalizeHashRoute(string hashRoute)
     {
         if (string.IsNullOrWhiteSpace(hashRoute))

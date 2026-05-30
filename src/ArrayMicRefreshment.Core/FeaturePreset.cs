@@ -12,6 +12,9 @@ public sealed class FeaturePreset
 
     public PromptIntent ForcedIntent { get; set; } = PromptIntent.PlainText;
 
+    /// <summary>See <see cref="AppSettings.ForcedSpecialistKey"/>.</summary>
+    public string ForcedSpecialistKey { get; set; } = string.Empty;
+
     public OnRefineFailure OnRefineFailure { get; set; } = OnRefineFailure.UseRawTranscript;
 
     public List<string> OptionalOverlaySkills { get; set; } = new();

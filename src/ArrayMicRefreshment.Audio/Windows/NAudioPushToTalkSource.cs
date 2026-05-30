@@ -77,6 +77,12 @@ public sealed class NAudioPushToTalkSource : IPushToTalkSource, IDisposable
 
     public int ReleaseEventCount => _releaseCount;
 
+    public PttRecordingMode RecordingMode
+    {
+        get => _host.RecordingMode;
+        set => _host.RecordingMode = value;
+    }
+
     public bool TryUpdateHotkey(string hotkeyExpression, out string? error)
     {
         if (!HotkeyParser.TryParse(hotkeyExpression, out var chord, out error))

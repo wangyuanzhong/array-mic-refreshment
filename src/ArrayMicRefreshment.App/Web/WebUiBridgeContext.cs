@@ -16,6 +16,9 @@ public sealed class WebUiBridgeContext
 
     public IEnrollmentUtteranceSource? EnrollmentCapture { get; init; }
 
+    /// <summary>Dispose when the host WebView closes if <see cref="EnrollmentCapture"/> was created for settings/enroll routes.</summary>
+    public IDisposable? EnrollmentCaptureLifetime { get; init; }
+
     /// <summary>Live tray trigger mode override (shown in Web settings when runtime mode differs from persisted).</summary>
     public VoiceTriggerMode? RuntimeTriggerMode { get; set; }
 

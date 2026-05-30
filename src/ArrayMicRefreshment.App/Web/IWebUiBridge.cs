@@ -27,6 +27,14 @@ public interface IWebUiBridge
 
     string GetSkillsCatalogStatus();
 
+    string ListRefinementStyles(string skillsDirectory);
+
+    string AddRefinementStyle(string skillsDirectory);
+
+    string DeleteRefinementStyle(string skillsDirectory, string key);
+
+    string OpenMarkdownFilePickerDialog(string? initialPath);
+
     // Settings read/write
     string LoadSettingsDraft();
 

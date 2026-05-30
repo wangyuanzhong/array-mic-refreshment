@@ -19,7 +19,7 @@ Branch: `cursor/wakeword-core-arch-91a6`
 |-----------|------------|
 | `StubWakeWordDetector` | No Sherpa KWS; manual `SimulateDetection()` or chunk-count auto-fire for tests |
 | `WakeWordCaptureService` continuous listen | Opens a real mic stream but feeds stub detector only |
-| Session end | Uses `IVoiceActivityDetector` (Silero hook still energy fallback in app) |
+| Session end | Built-in **700ms** pause after speech; **Sherpa Silero VAD** when `models/silero_vad.onnx` exists; energy gap fallback if missing (not user-configurable) |
 | Mode persistence | Tray menu only; not saved to `settings.json` |
 
 ## Next agent (KWS / settings UI)

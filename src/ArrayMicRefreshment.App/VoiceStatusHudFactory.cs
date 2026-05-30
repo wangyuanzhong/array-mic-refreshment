@@ -6,25 +6,9 @@ namespace ArrayMicRefreshment.App;
 
 internal static class VoiceStatusHudFactory
 {
-    /// <summary>
-    /// Resolves whether to use the WebView2 HUD experiment.
-    /// <c>AMR_WEB_HUD=0</c> forces native; <c>AMR_WEB_HUD=1</c> forces Web when runtime exists.
-    /// </summary>
-    public static bool ResolvePreferWeb(AppSettings settings)
-    {
-        var env = Environment.GetEnvironmentVariable("AMR_WEB_HUD");
-        if (string.Equals(env, "0", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.Equals(env, "1", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return settings.UseWebStatusHud;
-    }
+    /// <summary>Web HUD is opt-in only via <c>AMR_WEB_HUD=1</c> (WinForms host often clips height).</summary>
+    public static bool ResolvePreferWeb(AppSettings settings) =>
+        string.Equals(Environment.GetEnvironmentVariable("AMR_WEB_HUD"), "1", StringComparison.OrdinalIgnoreCase);
 
     public static IVoiceStatusHud Create(AppSettings settings)
     {
@@ -36,6 +20,13 @@ internal static class VoiceStatusHudFactory
         if (!WebView2RuntimeChecker.IsRuntimeAvailable())
         {
             Log.Information("Web status HUD skipped — WebView2 runtime not available; using native HUD");
+            return new VoiceStatusHud();
+        }
+
+        var hudPage = Path.Combine(AppContext.BaseDirectory, "wwwroot", "hud.html");
+        if (!File.Exists(hudPage))
+        {
+            Log.Warning("wwwroot/hud.html missing; using native HUD (rebuild UI with npm run build)");
             return new VoiceStatusHud();
         }
 

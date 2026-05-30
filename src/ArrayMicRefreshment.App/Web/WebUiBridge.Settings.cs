@@ -75,6 +75,7 @@ public sealed partial class WebUiBridge
                 name = p.Name,
                 llmPresetName = p.LlmPresetName,
                 forcedIntent = p.ForcedIntent.ToString(),
+                forcedSpecialistKey = ForcedStyleSelection.ResolvePresetKey(p),
                 onRefineFailure = p.OnRefineFailure.ToString(),
                 optionalOverlaySkills = p.OptionalOverlaySkills,
                 selected = i == _context.Settings.SelectedFeaturePresetIndex,
@@ -120,6 +121,80 @@ public sealed partial class WebUiBridge
     {
         var missing = SettingsMetadataProvider.GetSkillsCatalogMissingFiles(_context.Settings.SkillsDirectory);
         return Serialize(new { missingFiles = missing });
+    }
+
+    public string ListRefinementStyles(string skillsDirectory)
+    {
+        var styles = SettingsMetadataProvider.ListRefinementStyles(
+                string.IsNullOrWhiteSpace(skillsDirectory)
+                    ? _context.Settings.SkillsDirectory
+                    : skillsDirectory)
+            .Select(s => new
+            {
+                key = s.Key,
+                name = s.Name,
+                description = s.Description,
+                deletable = s.Deletable,
+                fileName = s.FileName,
+            });
+        return Serialize(styles);
+    }
+
+    public string AddRefinementStyle(string skillsDirectory)
+    {
+        return RunOnUiForJson(() => AddRefinementStyleCore(skillsDirectory));
+    }
+
+    private string AddRefinementStyleCore(string skillsDirectory)
+    {
+        var dir = string.IsNullOrWhiteSpace(skillsDirectory)
+            ? _context.Settings.SkillsDirectory
+            : skillsDirectory.Trim();
+        var pick = FilePickerDialog.Show(_context.HostForm, dir);
+        if (pick.Cancelled || string.IsNullOrWhiteSpace(pick.Path))
+        {
+            return Serialize(new { ok = false, cancelled = true });
+        }
+
+        try
+        {
+            var key = RefinementStyleService.AddFromSourceFile(dir, pick.Path);
+            var styles = SettingsMetadataProvider.ListRefinementStyles(dir);
+            return Serialize(new { ok = true, key, styles });
+        }
+        catch (Exception ex)
+        {
+            return Serialize(new { ok = false, error = ex.Message });
+        }
+    }
+
+    public string DeleteRefinementStyle(string skillsDirectory, string key)
+    {
+        return RunOnUiForJson(() =>
+        {
+            var dir = string.IsNullOrWhiteSpace(skillsDirectory)
+                ? _context.Settings.SkillsDirectory
+                : skillsDirectory.Trim();
+            try
+            {
+                RefinementStyleService.DeleteUserStyle(dir, key);
+                var styles = SettingsMetadataProvider.ListRefinementStyles(dir);
+                return Serialize(new { ok = true, styles });
+            }
+            catch (Exception ex)
+            {
+                return Serialize(new { ok = false, error = ex.Message });
+            }
+        });
+    }
+
+    public string OpenMarkdownFilePickerDialog(string? initialPath)
+    {
+        return RunOnUiForJson(() =>
+        {
+            var result = FilePickerDialog.Show(_context.HostForm, initialPath);
+            return Serialize(result);
+        });
     }
 
     public string LoadSettingsDraft()

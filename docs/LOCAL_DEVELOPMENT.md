@@ -66,7 +66,7 @@ dotnet run --project src\ArrayMicRefreshment.App -c Release
 
 - `dotnet build` 0 错误
 - 托盘出现图标；右键可打开设置
-- 按住 PTT（默认 `Ctrl+Alt+Space`）说话、松开后有识别结果
+- **PTT 模式**：按住热键（默认 `Ctrl+Alt+Space`）说话、松开识别；**手动模式**：按热键开始、再按一次结束（松开不停）
 - 日志文件路径在启动时写入 `%AppData%\ArrayMicRefreshment\logs\`（见 [§7](#7-运行时路径与配置)）
 
 ---
@@ -163,6 +163,7 @@ array-mic-refreshment/
 | ASR 高精度 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/` | float32，大且慢 |
 | 声纹 | `models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k/*.onnx` | 说话人门禁 |
 | 唤醒 KWS | `models/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/` | 需 `-IncludeKws` |
+| 唤醒结束 VAD | `models/silero_vad.onnx` | **默认随 `download-models.ps1` 下载**；无此文件时回退能量检测 |
 
 下载脚本会跳过已存在的目录；可重复执行。
 
@@ -177,6 +178,7 @@ Test-Path models\sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09
 Test-Path models\3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k\*.onnx
 # 唤醒词：
 Test-Path models\sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01\tokens.txt
+Test-Path models\silero_vad.onnx
 ```
 
 ---
@@ -243,8 +245,8 @@ explorer "$env:APPDATA\ArrayMicRefreshment\logs"
 
 | 字段 | 默认 | 说明 |
 |------|------|------|
-| `PttHotkey` | `Ctrl+Alt+Space` | 全局 PTT |
-| `TriggerMode` | `PttOnly` | 还可 `WakeWordOnly`、`Both` |
+| `PttHotkey` | `Ctrl+Alt+Space` | 全局热键（PTT 按住 / 手动开关共用） |
+| `TriggerMode` | `PttOnly` | `PttOnly` 按住松停；`Manual` 按一下开/再按一下关；`WakeWordOnly`；`Both` |
 | `WakeWordPhrase` | `小助手` | 唤醒词文本 |
 | `WakeWordSensitivity` | `Maximum` | KWS/AGC 灵敏度档位 |
 | `SpeakerVerifyThreshold` | `0.40` | 声纹相似度阈值 |

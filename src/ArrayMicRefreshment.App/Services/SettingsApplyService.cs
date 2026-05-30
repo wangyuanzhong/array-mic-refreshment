@@ -61,6 +61,8 @@ public interface ISettingsApplyHost
 
     void EnsurePttHotkeyRegistered();
 
+    void SyncPttHotkeyInteraction(VoiceTriggerMode triggerMode);
+
     void ShowWakePhraseWarning(string message);
 }
 
@@ -188,6 +190,7 @@ public sealed class SettingsApplyService
         }
 
         host.EnsurePttHotkeyRegistered();
+        host.SyncPttHotkeyInteraction(NormalizePersistedMode(current.TriggerMode));
 
         return result;
     }
@@ -235,6 +238,7 @@ public sealed class SettingsApplyService
         {
             VoiceTriggerMode.WakeWordOnly => VoiceTriggerMode.WakeWordOnly,
             VoiceTriggerMode.Both => VoiceTriggerMode.Both,
+            VoiceTriggerMode.Manual => VoiceTriggerMode.Manual,
             _ => VoiceTriggerMode.PttOnly,
         };
 }

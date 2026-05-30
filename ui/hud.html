@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Voice HUD</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+      }
+
+      .voice-hud {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        padding: 10px 14px;
+        border: 1px solid rgb(126 200 227 / 50%);
+        border-radius: 12px;
+        background: rgb(255 255 255 / 97%);
+        color: #3d3d56;
+        font-family: 'Microsoft YaHei UI', 'Segoe UI', system-ui, sans-serif;
+        font-size: 10pt;
+        font-weight: 400;
+        line-height: 1.2;
+        box-shadow:
+          0 12px 32px rgb(61 61 86 / 12%),
+          0 2px 8px rgb(126 200 227 / 14%);
+        user-select: none;
+      }
+
+      .voice-hud[hidden] {
+        display: none !important;
+      }
+
+      .voice-hud__dot {
+        flex: 0 0 10px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #7a7a9a;
+      }
+
+      .voice-hud__text {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .voice-hud[data-phase='Error'] {
+        color: #d94a6a;
+      }
+
+      .voice-hud[data-phase='Error'] .voice-hud__dot {
+        background: #d94a6a;
+      }
+
+      .voice-hud[data-phase='Recording'] .voice-hud__dot,
+      .voice-hud[data-phase='Recognizing'] .voice-hud__dot {
+        background: #2a9fd4;
+      }
+
+      .voice-hud[data-phase='WakePrompt'] {
+        color: #7b5fc7;
+      }
+
+      .voice-hud[data-phase='WakePrompt'] .voice-hud__dot {
+        background: #7b5fc7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="voice-hud" id="voiceHud" hidden>
+      <span class="voice-hud__dot" aria-hidden="true"></span>
+      <span class="voice-hud__text" id="voiceHudText"></span>
+    </div>
+    <script>
+      (function () {
+        const hud = document.getElementById('voiceHud');
+        const textEl = document.getElementById('voiceHudText');
+        if (!hud || !textEl) return;
+
+        const apply = (phase, message) => {
+          if (!phase || phase === 'Idle' || !String(message || '').trim()) {
+            hud.hidden = true;
+            return;
+          }
+          hud.hidden = false;
+          hud.dataset.phase = phase;
+          textEl.textContent = message;
+        };
+
+        const host = window.chrome && window.chrome.webview;
+        if (host) {
+          host.addEventListener('message', (event) => {
+            try {
+              const payload =
+                typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+              apply(String(payload.phase || ''), String(payload.message || ''));
+            } catch {
+              /* ignore */
+            }
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>

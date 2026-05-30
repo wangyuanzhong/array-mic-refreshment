@@ -122,6 +122,7 @@ public sealed class SettingsApplyServiceComputeChangesTests
 
     [Theory]
     [InlineData(VoiceTriggerMode.PttOnly)]
+    [InlineData(VoiceTriggerMode.Manual)]
     [InlineData(VoiceTriggerMode.WakeWordOnly)]
     [InlineData(VoiceTriggerMode.Both)]
     public void NormalizePersistedMode_preserves_known_modes(VoiceTriggerMode mode)

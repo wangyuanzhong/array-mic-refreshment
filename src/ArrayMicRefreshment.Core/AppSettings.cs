@@ -42,6 +42,13 @@ public sealed class AppSettings
     public bool LaunchAtStartup { get; set; } = true;
     public bool PromptRefineEnabled { get; set; }
     public PromptIntent ForcedIntent { get; set; } = PromptIntent.PlainText;
+
+    /// <summary>
+    /// Specialist key for forced refinement (<c>auto</c>, <c>plain-text</c>, <c>code-editing</c>, or user style id).
+    /// When empty, legacy <see cref="ForcedIntent"/> is used.
+    /// </summary>
+    public string ForcedSpecialistKey { get; set; } = string.Empty;
+
     public OnRefineFailure OnRefineFailure { get; set; } = OnRefineFailure.UseRawTranscript;
 
     public string? SelectedDeviceId { get; set; }
@@ -49,7 +56,8 @@ public sealed class AppSettings
 
     public string PttHotkey { get; set; } = "Ctrl+Alt+Space";
 
-    /// <summary>PTT hotkey or wake-word hands-free mode. Missing in old JSON defaults to <see cref="VoiceTriggerMode.PttOnly"/>.</summary>
+    /// <summary>Hold hotkey to record, or toggle start/stop on each hotkey press.</summary>
+    /// <summary>PTT hold-to-talk, wake-word, both, or manual hotkey toggle. Missing in old JSON defaults to <see cref="VoiceTriggerMode.PttOnly"/>.</summary>
     public VoiceTriggerMode TriggerMode { get; set; } = VoiceTriggerMode.PttOnly;
 
     /// <summary>Wake phrase text when <see cref="TriggerMode"/> is <see cref="VoiceTriggerMode.WakeWordOnly"/>.</summary>
@@ -58,10 +66,12 @@ public sealed class AppSettings
     /// <summary>KWS AGC profile for quiet environments.</summary>
     public WakeWordSensitivity WakeWordSensitivity { get; set; } = WakeWordSensitivity.Maximum;
 
-    /// <summary>Silence after last speech chunk before wake command is sent to ASR (ms).</summary>
-    public int WakeCommandSilenceMs { get; set; } = 3000;
+    /// <summary>Legacy JSON field; wake end timing uses <see cref="WakeWordCaptureDefaults.CommandEndSilenceMs"/>.</summary>
+    [Obsolete("Wake end silence is fixed in WakeWordCaptureDefaults; not shown in settings UI.")]
+    public int WakeCommandSilenceMs { get; set; } = WakeWordCaptureDefaults.CommandEndSilenceMs;
 
-    /// <summary>Use VAD tail analysis (in addition to silence timeout) to end wake dictation.</summary>
+    /// <summary>Legacy JSON field; Silero VAD is used automatically when the model file exists.</summary>
+    [Obsolete("VAD end detection is automatic when models/silero_vad.onnx is present.")]
     public bool WakeUseVadEndDetection { get; set; } = true;
 
     /// <summary>Screen corner for the live voice status HUD.</summary>
@@ -72,7 +82,7 @@ public sealed class AppSettings
     /// Falls back to native HUD when WebView2 or wwwroot is unavailable. Takes effect on app restart.
     /// Override with env <c>AMR_WEB_HUD=0|1</c>.
     /// </summary>
-    public bool UseWebStatusHud { get; set; } = true;
+    public bool UseWebStatusHud { get; set; } = false;
 
     /// <summary>Last Web settings window client width (px).</summary>
     public int SettingsWindowWidth { get; set; } = 960;

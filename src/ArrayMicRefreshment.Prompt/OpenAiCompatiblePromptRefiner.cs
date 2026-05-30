@@ -46,36 +46,32 @@ public sealed class OpenAiCompatiblePromptRefiner : IPromptRefiner
     /// </summary>
     private string BuildSystemPrompt(PromptIntent intent)
     {
+        var specialistKey = ForcedStyleSelection.GetEffectiveKey(_settings);
+        if (string.Equals(specialistKey, ForcedStyleSelection.AutoKey, StringComparison.OrdinalIgnoreCase))
+        {
+            specialistKey = SpecialistKeyMapper.ToSpecialistKey(intent);
+        }
+
         // Fast path: plain-text polish uses the built-in prompt so the user
         // never gets an AI-prompt transformation when they just want clean text.
-        if (intent == PromptIntent.PlainText)
+        if (string.Equals(specialistKey, "plain-text", StringComparison.OrdinalIgnoreCase)
+            || intent == PromptIntent.PlainText)
         {
             Log.Debug("Using built-in plain-text polish prompt");
             return DefaultPolishPrompt;
         }
 
-        var specialistKey = SpecialistKeyMapper.ToSpecialistKey(intent);
-        if (_catalog?.Manifest?.Specialists != null &&
-            _catalog.Manifest.Specialists.TryGetValue(specialistKey, out var specialist))
+        if (_catalog is not null
+            && RefinementStyleService.TryBuildSystemPrompt(
+                _catalog,
+                specialistKey,
+                _settings.OptionalOverlaySkills,
+                out var skillPrompt)
+            && !string.IsNullOrWhiteSpace(skillPrompt)
+            && skillPrompt.Length > 50)
         {
-            try
-            {
-                var stackBody = _catalog.ResolveStackContent(specialist.Stack);
-                var overlay = _catalog.TryResolveOptionalOverlay(_settings.OptionalOverlaySkills);
-                var skillPrompt = string.IsNullOrEmpty(overlay)
-                    ? stackBody
-                    : overlay + "\n\n---\n\n" + stackBody;
-
-                if (!string.IsNullOrWhiteSpace(skillPrompt) && skillPrompt.Length > 50)
-                {
-                    Log.Debug("Using skill-based system prompt for specialist={Specialist}", specialistKey);
-                    return skillPrompt;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "Failed to build skill-based prompt for {Specialist}; falling back to default.", specialistKey);
-            }
+            Log.Debug("Using skill-based system prompt for specialist={Specialist}", specialistKey);
+            return skillPrompt;
         }
 
         Log.Debug("Skill stack empty or missing; falling back to built-in plain-text polish");

@@ -32,6 +32,26 @@ public sealed class VoiceCaptureOrchestratorTests
     }
 
     [Fact]
+    public async Task Manual_ForwardsPtt_StopsWakeListening()
+    {
+        using var harness = CreateHarness(VoiceTriggerMode.Manual);
+        var pttCount = 0;
+        harness.Orchestrator.UtteranceReady += (_, e) =>
+        {
+            if (e.TriggerKind == VoiceTriggerKind.Ptt)
+            {
+                pttCount++;
+            }
+        };
+
+        await harness.RaisePttUtteranceAsync();
+        harness.RaiseWakeUtterance();
+
+        Assert.Equal(1, pttCount);
+        Assert.False(harness.FakeWake.IsListening);
+    }
+
+    [Fact]
     public async Task WakeWordOnly_ForwardsWake_IgnoresPtt()
     {
         using var harness = CreateHarness(VoiceTriggerMode.WakeWordOnly);
@@ -278,11 +298,30 @@ public sealed class VoiceCaptureOrchestratorTests
 
     private sealed class TriggeringVoiceActivityDetector : IVoiceActivityDetector
     {
+        public bool IsAvailable => true;
+
+        public bool HadSpeechSinceReset { get; private set; }
+
+        public DateTimeOffset? LastSpeechActivityUtc { get; private set; }
+
         public bool TriggerEndOfSpeech { get; set; }
 
-        public bool IsEndOfSpeech(ReadOnlySpan<short> mono16Samples, int sampleRate) =>
-            TriggerEndOfSpeech;
+        public bool IsEndOfSpeech(ReadOnlySpan<short> mono16Samples, int sampleRate)
+        {
+            HadSpeechSinceReset = true;
+            LastSpeechActivityUtc = DateTimeOffset.UtcNow;
+            return TriggerEndOfSpeech;
+        }
 
-        public void Reset() => TriggerEndOfSpeech = false;
+        public void ConfigureSilenceDuration(TimeSpan silence)
+        {
+        }
+
+        public void Reset()
+        {
+            TriggerEndOfSpeech = false;
+            HadSpeechSinceReset = false;
+            LastSpeechActivityUtc = null;
+        }
     }
 }

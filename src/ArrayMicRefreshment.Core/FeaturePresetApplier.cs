@@ -22,6 +22,7 @@ public static class FeaturePresetApplier
         }
 
         settings.ForcedIntent = preset.ForcedIntent;
+        settings.ForcedSpecialistKey = preset.ForcedSpecialistKey;
         settings.OnRefineFailure = preset.OnRefineFailure;
         settings.OptionalOverlaySkills = preset.OptionalOverlaySkills
             .Where(s => !string.IsNullOrWhiteSpace(s))

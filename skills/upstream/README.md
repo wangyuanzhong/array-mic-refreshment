@@ -14,6 +14,11 @@
 |----------|------|
 | `danielrosehill/voice-prompt-enhancement-node.prompt.md` | https://github.com/danielrosehill/Voice-Prompt-Enhancement-Node/blob/main/prompt.md |
 | `danielrosehill/stt-basic-cleanup.complete-system-prompt.md` | https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt/blob/main/complete-system-prompt.md |
+| `danielrosehill/stt-basic-cleanup.minimal.md` | 仓库内裁剪版（无长文小标题规则；manifest 默认栈使用） |
+| `array-mic/stack-output-fidelity.md` | 仓库内：栈末「不扩写」约束（与上游 skill 拼接） |
+| `array-mic/software-product-requirements.md` | 仓库内：口述 → 软件产品/流程需求（禁止接口框架臆测） |
+| `array-mic/stack-research-fidelity.md` | 仓库内：深度研究提示词不编造方法论/约束 |
+| `florianbruniaux/voice-refine.SKILL.md` | https://github.com/FlorianBruniaux/claude-code-ultimate-guide/blob/main/examples/skills/voice-refine/SKILL.md |
 | `danielrosehill/text-transform/code-editing.md` | https://github.com/danielrosehill/Text-Transformation-Prompt-Collection-2/blob/main/by-use-case/ai/development/code-editing.md |
 | `danielrosehill/text-transform/general-prompt.md` | …/by-use-case/ai/general-prompt.md |
 | `danielrosehill/text-transform/deep-research-prompt.md` | …/by-use-case/ai/deep-research-prompt.md |

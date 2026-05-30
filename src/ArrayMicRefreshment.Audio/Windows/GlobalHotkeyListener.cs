@@ -1,5 +1,6 @@
 #if WINDOWS
 
+using ArrayMicRefreshment.Core;
 using Serilog;
 
 namespace ArrayMicRefreshment.Audio;
@@ -31,6 +32,8 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
     public event EventHandler? HotkeyReleased;
     public event Action<IntPtr>? ForegroundAtPress;
     public event Action<IntPtr>? ForegroundAtRelease;
+
+    public PttRecordingMode RecordingMode { get; set; } = PttRecordingMode.Hold;
 
     public bool IsRegistered => _chord is not null;
 
@@ -87,16 +90,38 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
     {
         if (m.Msg == WmHotkey && m.WParam.ToInt32() == HotkeyId)
         {
-            if (!_pttHeld && DateTimeOffset.UtcNow >= _releaseCooldownUtc)
+            if (DateTimeOffset.UtcNow < _releaseCooldownUtc)
             {
-                _pttHeld = true;
-                _releaseStreak = 0;
-                _pressUtc = DateTimeOffset.UtcNow;
-                Log.Information("PTT hotkey chord down via RegisterHotKey ({Chord})", _chord);
-                ForegroundAtPress?.Invoke(GetForegroundWindow());
-                HotkeyPressed?.Invoke(this, EventArgs.Empty);
-                StartReleasePolling();
+                return;
             }
+
+            var fg = GetForegroundWindow();
+            PttHotkeyInteraction.OnHotkeyActivation(
+                RecordingMode,
+                ref _pttHeld,
+                () =>
+                {
+                    _releaseStreak = 0;
+                    _pressUtc = DateTimeOffset.UtcNow;
+                    Log.Information(
+                        "PTT hotkey down ({Mode}, {Chord})",
+                        RecordingMode,
+                        _chord);
+                    ForegroundAtPress?.Invoke(fg);
+                    HotkeyPressed?.Invoke(this, EventArgs.Empty);
+                    StartReleasePolling();
+                },
+                () =>
+                {
+                    _releaseStreak = 0;
+                    _releaseCooldownUtc = DateTimeOffset.UtcNow.AddMilliseconds(200);
+                    StopReleasePolling();
+                    Log.Information(
+                        "PTT hotkey toggle stop ({Chord})",
+                        _chord);
+                    ForegroundAtRelease?.Invoke(GetForegroundWindow());
+                    HotkeyReleased?.Invoke(this, EventArgs.Empty);
+                });
 
             return;
         }
@@ -124,6 +149,17 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
         if (_chord is null || !_pttHeld)
         {
             StopReleasePolling();
+            return;
+        }
+
+        if (RecordingMode == PttRecordingMode.Toggle)
+        {
+            if (DateTimeOffset.UtcNow - _pressUtc > TimeSpan.FromMinutes(10))
+            {
+                Log.Warning("PTT toggle auto-stopped after 10 minutes");
+                CommitRelease();
+            }
+
             return;
         }
 

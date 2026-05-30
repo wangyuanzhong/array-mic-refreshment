@@ -71,6 +71,35 @@ public class JsonSettingsStoreTests
     }
 
     [Fact]
+    public void Load_migrates_legacy_pttRecordingMode_toggle_to_manual_trigger()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"amr-test-{Guid.NewGuid():N}.json");
+        try
+        {
+            File.WriteAllText(
+                path,
+                """
+                {
+                  "triggerMode": "PttOnly",
+                  "pttRecordingMode": "Toggle",
+                  "pttHotkey": "Ctrl+Alt+Space"
+                }
+                """);
+
+            var loaded = new JsonSettingsStore(path).Load();
+
+            Assert.Equal(VoiceTriggerMode.Manual, loaded.TriggerMode);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+    }
+
+    [Fact]
     public void Load_without_trigger_fields_defaults_to_ptt_and_default_wake_phrase()
     {
         var path = Path.Combine(Path.GetTempPath(), $"amr-test-{Guid.NewGuid():N}.json");

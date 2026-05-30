@@ -41,6 +41,20 @@
       }
     ]
   },
+  "phase2Vad": {
+    "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models",
+    "notes": "Silero VAD — neural end-of-speech for wake dictation (not RMS energy)",
+    "packages": [
+      {
+        "id": "silero-vad",
+        "role": "vad-primary",
+        "file": "silero_vad.onnx",
+        "extractDir": ".",
+        "sha256": null,
+        "notes": "Place silero_vad.onnx directly under models/"
+      }
+    ]
+  },
   "phase2Speaker": {
     "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models",
     "notes": "3D-Speaker ERes2Net base zh-cn 16 kHz — speaker embedding for enrollment gate",

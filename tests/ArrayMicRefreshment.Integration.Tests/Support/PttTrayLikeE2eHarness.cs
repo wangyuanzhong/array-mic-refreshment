@@ -200,6 +200,15 @@ internal sealed class PttTrayLikeE2eHarness : ISettingsApplyHost, IDisposable
 
     public void RefreshAudioCaptureAfterSettings() => _capture.StopStandbyListening();
 
+    public void SyncPttHotkeyInteraction(VoiceTriggerMode triggerMode)
+    {
+        Settings.TriggerMode = triggerMode;
+        CurrentTriggerMode = triggerMode;
+        _ptt.RecordingMode = triggerMode == VoiceTriggerMode.Manual
+            ? PttRecordingMode.Toggle
+            : PttRecordingMode.Hold;
+    }
+
     public void ShowWakePhraseWarning(string message)
     {
     }
@@ -237,10 +246,21 @@ internal sealed class PttTrayLikeE2eHarness : ISettingsApplyHost, IDisposable
     {
         private int _frames;
 
+        public bool IsAvailable => true;
+
+        public bool HadSpeechSinceReset => _frames > 0;
+
+        public DateTimeOffset? LastSpeechActivityUtc =>
+            _frames > 0 ? DateTimeOffset.UtcNow : null;
+
         public bool IsEndOfSpeech(ReadOnlySpan<short> mono16Samples, int sampleRate)
         {
             _frames++;
             return _frames >= 2;
+        }
+
+        public void ConfigureSilenceDuration(TimeSpan silence)
+        {
         }
 
         public void Reset() => _frames = 0;

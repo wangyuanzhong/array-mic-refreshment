@@ -7,13 +7,16 @@ import {
   type OnRefineFailure,
   type FeaturePresetDraft,
   type OptionalOverlaySkillItem,
+  type RefinementStyleItem,
   type SettingsDraft,
   type TriggerMode,
   type WakeWordSensitivity,
   type WakeWordModelStatus,
+  forcedIntentToSpecialistKey,
   getBridge,
   getBridgeSource,
   isMockBridge,
+  resolveFeaturePresetStyleKey,
 } from '../bridge';
 import { escapeHtml, renderAppNav, wireAppNav } from '../layout/appShell';
 
@@ -33,10 +36,12 @@ interface ListData {
   asrModels: AsrModelItem[];
   overlaySkills: OptionalOverlaySkillItem[];
   skillsMissing: string[];
+  refinementStyles: RefinementStyleItem[];
 }
 
 const TRIGGER_MODE_OPTIONS: Array<{ value: TriggerMode; label: string }> = [
-  { value: 'PttOnly', label: 'PTT（按住热键）' },
+  { value: 'PttOnly', label: 'PTT（按住热键说话，松开停止）' },
+  { value: 'Manual', label: '手动（按热键开始，再按一次停止；松开不停）' },
   { value: 'WakeWordOnly', label: '唤醒词' },
   { value: 'Both', label: 'PTT + 唤醒词' },
 ];
@@ -54,15 +59,6 @@ const HUD_CORNER_OPTIONS: Array<{ value: HudScreenCorner; label: string }> = [
   { value: 'TopLeft', label: '左上角' },
 ];
 
-const FORCED_INTENT_OPTIONS: Array<{ value: ForcedIntent; label: string }> = [
-  { value: 'Auto', label: '自动判断（让 AI 选择）' },
-  { value: 'PlainText', label: '纯文本整理 — 去口误、加标点' },
-  { value: 'GeneralAi', label: '通用 AI Prompt' },
-  { value: 'CodeEditing', label: '代码编辑指令' },
-  { value: 'Research', label: '深度研究 Prompt' },
-  { value: 'TaskPlan', label: '待办列表' },
-];
-
 const ON_REFINE_FAILURE_OPTIONS: Array<{ value: OnRefineFailure; label: string }> = [
   { value: 'UseRawTranscript', label: 'UseRawTranscript — 使用原始转写' },
   { value: 'ShowError', label: 'ShowError — 显示错误' },
@@ -77,8 +73,27 @@ const SECTION_NAV: Array<{ id: SectionId; label: string }> = [
   { id: 'llm', label: 'LLM 预设' },
   { id: 'trigger', label: '触发与 HUD' },
   { id: 'feature', label: '功能预设' },
-  { id: 'paths', label: '目录' },
+  { id: 'paths', label: '整理风格管理' },
 ];
+
+function buildRefinementStyleSelectOptions(
+  styles: RefinementStyleItem[],
+): Array<{ value: string; label: string }> {
+  return [
+    { value: 'auto', label: '自动判断（让 AI 选择）' },
+    ...styles.map((s) => ({ value: s.key, label: s.name })),
+  ];
+}
+
+function ensureDraftSpecialistKeys(d: SettingsDraft): SettingsDraft {
+  const forcedSpecialistKey =
+    d.forcedSpecialistKey?.trim() || forcedIntentToSpecialistKey(d.forcedIntent);
+  const featurePresets = d.featurePresets.map((fp) => ({
+    ...fp,
+    forcedSpecialistKey: fp.forcedSpecialistKey?.trim() || forcedIntentToSpecialistKey(fp.forcedIntent),
+  }));
+  return { ...d, forcedSpecialistKey, featurePresets };
+}
 
 function optionTags<T extends string>(
   options: Array<{ value: T; label: string }>,
@@ -131,7 +146,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   root.innerHTML = `<div class="app-shell"><main class="app-content"><p>加载设置…</p></main></div>`;
 
   const bridge = await getBridge();
-  let draft = await bridge.loadSettingsDraft();
+  let draft = ensureDraftSpecialistKeys(await bridge.loadSettingsDraft());
   if (!draft.featurePresets?.length) {
     draft = {
       ...draft,
@@ -140,12 +155,14 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
           name: '默认',
           llmPresetName: draft.llmPresets[0]?.name ?? '预设1',
           forcedIntent: draft.forcedIntent,
+          forcedSpecialistKey: draft.forcedSpecialistKey,
           onRefineFailure: draft.onRefineFailure,
           optionalOverlaySkills: [...draft.optionalOverlaySkills],
         },
       ],
       selectedFeaturePresetIndex: 0,
     };
+    draft = ensureDraftSpecialistKeys(draft);
   }
   const runtime = await bridge.getRuntimeState().catch(() => null);
   const runtimeTriggerMode =
@@ -165,7 +182,10 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     asrModels: await bridge.listAsrModels().catch(() => []),
     overlaySkills: [],
     skillsMissing: [],
+    refinementStyles: [],
   };
+
+  let selectedRefinementStyleKey: string | null = null;
 
   const initialFpOverlays =
     draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
@@ -197,6 +217,8 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     );
     const fp = draft.featurePresets[fpIdx];
     const llmPresetNameOptions = draft.llmPresets.map((p) => p.name);
+    const styleSelectOptions = buildRefinementStyleSelectOptions(lists.refinementStyles);
+    const activeStyleKey = resolveFeaturePresetStyleKey(fp);
     const wakeHintWhenPtt =
       !wakeModeActive(draft.triggerMode)
         ? '<p class="form-hint">当前为「仅 PTT」模式；下方唤醒词设置可先改好并保存，切换到「唤醒词」或「PTT + 唤醒词」后生效。</p>'
@@ -419,15 +441,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                       <label for="wakeWordSensitivity">唤醒灵敏度</label>
                       <select id="wakeWordSensitivity">${optionTags(WAKE_SENSITIVITY_OPTIONS, draft.wakeWordSensitivity)}</select>
                     </div>
-                    <div class="form-field">
-                      <label for="wakeCommandSilenceMs">指令结束静音（ms）</label>
-                      <input type="number" id="wakeCommandSilenceMs" min="800" max="8000" step="200" value="${draft.wakeCommandSilenceMs}" />
-                      <p class="form-hint">说完指令后，自最后一次语音（含轻声）起连续静音达到该时长即提交；不再被环境噪声反复重置计时。</p>
-                    </div>
-                    <div class="form-check">
-                      <input type="checkbox" id="wakeUseVadEndDetection"${draft.wakeUseVadEndDetection ? ' checked' : ''} />
-                      <label for="wakeUseVadEndDetection">使用 VAD 尾部分析（保留项，结束时机与上方静音时长一致）</label>
-                    </div>
+                    <p class="form-hint">说完指令后自动结束并识别（内置约 0.7 秒自然停顿；需 <code>models/silero_vad.onnx</code>，运行 <code>download-models.ps1</code> 下载）。</p>
                   </div>
 
                   <div class="form-field">
@@ -492,7 +506,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                   </div>
                   <div class="form-field">
                     <label for="featurePresetIntent">整理风格</label>
-                    <select id="featurePresetIntent">${optionTags(FORCED_INTENT_OPTIONS, fp.forcedIntent)}</select>
+                    <select id="featurePresetIntent">${optionTags(styleSelectOptions, activeStyleKey)}</select>
                   </div>
                   <div class="form-field">
                     <label for="featurePresetOnFailure">整理失败时</label>
@@ -520,7 +534,8 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
               </section>
 
               <section id="section-paths" class="settings-section card${activeSection === 'paths' ? ' is-active' : ''}">
-                <h2 class="card-title">目录</h2>
+                <h2 class="card-title">整理风格管理</h2>
+                <p class="card-subtitle">内置风格来自 <code>manifest.yaml</code>；自定义风格为 <code>refinement-styles/*.md</code>（YAML 头可写 name、description、stack）。与「功能预设 → 整理风格」下拉共用同一列表。</p>
                 <div class="form-grid">
                   <div class="form-field${fieldErrorClass(fieldErrors, 'skillsDirectory')}">
                     <span class="form-label">Skills 目录</span>
@@ -528,8 +543,42 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                       <input type="text" id="skillsDirectory" value="${escapeHtml(draft.skillsDirectory)}" />
                       <button type="button" class="btn-ghost btn-sm" id="btnBrowseSkills">浏览…</button>
                     </div>
-                    <p class="form-hint">须包含 <code>manifest.yaml</code>；保存为绝对路径。</p>
+                    <p class="form-hint">须包含 <code>manifest.yaml</code>；保存为绝对路径。新增风格复制到 <code>refinement-styles/</code> 子目录。</p>
                     ${fieldErrorHtml(fieldErrors, 'skillsDirectory')}
+                  </div>
+                  <div class="form-field">
+                    <span class="form-label">整理风格</span>
+                    <div class="feature-preset-toolbar">
+                      <button type="button" class="btn-ghost btn-sm" id="btnAddRefinementStyle">增加</button>
+                      <button type="button" class="btn-ghost btn-sm" id="btnDeleteRefinementStyle"${
+                        selectedRefinementStyleKey ? '' : ' disabled'
+                      }>删除</button>
+                    </div>
+                    <table class="refinement-style-table" id="refinementStyleTable">
+                      <thead>
+                        <tr>
+                          <th scope="col">整理风格名称</th>
+                          <th scope="col">整理风格描述</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${
+                          lists.refinementStyles.length === 0
+                            ? '<tr><td colspan="2" class="form-hint">无法读取整理风格（请检查 Skills 目录与 manifest.yaml）。</td></tr>'
+                            : lists.refinementStyles
+                                .map(
+                                  (s) => `
+                        <tr data-style-key="${escapeHtml(s.key)}" class="refinement-style-row${
+                          selectedRefinementStyleKey === s.key ? ' is-selected' : ''
+                        }"${s.deletable ? '' : ' data-builtin="1"'}>
+                          <td>${escapeHtml(s.name)}</td>
+                          <td>${escapeHtml(s.description)}</td>
+                        </tr>`,
+                                )
+                                .join('')
+                        }
+                      </tbody>
+                    </table>
                   </div>
                   ${
                     lists.skillsMissing.length > 0
@@ -566,23 +615,29 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     preset.apiModel = root.querySelector<HTMLInputElement>('#apiModel')?.value.trim() ?? preset.apiModel;
   }
 
-  function saveFeaturePresetFieldsFromDom(): void {
+  /** Persist feature-preset fields from DOM into <paramref name="presetIndex"/> (defaults to current selection). */
+  function saveFeaturePresetFieldsFromDom(presetIndex: number = draft.selectedFeaturePresetIndex): void {
     if (draft.featurePresets.length === 0) return;
     const idx = Math.min(
-      Math.max(
-        parseInt(root.querySelector<HTMLSelectElement>('#activeFeaturePreset')?.value ?? '0', 10),
-        0,
-      ),
+      Math.max(presetIndex, 0),
       draft.featurePresets.length - 1,
     );
-    draft.selectedFeaturePresetIndex = idx;
     const fp = draft.featurePresets[idx];
     fp.name = root.querySelector<HTMLInputElement>('#featurePresetName')?.value.trim() ?? fp.name;
     fp.llmPresetName =
       root.querySelector<HTMLSelectElement>('#featurePresetLlm')?.value ?? fp.llmPresetName;
+    const styleKey = root.querySelector<HTMLSelectElement>('#featurePresetIntent')?.value ?? fp.forcedSpecialistKey;
+    fp.forcedSpecialistKey = styleKey;
     fp.forcedIntent =
-      (root.querySelector<HTMLSelectElement>('#featurePresetIntent')?.value as ForcedIntent) ??
-      fp.forcedIntent;
+      styleKey === 'auto'
+        ? 'Auto'
+        : (({
+            'plain-text': 'PlainText',
+            'general-ai': 'GeneralAi',
+            'code-editing': 'CodeEditing',
+            research: 'Research',
+            'task-plan': 'TaskPlan',
+          })[styleKey] as ForcedIntent | undefined) ?? 'GeneralAi';
     fp.onRefineFailure =
       (root.querySelector<HTMLSelectElement>('#featurePresetOnFailure')?.value as OnRefineFailure) ??
       fp.onRefineFailure;
@@ -593,9 +648,21 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     fp.optionalOverlaySkills = overlay;
   }
 
+  function syncSelectedFeaturePresetIndexFromDom(): void {
+    if (draft.featurePresets.length === 0) return;
+    draft.selectedFeaturePresetIndex = Math.min(
+      Math.max(
+        parseInt(root.querySelector<HTMLSelectElement>('#activeFeaturePreset')?.value ?? '0', 10),
+        0,
+      ),
+      draft.featurePresets.length - 1,
+    );
+  }
+
   function readDraftFromDom(): SettingsDraft {
     savePresetFieldsFromDom();
     saveFeaturePresetFieldsFromDom();
+    syncSelectedFeaturePresetIndexFromDom();
 
     const deviceSelect = root.querySelector<HTMLSelectElement>('#selectedDeviceId');
     const speakerSelect = root.querySelector<HTMLSelectElement>('#currentSpeakerUserId');
@@ -608,6 +675,9 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       launchAtStartup: root.querySelector<HTMLInputElement>('#launchAtStartup')?.checked ?? draft.launchAtStartup,
       promptRefineEnabled: draft.featurePresets.length > 0 ? true : draft.promptRefineEnabled,
       forcedIntent: draft.featurePresets[draft.selectedFeaturePresetIndex]?.forcedIntent ?? draft.forcedIntent,
+      forcedSpecialistKey:
+        draft.featurePresets[draft.selectedFeaturePresetIndex]?.forcedSpecialistKey ??
+        draft.forcedSpecialistKey,
       onRefineFailure:
         draft.featurePresets[draft.selectedFeaturePresetIndex]?.onRefineFailure ?? draft.onRefineFailure,
       selectedDeviceId: deviceSelect?.value || null,
@@ -629,14 +699,8 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       wakeWordSensitivity:
         (root.querySelector<HTMLSelectElement>('#wakeWordSensitivity')?.value as WakeWordSensitivity) ??
         draft.wakeWordSensitivity,
-      wakeCommandSilenceMs: parseInt(
-        root.querySelector<HTMLInputElement>('#wakeCommandSilenceMs')?.value ??
-          String(draft.wakeCommandSilenceMs),
-        10,
-      ),
-      wakeUseVadEndDetection:
-        root.querySelector<HTMLInputElement>('#wakeUseVadEndDetection')?.checked ??
-        draft.wakeUseVadEndDetection,
+      wakeCommandSilenceMs: draft.wakeCommandSilenceMs,
+      wakeUseVadEndDetection: draft.wakeUseVadEndDetection,
       hudScreenCorner:
         (root.querySelector<HTMLSelectElement>('#hudScreenCorner')?.value as HudScreenCorner) ??
         draft.hudScreenCorner,
@@ -691,20 +755,25 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     });
 
     root.querySelector('#activeFeaturePreset')?.addEventListener('change', () => {
-      saveFeaturePresetFieldsFromDom();
-      draft.selectedFeaturePresetIndex = parseInt(
-        root.querySelector<HTMLSelectElement>('#activeFeaturePreset')?.value ?? '0',
-        10,
-      );
-      render();
+      const previousIdx = draft.selectedFeaturePresetIndex;
+      saveFeaturePresetFieldsFromDom(previousIdx);
+      syncSelectedFeaturePresetIndexFromDom();
+      void (async () => {
+        const fpOverlays =
+          draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
+          draft.optionalOverlaySkills;
+        await refreshSkillsLists(bridge, draft.skillsDirectory, lists, fpOverlays);
+        render();
+      })();
     });
 
     root.querySelector('#btnAddFeaturePreset')?.addEventListener('click', () => {
-      saveFeaturePresetFieldsFromDom();
+      saveFeaturePresetFieldsFromDom(draft.selectedFeaturePresetIndex);
       const next: FeaturePresetDraft = {
         name: `功能预设 ${draft.featurePresets.length + 1}`,
         llmPresetName: draft.llmPresets[0]?.name ?? '预设1',
         forcedIntent: 'PlainText',
+        forcedSpecialistKey: 'plain-text',
         onRefineFailure: 'UseRawTranscript',
         optionalOverlaySkills: [],
       };
@@ -715,7 +784,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
 
     root.querySelector('#btnDeleteFeaturePreset')?.addEventListener('click', () => {
       if (draft.featurePresets.length <= 1) return;
-      saveFeaturePresetFieldsFromDom();
+      saveFeaturePresetFieldsFromDom(draft.selectedFeaturePresetIndex);
       const removeIdx = draft.selectedFeaturePresetIndex;
       draft.featurePresets.splice(removeIdx, 1);
       draft.selectedFeaturePresetIndex = Math.min(removeIdx, draft.featurePresets.length - 1);
@@ -759,6 +828,54 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
           if (input) input.value = result.path;
         }
       })();
+    });
+
+    root.querySelector('#btnAddRefinementStyle')?.addEventListener('click', () => {
+      void (async () => {
+        draft = readDraftFromDom();
+        const result = await bridge.addRefinementStyle(draft.skillsDirectory);
+        if (result.cancelled) return;
+        if (!result.ok) {
+          fieldErrors.set('_global', result.error ?? '添加整理风格失败');
+          render();
+          return;
+        }
+        if (result.styles) lists.refinementStyles = result.styles;
+        fieldErrors.delete('_global');
+        render();
+      })();
+    });
+
+    root.querySelector('#btnDeleteRefinementStyle')?.addEventListener('click', () => {
+      if (!selectedRefinementStyleKey) return;
+      const row = lists.refinementStyles.find((s) => s.key === selectedRefinementStyleKey);
+      if (!row?.deletable) return;
+      void (async () => {
+        draft = readDraftFromDom();
+        const result = await bridge.deleteRefinementStyle(draft.skillsDirectory, selectedRefinementStyleKey!);
+        if (!result.ok) {
+          fieldErrors.set('_global', result.error ?? '删除整理风格失败');
+          render();
+          return;
+        }
+        if (result.styles) lists.refinementStyles = result.styles;
+        selectedRefinementStyleKey = null;
+        fieldErrors.delete('_global');
+        render();
+      })();
+    });
+
+    root.querySelector('#refinementStyleTable')?.addEventListener('click', (e) => {
+      const tr = (e.target as HTMLElement).closest<HTMLTableRowElement>('tr[data-style-key]');
+      if (!tr?.dataset.styleKey) return;
+      const key = tr.dataset.styleKey;
+      const entry = lists.refinementStyles.find((s) => s.key === key);
+      if (!entry?.deletable) {
+        selectedRefinementStyleKey = null;
+      } else {
+        selectedRefinementStyleKey = key;
+      }
+      render();
     });
 
     root.querySelector('#btnBrowseSkills')?.addEventListener('click', () => {
@@ -844,8 +961,9 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   }
 
   async function handleCancel(): Promise<void> {
-    draft = await bridge.loadSettingsDraft();
+    draft = ensureDraftSpecialistKeys(await bridge.loadSettingsDraft());
     fieldErrors.clear();
+    selectedRefinementStyleKey = null;
     const cancelFpOverlays =
       draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
       draft.optionalOverlaySkills;
@@ -869,8 +987,10 @@ async function refreshSkillsLists(
     }
     const status = await bridge.getSkillsCatalogStatus(skillsDirectory);
     lists.skillsMissing = status.missingFiles ?? [];
+    lists.refinementStyles = await bridge.listRefinementStyles(skillsDirectory);
   } catch {
     lists.overlaySkills = [];
     lists.skillsMissing = [];
+    lists.refinementStyles = [];
   }
 }

@@ -7,7 +7,10 @@ export default defineConfig({
     outDir: resolve(__dirname, '../src/ArrayMicRefreshment.App/wwwroot'),
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(__dirname, 'index.html'),
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        hud: resolve(__dirname, 'hud.html'),
+      },
     },
   },
 });

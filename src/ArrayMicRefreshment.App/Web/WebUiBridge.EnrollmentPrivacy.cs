@@ -23,7 +23,11 @@ public sealed partial class WebUiBridge
         {
             if (_context.EnrollmentCapture is null)
             {
-                return Serialize(new { ok = false, error = "未配置录音采集源。" });
+                return Serialize(new
+                {
+                    ok = false,
+                    error = "无法打开麦克风。请先在「设置 → 录音设备」中选择设备并保存，或从托盘菜单打开「注册说话人」。",
+                });
             }
 
             if (_enrollmentSession is not null)
@@ -35,6 +39,16 @@ public sealed partial class WebUiBridge
             {
                 _enrollmentSession = _context.EnrollmentCapture.StartRecording();
                 return Serialize(new { ok = true });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Serialize(new
+                {
+                    ok = false,
+                    error = ex.Message.Contains("capture device", StringComparison.OrdinalIgnoreCase)
+                        ? "未找到可用录音设备。请在「设置 → 录音设备」中选择麦克风后重试。"
+                        : ex.Message,
+                });
             }
             catch (Exception ex)
             {

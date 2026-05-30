@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ArrayMicRefreshment.Core;
 
@@ -8,6 +9,7 @@ public sealed class JsonSettingsStore : ISettingsStore
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
     };
 
     private readonly string _path;
@@ -46,6 +48,7 @@ public sealed class JsonSettingsStore : ISettingsStore
 
             settings.MigrateLegacyApiSettings();
             settings.MigrateLegacyFeaturePresets();
+            MigrateLegacyPttRecordingMode(json, settings);
             return settings;
         }
         catch
@@ -61,5 +64,33 @@ public sealed class JsonSettingsStore : ISettingsStore
     {
         var json = JsonSerializer.Serialize(settings, JsonOptions);
         File.WriteAllText(_path, json);
+    }
+
+    /// <summary>V0.4.30 stored toggle under <c>pttRecordingMode</c>; that is now <see cref="VoiceTriggerMode.Manual"/>.</summary>
+    private static void MigrateLegacyPttRecordingMode(string json, AppSettings settings)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("pttRecordingMode", out var modeProp))
+            {
+                return;
+            }
+
+            var isToggle = modeProp.ValueKind switch
+            {
+                JsonValueKind.String => string.Equals(modeProp.GetString(), "Toggle", StringComparison.OrdinalIgnoreCase),
+                JsonValueKind.Number => modeProp.GetInt32() == 1,
+                _ => false,
+            };
+            if (isToggle && settings.TriggerMode == VoiceTriggerMode.PttOnly)
+            {
+                settings.TriggerMode = VoiceTriggerMode.Manual;
+            }
+        }
+        catch
+        {
+            // Best-effort migration only.
+        }
     }
 }

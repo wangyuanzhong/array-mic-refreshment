@@ -141,15 +141,15 @@ public sealed class VoicePipeline
                     intent = (await _router.RouteAsync(raw, cancellationToken).ConfigureAwait(false)).Intent;
                     Log.Information("Router resolved intent: {Intent}", intent);
                 }
-                else if (_settings.ForcedIntent == PromptIntent.PlainText)
-                {
-                    intent = PromptIntent.PlainText;
-                    Log.Information("Using selected skill: PlainText (built-in transcript polish)");
-                }
                 else
                 {
                     intent = _settings.ForcedIntent;
-                    Log.Information("Using selected skill: {Intent}", intent);
+                    Log.Information(
+                        "Using selected skill: {Intent} (key={Key})",
+                        intent,
+                        string.IsNullOrWhiteSpace(_settings.ForcedSpecialistKey)
+                            ? intent.ToString()
+                            : _settings.ForcedSpecialistKey);
                 }
 
                 var refined = await _promptRefiner.RefineAsync(raw, intent, cancellationToken).ConfigureAwait(false);

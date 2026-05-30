@@ -32,7 +32,7 @@ public sealed class EnrollmentUtteranceCapture : IEnrollmentUtteranceSource, IDi
         var device = _deviceEnumerator.ResolveDevice(_settings.SelectedDeviceId);
         if (device is null)
         {
-            throw new InvalidOperationException("No capture device available for enrollment.");
+            throw new InvalidOperationException("未找到可用录音设备，请先在设置中选择麦克风。");
         }
 
         _buffer.Clear();

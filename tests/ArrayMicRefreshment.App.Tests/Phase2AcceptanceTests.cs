@@ -44,7 +44,7 @@ public sealed class Phase2AcceptanceTests
         draft.SpeakerVerifyThreshold = 0.62f;
         draft.SelectedAsrModelId = "paraformer";
         draft.WakeWordPhrase = "你好助手";
-        draft.WakeCommandSilenceMs = 1800;
+        draft.WakeCommandSilenceMs = 1800; // legacy field in draft JSON — mapper ignores and uses built-in default
 
         var mapped = SettingsDraftMapper.ToAppSettings(draft, template);
 
@@ -53,7 +53,7 @@ public sealed class Phase2AcceptanceTests
         Assert.Equal(0.62f, mapped.SpeakerVerifyThreshold, 2);
         Assert.Equal("paraformer", mapped.SelectedAsrModelId);
         Assert.Equal("你好助手", mapped.WakeWordPhrase);
-        Assert.Equal(1800, mapped.WakeCommandSilenceMs);
+        Assert.Equal(WakeWordCaptureDefaults.CommandEndSilenceMs, mapped.WakeCommandSilenceMs);
     }
 
     [Fact]
@@ -98,6 +98,7 @@ public sealed class Phase2AcceptanceTests
         var draft = SettingsDraftMapper.ToDraft(settings, null);
         draft.PromptRefineEnabled = true;
         draft.ForcedIntent = PromptIntent.CodeEditing;
+        draft.ForcedSpecialistKey = "code-editing";
         draft.OnRefineFailure = OnRefineFailure.KeepLast;
         draft.OptionalOverlaySkills = ["voice_refine", "dictation_cleanup"];
 

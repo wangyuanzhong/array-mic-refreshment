@@ -11,6 +11,7 @@ internal static class SettingsCopier
         target.LaunchAtStartup = source.LaunchAtStartup;
         target.PromptRefineEnabled = source.PromptRefineEnabled;
         target.ForcedIntent = source.ForcedIntent;
+        target.ForcedSpecialistKey = source.ForcedSpecialistKey;
         target.OnRefineFailure = source.OnRefineFailure;
         target.SelectedDeviceId = source.SelectedDeviceId;
         target.CurrentSpeakerUserId = source.CurrentSpeakerUserId;
@@ -40,6 +41,7 @@ internal static class SettingsCopier
                     Name = p.Name,
                     LlmPresetName = p.LlmPresetName,
                     ForcedIntent = p.ForcedIntent,
+                    ForcedSpecialistKey = p.ForcedSpecialistKey,
                     OnRefineFailure = p.OnRefineFailure,
                     OptionalOverlaySkills = new List<string>(p.OptionalOverlaySkills),
                 })
@@ -51,6 +53,7 @@ internal static class SettingsCopier
                     Name = "默认",
                     LlmPresetName = source.CurrentPreset.Name,
                     ForcedIntent = source.ForcedIntent,
+                    ForcedSpecialistKey = source.ForcedSpecialistKey,
                     OnRefineFailure = source.OnRefineFailure,
                     OptionalOverlaySkills = new List<string>(source.OptionalOverlaySkills),
                 },
@@ -95,6 +98,7 @@ internal static class SettingsCopier
         RequiresSherpaReload(previous, next)
         || previous.PromptRefineEnabled != next.PromptRefineEnabled
         || previous.ForcedIntent != next.ForcedIntent
+        || !string.Equals(previous.ForcedSpecialistKey, next.ForcedSpecialistKey, StringComparison.OrdinalIgnoreCase)
         || !string.Equals(previous.SkillsDirectory, next.SkillsDirectory, StringComparison.OrdinalIgnoreCase)
         || previous.OnRefineFailure != next.OnRefineFailure
         || previous.SelectedFeaturePresetIndex != next.SelectedFeaturePresetIndex

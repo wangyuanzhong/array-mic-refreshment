@@ -2,6 +2,7 @@
 
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using ArrayMicRefreshment.Core;
 using Serilog;
 
 namespace ArrayMicRefreshment.Audio;
@@ -42,6 +43,8 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
     public event EventHandler? HotkeyReleased;
     public event Action<IntPtr>? ForegroundAtPress;
     public event Action<IntPtr>? ForegroundAtRelease;
+
+    public PttRecordingMode RecordingMode { get; set; } = PttRecordingMode.Hold;
 
     public bool IsRegistered => _chord is not null && _hookHandle != IntPtr.Zero;
 
@@ -175,7 +178,12 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
 
     private void TryHandleKeyDown(KbdllHookStruct data)
     {
-        if (_chord is null || _pttHeld || DateTimeOffset.UtcNow < _releaseCooldownUtc)
+        if (_chord is null || DateTimeOffset.UtcNow < _releaseCooldownUtc)
+        {
+            return;
+        }
+
+        if (RecordingMode == PttRecordingMode.Hold && _pttHeld)
         {
             return;
         }
@@ -200,7 +208,7 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
 
     private void TryChordDownOnUi(HotkeyChord chord, uint vk, IntPtr fg)
     {
-        if (_chord is null || _pttHeld || DateTimeOffset.UtcNow < _releaseCooldownUtc)
+        if (_chord is null || DateTimeOffset.UtcNow < _releaseCooldownUtc)
         {
             return;
         }
@@ -223,17 +231,29 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
             return;
         }
 
-        _pttHeld = true;
-        _releaseStreak = 0;
-        OnChordDownOnUi(chord, fg);
-    }
-
-    private void OnChordDownOnUi(HotkeyChord chord, IntPtr fg)
-    {
-        Log.Information("PTT hotkey chord down via keyboard hook ({Chord})", chord);
-        ForegroundAtPress?.Invoke(fg);
-        HotkeyPressed?.Invoke(this, EventArgs.Empty);
-        StartReleasePolling();
+        PttHotkeyInteraction.OnHotkeyActivation(
+            RecordingMode,
+            ref _pttHeld,
+            () =>
+            {
+                _releaseStreak = 0;
+                Log.Information(
+                    "PTT hotkey down via keyboard hook ({Mode}, {Chord})",
+                    RecordingMode,
+                    chord);
+                ForegroundAtPress?.Invoke(fg);
+                HotkeyPressed?.Invoke(this, EventArgs.Empty);
+                StartReleasePolling();
+            },
+            () =>
+            {
+                _releaseStreak = 0;
+                _releaseCooldownUtc = DateTimeOffset.UtcNow.AddMilliseconds(200);
+                StopReleasePolling();
+                Log.Information("PTT hotkey toggle stop via keyboard hook ({Chord})", chord);
+                ForegroundAtRelease?.Invoke(GetForegroundWindow());
+                HotkeyReleased?.Invoke(this, EventArgs.Empty);
+            });
     }
 
     private static bool ModifiersMatch(HotkeyChord chord) =>
@@ -262,6 +282,11 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
         if (_chord is null || !_pttHeld)
         {
             StopReleasePolling();
+            return;
+        }
+
+        if (RecordingMode == PttRecordingMode.Toggle)
+        {
             return;
         }
 

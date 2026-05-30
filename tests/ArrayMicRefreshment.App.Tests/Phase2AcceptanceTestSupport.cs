@@ -22,6 +22,7 @@ internal static class Phase2AcceptanceTestSupport
         "launchAtStartup",
         "promptRefineEnabled",
         "forcedIntent",
+        "forcedSpecialistKey",
         "onRefineFailure",
         "selectedDeviceId",
         "currentSpeakerUserId",
@@ -223,6 +224,10 @@ internal static class Phase2AcceptanceTestSupport
         }
 
         public void EnsurePttHotkeyRegistered()
+        {
+        }
+
+        public void SyncPttHotkeyInteraction(VoiceTriggerMode triggerMode)
         {
         }
 

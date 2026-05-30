@@ -1,5 +1,5 @@
 # Array Mic Refreshment — Skill manifest
-# 正文一律读 skills/upstream/ 下第三方原文
+# 正文一律读 skills/upstream/ 下第三方原文 + array-mic 栈末约束（拼接用）
 
 version: 2
 
@@ -23,38 +23,43 @@ specialists:
 
   general-ai:
     name: "通用 AI Prompt"
-    description: "把语音变成通用 AI 提示词"
+    description: "把语音整理成通用 AI 提示词（不扩写）"
     stack:
-      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
-      - upstream/danielrosehill/voice-prompt-enhancement-node.prompt.md
+      - upstream/danielrosehill/stt-basic-cleanup.minimal.md
       - upstream/danielrosehill/text-transform/general-prompt.md
+      - upstream/array-mic/stack-output-fidelity.md
 
+  # 本应用主场景：程序开发，但输出是「产品需求」而非「改哪几个函数」
   code-editing:
-    name: "代码编辑指令"
-    description: "把语音变成代码编辑 AI 的精确指令"
+    name: "软件开发需求（产品视角）"
+    description: "口述需求 → 页面/流程/步骤化说明；不写接口、框架、函数名（避免误导）"
     stack:
-      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
-      - upstream/danielrosehill/voice-prompt-enhancement-node.prompt.md
-      - upstream/danielrosehill/text-transform/code-editing.md
+      - upstream/danielrosehill/stt-basic-cleanup.minimal.md
+      - upstream/array-mic/software-product-requirements.md
+      - upstream/array-mic/stack-output-fidelity.md
 
   research:
     name: "深度研究 Prompt"
-    description: "把语音变成深度研究工具的精确提示词"
+    description: "口述研究意图 → 给 Deep Research 等工具用的检索提示（与待办列表无关）"
     stack:
-      - upstream/danielrosehill/stt-basic-cleanup.complete-system-prompt.md
+      - upstream/danielrosehill/stt-basic-cleanup.minimal.md
       - upstream/danielrosehill/text-transform/deep-research-prompt.md
+      - upstream/array-mic/stack-research-fidelity.md
+      - upstream/array-mic/stack-output-fidelity.md
 
   task-plan:
     name: "待办列表"
-    description: "把语音变成清晰的待办事项列表"
+    description: "口述 → 简短可执行待办（动词开头）；不是产品需求长文，也不是深度研究"
     stack:
+      - upstream/danielrosehill/stt-basic-cleanup.minimal.md
       - upstream/danielrosehill/text-transform/to-do-list.md
+      - upstream/array-mic/stack-output-fidelity.md
 
 # 可选叠加 skill（设置页勾选）
 optional_skills:
   voice_refine:
     file: upstream/florianbruniaux/voice-refine.SKILL.md
-    note: "FlorianBruniaux/claude-code-ultimate-guide — 适合 Claude Code 长任务"
+    note: "口述结构化；与「软件开发需求」同用易偏模板，一般不必勾选"
 
   dictation_cleanup:
     file: upstream/majiayu000/dictation-githubnext-gh-aw-2.SKILL.md

@@ -19,7 +19,8 @@
 | `SettingsApplyService` | Phase 0 | ✅ Web / 托盘共用 |
 | 设置入口 | Web 为主 | ✅ 托盘「设置」→ **单例** `WebUiHostForm` `#/settings`（关闭即隐藏，可重复打开同一窗口） |
 | 注册入口 | Web `#/enroll` | ✅ Web 注册；`EnrollmentDialog` 已删除 |
-| 功能预设 | — | ✅ 设置页「功能预设」+ 托盘「功能模式」；`FeaturePresetApplier` |
+| 功能预设 | — | ✅ 设置页「功能预设」+ 托盘「功能模式」；`FeaturePresetApplier`（V0.4.29+ 切换预设时按原索引保存名称） |
+| 手动触发 | — | ✅ V0.4.31+ `TriggerMode.Manual`（热键按一下开/再按一下关，与 PTT 按住并列） |
 | CI Linux | build 可过 | ✅ `build-and-test`（Core/Audio/Prompt） |
 | CI Windows | App.Tests | ✅ `build-windows` App.Tests（40 项）；`--blame-hang-timeout 2m` |
 | 自动化验收 | Phase 2 | ✅ `scripts/test-phase2-route-b.ps1`、`scripts/test-feature-presets.ps1` |
@@ -373,6 +374,9 @@ JS 访问：`window.chrome.webview.hostObjects.amr`（注意 async 代理，需 
 |------|------|
 | `OpenHotkeyCaptureDialog(currentHotkey)` | 打开 `HotkeyCaptureDialog` modal；返回 `{ hotkey, cancelled }` |
 | `OpenFolderPickerDialog(initialPath)` | 系统文件夹选择；返回 `{ path, cancelled }`（models/skills 目录） |
+| `ListRefinementStyles(skillsDirectory)` | 整理风格列表（manifest + `refinement-styles/*.md`） |
+| `AddRefinementStyle(skillsDirectory)` | 打开 `.md` 文件选择器，复制到 `refinement-styles/`；返回 `{ ok, key?, styles? }` |
+| `DeleteRefinementStyle(skillsDirectory, key)` | 删除用户风格文件；返回 `{ ok, styles? }` |
 
 Web **不能**直接监听全局热键；必须走此方法。
 
@@ -404,6 +408,8 @@ interface SettingsDraft {
   launchAtStartup: boolean;
   promptRefineEnabled: boolean;
   forcedIntent: 'Auto' | 'PlainText' | 'GeneralAi' | 'CodeEditing' | 'Research' | 'TaskPlan';
+  /** manifest specialist 键或用户风格 id；与功能预设「整理风格」下拉一致 */
+  forcedSpecialistKey: string;
   onRefineFailure: 'UseRawTranscript' | 'ShowError' | 'KeepLast';
 
   selectedDeviceId: string | null;

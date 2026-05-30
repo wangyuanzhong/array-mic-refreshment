@@ -89,6 +89,9 @@ public sealed class VoiceCaptureOrchestrator : IDisposable
             case VoiceTriggerMode.Both:
                 _wakeCapture.StartListening();
                 break;
+            case VoiceTriggerMode.Manual:
+                _wakeCapture.StopListening();
+                break;
         }
 
         if (log)
@@ -183,7 +186,7 @@ public sealed class VoiceCaptureOrchestrator : IDisposable
     {
         lock (_modeGate)
         {
-            return _mode is VoiceTriggerMode.PttOnly or VoiceTriggerMode.Both;
+            return _mode is VoiceTriggerMode.PttOnly or VoiceTriggerMode.Both or VoiceTriggerMode.Manual;
         }
     }
 

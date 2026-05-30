@@ -25,12 +25,14 @@ ASR 原文
 
 | 上游 classifier 输出 | 本应用 specialist | 使用的他人文件栈 |
 |---------------------|-------------------|------------------|
-| `write_code` | `code-editing` | STT-Basic-Cleanup + Voice-Prompt-Enhancement-Node + code-editing.md |
-| `general_chat` | `general-ai` | STT-Basic-Cleanup + general-prompt.md |
-| `summarize` | `research` | STT-Basic-Cleanup + deep-research-prompt.md |
-| `create_file` | `task-plan` | STT-Basic-Cleanup + to-do-list.md |
+| `write_code` | `code-editing` | minimal cleanup + `software-product-requirements` + fidelity（产品/流程需求，非 code-editing.md） |
+| `general_chat` | `general-ai` | minimal + general-prompt + fidelity |
+| `summarize` | `research` | minimal + deep-research-prompt + research-fidelity + fidelity |
+| `create_file` | `task-plan` | minimal + to-do-list + fidelity |
 
-设置页 **强制意图** 时跳过 LLM #1，直接选 specialist 键名。
+设置页 **强制意图** 时跳过 LLM #1，直接选 specialist 键名（`forcedSpecialistKey`，与「整理风格管理」表格、功能预设下拉同源）。
+
+用户可在 Skills 目录下 `refinement-styles/*.md` 增加自定义风格（YAML frontmatter：`name`、`description`、`id`、可选 `stack`；无 stack 时正文为 system prompt）。
 
 ## 维护
 

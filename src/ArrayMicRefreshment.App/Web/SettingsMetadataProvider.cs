@@ -15,6 +15,8 @@ public static class SettingsMetadataProvider
 
     public sealed record OptionalOverlaySkillEntry(string Key, string Label, bool Checked);
 
+    public sealed record RefinementStyleEntry(string Key, string Name, string Description, bool Deletable, string? FileName);
+
     public static IReadOnlyList<AudioDeviceEntry> ListAudioDevices(IAudioDeviceEnumerator? enumerator)
     {
         if (enumerator is null)
@@ -93,6 +95,20 @@ public static class SettingsMetadataProvider
         catch
         {
             return Array.Empty<OptionalOverlaySkillEntry>();
+        }
+    }
+
+    public static IReadOnlyList<RefinementStyleEntry> ListRefinementStyles(string skillsDirectory)
+    {
+        try
+        {
+            return RefinementStyleService.List(skillsDirectory)
+                .Select(e => new RefinementStyleEntry(e.Key, e.Name, e.Description, e.Deletable, e.FileName))
+                .ToArray();
+        }
+        catch
+        {
+            return Array.Empty<RefinementStyleEntry>();
         }
     }
 

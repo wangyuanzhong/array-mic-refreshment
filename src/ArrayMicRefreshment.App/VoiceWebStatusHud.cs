@@ -8,15 +8,13 @@ using Serilog;
 namespace ArrayMicRefreshment.App;
 
 /// <summary>
-/// Transparent WebView2 overlay for live voice status (Route B Phase 4).
-/// Uses <c>#/hud</c> with <see cref="WS_EX_NOACTIVATE"/> — same focus contract as <see cref="VoiceStatusHud"/>.
+/// Transparent WebView2 overlay for live voice status.
+/// Uses standalone <c>hud.html</c> (not the settings SPA) to avoid 100vh / router layout bugs.
 /// </summary>
 internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
 {
     private const int HideDelayMs = 120;
     private const int MarginPx = 16;
-    private const int HudClientWidth = 400;
-    private const int HudClientHeight = 72;
     private const int WsExToolWindow = 0x00000080;
     private const int WsExNoActivate = 0x08000000;
 
@@ -37,13 +35,16 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        // Dpi scaling on the Form + 100vh in CSS shrinks HUD to a clipped strip; size in physical pixels.
         AutoScaleMode = AutoScaleMode.None;
-        ClientSize = new Size(HudClientWidth, HudClientHeight);
+        Padding = Padding.Empty;
+        var scale = DeviceDpi / 96f;
+        ClientSize = new Size(
+            (int)Math.Round(HudLayout.LogicalWidth * scale),
+            (int)Math.Round(HudLayout.LogicalHeight * scale));
         BackColor = Color.Transparent;
         Opacity = 0.99;
         Controls.Add(_webView);
-        ApplyWebViewDpiScale();
+        SyncWebViewBounds();
 
         _hideTimer = new System.Windows.Forms.Timer { Interval = HideDelayMs };
         _hideTimer.Tick += (_, _) =>
@@ -58,7 +59,6 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
 
     public static VoiceWebStatusHud CreateSynchronously() => new();
 
-    /// <summary>Start WebView2 on this form's UI thread (STA). Must not use <see cref="Task.Run"/>.</summary>
     public void BeginInitialization()
     {
         if (_coreInitialized || _initFailed || _initTask is not null)
@@ -163,6 +163,23 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
 
     protected override bool ShowWithoutActivation => true;
 
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        SyncWebViewBounds();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        SyncWebViewBounds();
+    }
+
+    private void SyncWebViewBounds()
+    {
+        _webView.Bounds = new Rectangle(0, 0, ClientSize.Width, ClientSize.Height);
+    }
+
     private async Task InitializeCoreWebViewAsync()
     {
         try
@@ -179,10 +196,10 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
             _core.NavigationCompleted += OnNavigationCompleted;
 
             var wwwRootDir = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-            var indexPath = Path.Combine(wwwRootDir, "index.html");
-            if (!File.Exists(indexPath))
+            var hudPath = Path.Combine(wwwRootDir, "hud.html");
+            if (!File.Exists(hudPath))
             {
-                throw new FileNotFoundException("Web UI wwwroot missing for HUD", indexPath);
+                throw new FileNotFoundException("Web HUD hud.html missing", hudPath);
             }
 
             _core.SetVirtualHostNameToFolderMapping(
@@ -190,8 +207,7 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
                 wwwRootDir,
                 CoreWebView2HostResourceAccessKind.Allow);
 
-            _core.Navigate(WebUiConstants.HashUrl("#/hud"));
-            ApplyWebViewDpiScale();
+            _core.Navigate(WebUiConstants.HudOverlayUrl);
             _coreInitialized = true;
 
             if (_phase != VoiceActivityPhase.Idle && !string.IsNullOrWhiteSpace(_pendingMessage))
@@ -217,61 +233,9 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
         }
 
         _navigationReady = true;
-        _ = PinHudDocumentLayoutAsync();
         if (_phase != VoiceActivityPhase.Idle && !string.IsNullOrWhiteSpace(_pendingMessage))
         {
             PostToWeb(_phase, _pendingMessage);
-        }
-    }
-
-    private async Task PinHudDocumentLayoutAsync()
-    {
-        if (_core is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await _core.ExecuteScriptAsync(
-                """
-                (() => {
-                  const h = `${window.innerHeight}px`;
-                  document.documentElement.style.height = h;
-                  document.documentElement.style.overflow = 'hidden';
-                  document.body.style.height = h;
-                  document.body.style.overflow = 'hidden';
-                  const app = document.getElementById('app');
-                  if (app) {
-                    app.style.height = h;
-                    app.style.minHeight = '0';
-                    app.style.maxHeight = h;
-                  }
-                })();
-                """);
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, "Voice Web HUD layout pin script failed");
-        }
-    }
-
-    protected override void OnDpiChanged(DpiChangedEventArgs e)
-    {
-        base.OnDpiChanged(e);
-        ApplyWebViewDpiScale();
-        if (_navigationReady && _core is not null)
-        {
-            _ = PinHudDocumentLayoutAsync();
-        }
-    }
-
-    private void ApplyWebViewDpiScale()
-    {
-        var scale = DeviceDpi / 96.0;
-        if (scale > 0.01)
-        {
-            _webView.ZoomFactor = scale;
         }
     }
 

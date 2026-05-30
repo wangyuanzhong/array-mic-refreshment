@@ -103,6 +103,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         _pttHotkeyHost = new GlobalHotkeyListener();
         _pttHotkeyHost.Show();
         _ptt = new NAudioPushToTalkSource(_settings.PttHotkey, _pttHotkeyHost);
+        SyncPttHotkeyInteractionFromTriggerMode();
 #else
         _ptt = new StubPushToTalkSource();
 #endif
@@ -115,7 +116,9 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         var deviceEnumerator = new NAudioDeviceEnumerator();
         var captureFactory = new NAudioCaptureStreamFactory();
-        var vad = new SileroVoiceActivityDetector(_settings.ModelsDirectory);
+        var vad = new SileroVoiceActivityDetector(
+            _settings.ModelsDirectory,
+            WakeWordCaptureDefaults.CommandEndSilence);
 
         _pttCaptureService = new PttCaptureService(
             _settings,
@@ -159,10 +162,11 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         var pttRegistered = _ptt is NAudioPushToTalkSource { IsRegistered: true };
         Log.Information(
-            "PTT hotkey loaded from settings: {Saved} → registered as {Active} (ok={Ok})",
+            "PTT hotkey loaded from settings: {Saved} → registered as {Active} (ok={Ok}, mode={Mode})",
             _settings.PttHotkey,
             _ptt.HotkeyDisplay,
-            pttRegistered);
+            pttRegistered,
+            _voiceTriggerMode);
 
         _settings.MigrateLegacyApiSettings();
         _settings.MigrateLegacyFeaturePresets();
@@ -398,7 +402,11 @@ public sealed class TrayApplicationContext : ApplicationContext
             HideOnClose = true,
         };
         _settingsWebForm.Shown += (_, _) => _settingsWindowHandle = _settingsWebForm!.Handle;
-        _settingsWebForm.FormClosed += (_, _) => _settingsWindowHandle = IntPtr.Zero;
+        _settingsWebForm.FormClosed += (_, _) =>
+        {
+            _settingsWindowHandle = IntPtr.Zero;
+            _settingsWebContext?.EnrollmentCaptureLifetime?.Dispose();
+        };
         _settingsWebForm.Show();
         _settingsWindowHandle = _settingsWebForm.Handle;
     }
@@ -430,12 +438,33 @@ public sealed class TrayApplicationContext : ApplicationContext
             enrollment = gate.Enrollment;
         }
 
+        IDisposable? enrollmentLifetime = enrollmentCapture as IDisposable;
+#if WINDOWS
+        if (enrollmentCapture is null && deviceEnumerator is not null)
+        {
+            try
+            {
+                var created = new EnrollmentUtteranceCapture(
+                    _settings,
+                    deviceEnumerator,
+                    new NAudioCaptureStreamFactory());
+                enrollmentCapture = created;
+                enrollmentLifetime = created;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Enrollment capture not available for Web UI");
+            }
+        }
+#endif
+
         return new WebUiBridgeContext
         {
             Settings = _settings,
             SettingsStore = _settingsStore,
             Enrollment = enrollment,
             EnrollmentCapture = enrollmentCapture,
+            EnrollmentCaptureLifetime = enrollmentLifetime,
             DeviceEnumerator = deviceEnumerator,
             RuntimeTriggerMode = _voiceTriggerMode,
             MasterEnabled = _settings.MasterEnabled,
@@ -551,7 +580,8 @@ public sealed class TrayApplicationContext : ApplicationContext
     private ToolStripMenuItem BuildTriggerModeMenu()
     {
         var root = new ToolStripMenuItem("触发模式（运行时）");
-        root.DropDownItems.Add(CreateModeItem("仅 PTT", VoiceTriggerMode.PttOnly));
+        root.DropDownItems.Add(CreateModeItem("PTT（按住说话）", VoiceTriggerMode.PttOnly));
+        root.DropDownItems.Add(CreateModeItem("手动（按一下开/再按一下关）", VoiceTriggerMode.Manual));
         root.DropDownItems.Add(CreateModeItem("仅唤醒词", VoiceTriggerMode.WakeWordOnly));
         root.DropDownItems.Add(CreateModeItem("PTT + 唤醒词", VoiceTriggerMode.Both));
         root.DropDownItems.Add(new ToolStripSeparator());
@@ -587,21 +617,16 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         var status = mode switch
         {
-            VoiceTriggerMode.PttOnly => "状态: 就绪（PTT）",
+            VoiceTriggerMode.PttOnly => "状态: 就绪（PTT 按住）",
+            VoiceTriggerMode.Manual => "状态: 就绪（手动，按热键开/关）",
             VoiceTriggerMode.WakeWordOnly => "状态: 监听唤醒词…",
             VoiceTriggerMode.Both => "状态: PTT + 监听唤醒词",
             _ => "状态: 就绪",
         };
         _statusItem.Text = status;
-        if (mode is VoiceTriggerMode.PttOnly)
-        {
-            _feedback.ClearSession();
-            _pttCaptureService.StopStandbyListening();
-        }
-        else
-        {
-            _pttCaptureService.StopStandbyListening();
-        }
+        _feedback.ClearSession();
+        _pttCaptureService.StopStandbyListening();
+        SyncPttHotkeyInteractionFromTriggerMode();
 
         Log.Information("Voice trigger mode changed to {Mode}", mode);
 
@@ -654,7 +679,9 @@ public sealed class TrayApplicationContext : ApplicationContext
     }
 
     private bool IsPttCaptureEnabled() =>
-        _voiceTriggerMode is VoiceTriggerMode.PttOnly or VoiceTriggerMode.Both;
+        _voiceTriggerMode is VoiceTriggerMode.PttOnly
+            or VoiceTriggerMode.Both
+            or VoiceTriggerMode.Manual;
 
     private void RefreshAudioCaptureAfterSettings()
     {
@@ -672,6 +699,18 @@ public sealed class TrayApplicationContext : ApplicationContext
                 _voiceOrchestrator.WakeCapture.StartListening();
             }
         }
+    }
+
+    private void SyncPttHotkeyInteractionFromTriggerMode()
+    {
+#if WINDOWS
+        if (_ptt is NAudioPushToTalkSource winPtt)
+        {
+            winPtt.RecordingMode = _voiceTriggerMode == VoiceTriggerMode.Manual
+                ? PttRecordingMode.Toggle
+                : PttRecordingMode.Hold;
+        }
+#endif
     }
 
     private void EnsurePttHotkeyRegistered()
@@ -788,12 +827,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     }
 
     private static VoiceTriggerMode NormalizePersistedMode(VoiceTriggerMode mode) =>
-        mode switch
-        {
-            VoiceTriggerMode.WakeWordOnly => VoiceTriggerMode.WakeWordOnly,
-            VoiceTriggerMode.Both => VoiceTriggerMode.Both,
-            _ => VoiceTriggerMode.PttOnly,
-        };
+        SettingsApplyService.NormalizePersistedMode(mode);
 
     private void RefreshTriggerModeMenuChecks()
     {
@@ -818,7 +852,8 @@ public sealed class TrayApplicationContext : ApplicationContext
 
                 mi.Checked = mi.Text switch
                 {
-                    "仅 PTT" => _voiceTriggerMode == VoiceTriggerMode.PttOnly,
+                    "PTT（按住说话）" => _voiceTriggerMode == VoiceTriggerMode.PttOnly,
+                    "手动（按一下开/再按一下关）" => _voiceTriggerMode == VoiceTriggerMode.Manual,
                     "仅唤醒词" => _voiceTriggerMode == VoiceTriggerMode.WakeWordOnly,
                     "PTT + 唤醒词" => _voiceTriggerMode == VoiceTriggerMode.Both,
                     _ => false,
@@ -1213,6 +1248,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         var ptt = pttOk ? pttLabel : $"{pttLabel}?";
         var modeLabel = _voiceTriggerMode switch
         {
+            VoiceTriggerMode.Manual => "手动",
             VoiceTriggerMode.WakeWordOnly => "唤醒",
             VoiceTriggerMode.Both => "PTT+唤醒",
             _ => "PTT",
@@ -1264,7 +1300,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         PromptIntent.PlainText => "纯文本整理",
         PromptIntent.GeneralAi => "通用 AI Prompt",
-        PromptIntent.CodeEditing => "代码编辑指令",
+        PromptIntent.CodeEditing => "软件开发需求",
         PromptIntent.Research => "深度研究",
         PromptIntent.TaskPlan => "待办列表",
         _ => "自动判断",
@@ -1359,6 +1395,13 @@ public sealed class TrayApplicationContext : ApplicationContext
         public void PersistAndRefresh() => _ctx.PersistAndRefresh();
 
         public void EnsurePttHotkeyRegistered() => _ctx.EnsurePttHotkeyRegistered();
+
+        public void SyncPttHotkeyInteraction(VoiceTriggerMode triggerMode)
+        {
+            _ctx._settings.TriggerMode = triggerMode;
+            _ctx._voiceTriggerMode = triggerMode;
+            _ctx.SyncPttHotkeyInteractionFromTriggerMode();
+        }
 
         public void RefreshAudioCaptureAfterSettings()
         {

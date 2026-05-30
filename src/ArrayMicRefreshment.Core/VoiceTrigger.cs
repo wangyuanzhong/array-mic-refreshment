@@ -11,6 +11,12 @@ public enum VoiceTriggerMode
 
     /// <summary>PTT and wake-word both active; PTT takes priority while held.</summary>
     Both,
+
+    /// <summary>
+    /// Same global hotkey as PTT, but press once to start recording and press again to stop
+    /// (release does not end the session). Wake-word is off.
+    /// </summary>
+    Manual,
 }
 
 /// <summary>Which path produced an <see cref="AudioUtterance"/> for the shared pipeline.</summary>

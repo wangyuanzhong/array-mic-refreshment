@@ -2,7 +2,9 @@ using ArrayMicRefreshment.Core;
 
 namespace ArrayMicRefreshment.App;
 
-/// <summary>Small always-on-top overlay for fast in-session status (replaces mid-flow tray balloons).</summary>
+/// <summary>
+/// Native HUD — paints on the form client area (no child Label/WebView that clip vertically).
+/// </summary>
 internal sealed class VoiceStatusHud : Form, IVoiceStatusHud
 {
     private const int HideDelayMs = 120;
@@ -10,10 +12,11 @@ internal sealed class VoiceStatusHud : Form, IVoiceStatusHud
     private const int WsExToolWindow = 0x00000080;
     private const int WsExNoActivate = 0x08000000;
 
-    private readonly Label _label;
     private readonly System.Windows.Forms.Timer _hideTimer;
     private VoiceActivityPhase _phase = VoiceActivityPhase.Idle;
     private HudScreenCorner _corner = HudScreenCorner.BottomRight;
+    private string _message = string.Empty;
+    private Color _textColor = DesignTokens.HudText;
 
     public VoiceStatusHud()
     {
@@ -21,21 +24,13 @@ internal sealed class VoiceStatusHud : Form, IVoiceStatusHud
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        Size = new Size(300, 52);
+        AutoScaleMode = AutoScaleMode.None;
+        Padding = Padding.Empty;
         BackColor = DesignTokens.HudBackground;
         Opacity = DesignTokens.HudOpacity;
-        Padding = new Padding(12, 10, 12, 10);
-
-        _label = new Label
-        {
-            Dock = DockStyle.Fill,
-            BackColor = DesignTokens.HudBackground,
-            ForeColor = DesignTokens.HudText,
-            Font = DesignTokens.HudFont,
-            TextAlign = ContentAlignment.MiddleLeft,
-            AutoEllipsis = true,
-        };
-        Controls.Add(_label);
+        DoubleBuffered = true;
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        ApplyClientSizeForDpi();
 
         _hideTimer = new System.Windows.Forms.Timer { Interval = HideDelayMs };
         _hideTimer.Tick += (_, _) =>
@@ -89,14 +84,16 @@ internal sealed class VoiceStatusHud : Form, IVoiceStatusHud
             return;
         }
 
-        _label.Text = message;
-        _label.ForeColor = phase switch
+        _message = message;
+        _textColor = phase switch
         {
             VoiceActivityPhase.Error => DesignTokens.HudError,
-            VoiceActivityPhase.Recording or VoiceActivityPhase.Recognizing or VoiceActivityPhase.WakePrompt
-                => DesignTokens.HudAccent,
+            VoiceActivityPhase.WakePrompt => DesignTokens.HudWake,
+            VoiceActivityPhase.Recording or VoiceActivityPhase.Recognizing => DesignTokens.HudAccent,
             _ => DesignTokens.HudText,
         };
+
+        Invalidate();
 
         if (!Visible)
         {
@@ -118,6 +115,52 @@ internal sealed class VoiceStatusHud : Form, IVoiceStatusHud
         _hideTimer.Start();
     }
 
+    protected override void OnDpiChanged(DpiChangedEventArgs e)
+    {
+        base.OnDpiChanged(e);
+        ApplyClientSizeForDpi();
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        var g = e.Graphics;
+        var rect = ClientRectangle;
+        if (rect.Width <= 0 || rect.Height <= 0)
+        {
+            return;
+        }
+
+        using (var borderPen = new Pen(Color.FromArgb(128, 126, 200, 227)))
+        using (var bg = new SolidBrush(DesignTokens.HudBackground))
+        {
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var round = Math.Min(12, rect.Height / 3);
+            using var path = RoundedRect(rect, round);
+            g.FillPath(bg, path);
+            g.DrawPath(borderPen, path);
+        }
+
+        var textRect = new Rectangle(
+            HudLayout.HorizontalInset,
+            HudLayout.VerticalInset,
+            Math.Max(0, rect.Width - HudLayout.HorizontalInset * 2),
+            Math.Max(0, rect.Height - HudLayout.VerticalInset * 2));
+
+        TextRenderer.DrawText(
+            g,
+            _message,
+            DesignTokens.HudFont,
+            textRect,
+            _textColor,
+            TextFormatFlags.Left
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.SingleLine
+            | TextFormatFlags.EndEllipsis
+            | TextFormatFlags.NoPadding);
+    }
+
     protected override CreateParams CreateParams
     {
         get
@@ -130,16 +173,36 @@ internal sealed class VoiceStatusHud : Form, IVoiceStatusHud
 
     protected override bool ShowWithoutActivation => true;
 
+    private void ApplyClientSizeForDpi()
+    {
+        var scale = DeviceDpi / 96f;
+        var w = (int)Math.Round(HudLayout.LogicalWidth * scale);
+        var h = (int)Math.Round(HudLayout.LogicalHeight * scale);
+        ClientSize = new Size(Math.Max(w, HudLayout.LogicalWidth), Math.Max(h, HudLayout.LogicalHeight));
+    }
+
     private void Reposition()
     {
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 800, 600);
         var x = _corner is HudScreenCorner.TopRight or HudScreenCorner.BottomRight
-            ? area.Right - Width - MarginPx
+            ? area.Right - ClientSize.Width - MarginPx
             : area.Left + MarginPx;
         var y = _corner is HudScreenCorner.TopLeft or HudScreenCorner.TopRight
             ? area.Top + MarginPx
-            : area.Bottom - Height - MarginPx;
+            : area.Bottom - ClientSize.Height - MarginPx;
         Location = new Point(x, y);
+    }
+
+    private static System.Drawing.Drawing2D.GraphicsPath RoundedRect(Rectangle bounds, int radius)
+    {
+        var path = new System.Drawing.Drawing2D.GraphicsPath();
+        var d = radius * 2;
+        path.AddArc(bounds.Left, bounds.Top, d, d, 180, 90);
+        path.AddArc(bounds.Right - d, bounds.Top, d, d, 270, 90);
+        path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+        path.AddArc(bounds.Left, bounds.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     protected override void Dispose(bool disposing)

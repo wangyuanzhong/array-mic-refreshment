@@ -362,10 +362,21 @@ public sealed class PttHotkeyBlackBoxTests
     {
         private int _frames;
 
+        public bool IsAvailable => true;
+
+        public bool HadSpeechSinceReset => _frames > 0;
+
+        public DateTimeOffset? LastSpeechActivityUtc =>
+            _frames > 0 ? DateTimeOffset.UtcNow : null;
+
         public bool IsEndOfSpeech(ReadOnlySpan<short> mono16Samples, int sampleRate)
         {
             _frames++;
             return _frames >= 2;
+        }
+
+        public void ConfigureSilenceDuration(TimeSpan silence)
+        {
         }
 
         public void Reset() => _frames = 0;

@@ -17,6 +17,8 @@ public sealed class SettingsDraftDto
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public PromptIntent ForcedIntent { get; set; } = PromptIntent.PlainText;
 
+    public string ForcedSpecialistKey { get; set; } = string.Empty;
+
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public OnRefineFailure OnRefineFailure { get; set; } = OnRefineFailure.UseRawTranscript;
 
@@ -40,7 +42,7 @@ public sealed class SettingsDraftDto
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public WakeWordSensitivity WakeWordSensitivity { get; set; } = WakeWordSensitivity.Maximum;
 
-    public int WakeCommandSilenceMs { get; set; } = 3000;
+    public int WakeCommandSilenceMs { get; set; } = WakeWordCaptureDefaults.CommandEndSilenceMs;
 
     public bool WakeUseVadEndDetection { get; set; } = true;
 
@@ -71,6 +73,8 @@ public sealed class FeaturePresetDto
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public PromptIntent ForcedIntent { get; set; } = PromptIntent.PlainText;
+
+    public string ForcedSpecialistKey { get; set; } = string.Empty;
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public OnRefineFailure OnRefineFailure { get; set; } = OnRefineFailure.UseRawTranscript;

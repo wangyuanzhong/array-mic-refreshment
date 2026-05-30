@@ -80,11 +80,30 @@ public sealed class PttCapturePriorityTests
 
     private sealed class TriggeringVoiceActivityDetector : IVoiceActivityDetector
     {
+        public bool IsAvailable => true;
+
+        public bool HadSpeechSinceReset { get; private set; }
+
+        public DateTimeOffset? LastSpeechActivityUtc { get; private set; }
+
         public bool TriggerEndOfSpeech { get; set; }
 
-        public bool IsEndOfSpeech(ReadOnlySpan<short> mono16Samples, int sampleRate) =>
-            TriggerEndOfSpeech;
+        public bool IsEndOfSpeech(ReadOnlySpan<short> mono16Samples, int sampleRate)
+        {
+            HadSpeechSinceReset = true;
+            LastSpeechActivityUtc = DateTimeOffset.UtcNow;
+            return TriggerEndOfSpeech;
+        }
 
-        public void Reset() => TriggerEndOfSpeech = false;
+        public void ConfigureSilenceDuration(TimeSpan silence)
+        {
+        }
+
+        public void Reset()
+        {
+            TriggerEndOfSpeech = false;
+            HadSpeechSinceReset = false;
+            LastSpeechActivityUtc = null;
+        }
     }
 }

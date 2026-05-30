@@ -1,5 +1,6 @@
 using ArrayMicRefreshment.App.Services;
 using ArrayMicRefreshment.Core;
+using ArrayMicRefreshment.Prompt;
 
 namespace ArrayMicRefreshment.App.Web;
 
@@ -10,6 +11,7 @@ public static class SettingsDraftMapper
     {
         settings.MigrateLegacyApiSettings();
         settings.MigrateLegacyFeaturePresets();
+        ForcedStyleSelection.MigrateAppSettings(settings);
         SettingsPathNormalizer.Normalize(settings);
 
         return new SettingsDraftDto
@@ -19,6 +21,7 @@ public static class SettingsDraftMapper
             LaunchAtStartup = settings.LaunchAtStartup,
             PromptRefineEnabled = settings.PromptRefineEnabled,
             ForcedIntent = settings.ForcedIntent,
+            ForcedSpecialistKey = ForcedStyleSelection.GetEffectiveKey(settings),
             OnRefineFailure = settings.OnRefineFailure,
             SelectedDeviceId = settings.SelectedDeviceId,
             CurrentSpeakerUserId = settings.CurrentSpeakerUserId,
@@ -29,8 +32,8 @@ public static class SettingsDraftMapper
             TriggerMode = settings.TriggerMode,
             WakeWordPhrase = settings.WakeWordPhrase,
             WakeWordSensitivity = settings.WakeWordSensitivity,
-            WakeCommandSilenceMs = settings.WakeCommandSilenceMs,
-            WakeUseVadEndDetection = settings.WakeUseVadEndDetection,
+            WakeCommandSilenceMs = WakeWordCaptureDefaults.CommandEndSilenceMs,
+            WakeUseVadEndDetection = true,
             HudScreenCorner = settings.HudScreenCorner,
             UseWebStatusHud = settings.UseWebStatusHud,
             PttHotkey = settings.PttHotkey,
@@ -52,6 +55,7 @@ public static class SettingsDraftMapper
                     Name = p.Name,
                     LlmPresetName = p.LlmPresetName,
                     ForcedIntent = p.ForcedIntent,
+                    ForcedSpecialistKey = ForcedStyleSelection.ResolvePresetKey(p),
                     OnRefineFailure = p.OnRefineFailure,
                     OptionalOverlaySkills = new List<string>(p.OptionalOverlaySkills),
                 })
@@ -81,8 +85,8 @@ public static class SettingsDraftMapper
         settings.TriggerMode = draft.TriggerMode;
         settings.WakeWordPhrase = draft.WakeWordPhrase?.Trim() ?? string.Empty;
         settings.WakeWordSensitivity = draft.WakeWordSensitivity;
-        settings.WakeCommandSilenceMs = Math.Clamp(draft.WakeCommandSilenceMs, 800, 8000);
-        settings.WakeUseVadEndDetection = draft.WakeUseVadEndDetection;
+        settings.WakeCommandSilenceMs = WakeWordCaptureDefaults.CommandEndSilenceMs;
+        settings.WakeUseVadEndDetection = true;
         settings.HudScreenCorner = draft.HudScreenCorner;
         settings.UseWebStatusHud = draft.UseWebStatusHud;
         settings.PttHotkey = draft.PttHotkey?.Trim() ?? settings.PttHotkey;
@@ -118,16 +122,22 @@ public static class SettingsDraftMapper
         if (draft.FeaturePresets is { Count: > 0 })
         {
             settings.FeaturePresets = draft.FeaturePresets
-                .Select(p => new FeaturePreset
+                .Select(p =>
                 {
-                    Name = p.Name?.Trim() ?? string.Empty,
-                    LlmPresetName = p.LlmPresetName?.Trim() ?? string.Empty,
-                    ForcedIntent = p.ForcedIntent,
-                    OnRefineFailure = p.OnRefineFailure,
-                    OptionalOverlaySkills = p.OptionalOverlaySkills
-                        .Where(s => !string.IsNullOrWhiteSpace(s))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList(),
+                    var preset = new FeaturePreset
+                    {
+                        Name = p.Name?.Trim() ?? string.Empty,
+                        LlmPresetName = p.LlmPresetName?.Trim() ?? string.Empty,
+                        OnRefineFailure = p.OnRefineFailure,
+                        OptionalOverlaySkills = p.OptionalOverlaySkills
+                            .Where(s => !string.IsNullOrWhiteSpace(s))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList(),
+                    };
+                    ForcedStyleSelection.ApplyKey(
+                        preset,
+                        ResolveDraftSpecialistKey(p.ForcedSpecialistKey, p.ForcedIntent));
+                    return preset;
                 })
                 .ToList();
             settings.SelectedFeaturePresetIndex = draft.SelectedFeaturePresetIndex;
@@ -138,7 +148,9 @@ public static class SettingsDraftMapper
                 0,
                 Math.Max(0, settings.FeaturePresets.Count - 1));
             var activePreset = settings.FeaturePresets[activePresetIndex];
-            activePreset.ForcedIntent = draft.ForcedIntent;
+            ForcedStyleSelection.ApplyKey(
+                activePreset,
+                ResolveDraftSpecialistKey(draft.ForcedSpecialistKey, draft.ForcedIntent));
             activePreset.OnRefineFailure = draft.OnRefineFailure;
             activePreset.OptionalOverlaySkills = draft.OptionalOverlaySkills
                 .Where(s => !string.IsNullOrWhiteSpace(s))
@@ -150,7 +162,9 @@ public static class SettingsDraftMapper
         else
         {
             settings.PromptRefineEnabled = draft.PromptRefineEnabled;
-            settings.ForcedIntent = draft.ForcedIntent;
+            ForcedStyleSelection.ApplyKey(
+                settings,
+                ResolveDraftSpecialistKey(draft.ForcedSpecialistKey, draft.ForcedIntent));
             settings.OnRefineFailure = draft.OnRefineFailure;
             settings.OptionalOverlaySkills = draft.OptionalOverlaySkills
                 .Where(s => !string.IsNullOrWhiteSpace(s))
@@ -171,5 +185,33 @@ public static class SettingsDraftMapper
         var clone = new AppSettings();
         SettingsCopier.CopyInto(template, clone);
         return clone;
+    }
+
+    private static string ResolveDraftSpecialistKey(string? specialistKey, PromptIntent fallbackIntent)
+    {
+        var fromIntent = fallbackIntent == PromptIntent.Auto
+            ? ForcedStyleSelection.AutoKey
+            : SpecialistKeyMapper.ToSpecialistKey(fallbackIntent);
+
+        if (string.IsNullOrWhiteSpace(specialistKey))
+        {
+            return fromIntent;
+        }
+
+        var key = specialistKey.Trim();
+        if (fallbackIntent == PromptIntent.Auto)
+        {
+            return string.Equals(key, ForcedStyleSelection.AutoKey, StringComparison.OrdinalIgnoreCase)
+                ? key
+                : ForcedStyleSelection.AutoKey;
+        }
+
+        // Legacy drafts may only update ForcedIntent; prefer enum when it disagrees with the stored key.
+        if (SpecialistKeyMapper.FromSpecialistKey(key) != fallbackIntent)
+        {
+            return fromIntent;
+        }
+
+        return key;
     }
 }

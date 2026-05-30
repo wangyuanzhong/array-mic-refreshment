@@ -230,6 +230,10 @@ public sealed class SettingsApplyServiceApplyTests
         {
         }
 
+        public void SyncPttHotkeyInteraction(VoiceTriggerMode triggerMode)
+        {
+        }
+
         public void ShowWakePhraseWarning(string message) => LastWakePhraseWarning = message;
     }
 

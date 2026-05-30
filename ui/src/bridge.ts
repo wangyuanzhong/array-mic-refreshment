@@ -9,7 +9,7 @@ export type ForcedIntent =
 
 export type OnRefineFailure = 'UseRawTranscript' | 'ShowError' | 'KeepLast';
 
-export type TriggerMode = 'PttOnly' | 'WakeWordOnly' | 'Both';
+export type TriggerMode = 'PttOnly' | 'Manual' | 'WakeWordOnly' | 'Both';
 
 export type WakeWordSensitivity = 'Standard' | 'High' | 'Maximum';
 
@@ -26,6 +26,8 @@ export interface FeaturePresetDraft {
   name: string;
   llmPresetName: string;
   forcedIntent: ForcedIntent;
+  /** Specialist key: auto, plain-text, code-editing, or user style id. */
+  forcedSpecialistKey: string;
   onRefineFailure: OnRefineFailure;
   optionalOverlaySkills: string[];
 }
@@ -36,6 +38,7 @@ export interface SettingsDraft {
   launchAtStartup: boolean;
   promptRefineEnabled: boolean;
   forcedIntent: ForcedIntent;
+  forcedSpecialistKey: string;
   onRefineFailure: OnRefineFailure;
 
   selectedDeviceId: string | null;
@@ -107,6 +110,28 @@ export interface OptionalOverlaySkillItem {
 
 export interface SkillsCatalogStatus {
   missingFiles: string[];
+}
+
+export interface RefinementStyleItem {
+  key: string;
+  name: string;
+  description: string;
+  deletable: boolean;
+  fileName?: string | null;
+}
+
+export interface AddRefinementStyleResult {
+  ok: boolean;
+  cancelled?: boolean;
+  key?: string;
+  styles?: RefinementStyleItem[];
+  error?: string;
+}
+
+export interface DeleteRefinementStyleResult {
+  ok: boolean;
+  styles?: RefinementStyleItem[];
+  error?: string;
 }
 
 export interface ValidationError {
@@ -182,6 +207,7 @@ export interface FeaturePresetListItem {
   name: string;
   llmPresetName: string;
   forcedIntent: ForcedIntent;
+  forcedSpecialistKey: string;
   onRefineFailure: OnRefineFailure;
   optionalOverlaySkills: string[];
   selected: boolean;
@@ -204,6 +230,9 @@ export interface AmrHostObject {
   GetWakeWordModelStatus(): Promise<string>;
   ListOptionalOverlaySkills(skillsDirectory: string): Promise<string>;
   GetSkillsCatalogStatus(skillsDirectory: string): Promise<string>;
+  ListRefinementStyles(skillsDirectory: string): Promise<string>;
+  AddRefinementStyle(skillsDirectory: string): Promise<string>;
+  DeleteRefinementStyle(skillsDirectory: string, key: string): Promise<string>;
   LoadSettingsDraft(): Promise<string>;
   ValidateSettingsDraft(draftJson: string): Promise<string>;
   SaveSettingsDraft(draftJson: string): Promise<string>;
@@ -230,6 +259,9 @@ export interface AmrBridge {
   getWakeWordModelStatus(): Promise<WakeWordModelStatus>;
   listOptionalOverlaySkills(skillsDirectory: string): Promise<OptionalOverlaySkillItem[]>;
   getSkillsCatalogStatus(skillsDirectory: string): Promise<SkillsCatalogStatus>;
+  listRefinementStyles(skillsDirectory: string): Promise<RefinementStyleItem[]>;
+  addRefinementStyle(skillsDirectory: string): Promise<AddRefinementStyleResult>;
+  deleteRefinementStyle(skillsDirectory: string, key: string): Promise<DeleteRefinementStyleResult>;
   loadSettingsDraft(): Promise<SettingsDraft>;
   validateSettingsDraft(draft: SettingsDraft): Promise<ValidateResult>;
   saveSettingsDraft(draft: SettingsDraft): Promise<SaveResult>;
@@ -254,6 +286,7 @@ export function createDefaultSettingsDraft(): SettingsDraft {
     launchAtStartup: true,
     promptRefineEnabled: false,
     forcedIntent: 'PlainText',
+    forcedSpecialistKey: 'plain-text',
     onRefineFailure: 'UseRawTranscript',
     selectedDeviceId: null,
     currentSpeakerUserId: null,
@@ -264,10 +297,10 @@ export function createDefaultSettingsDraft(): SettingsDraft {
     triggerMode: 'PttOnly',
     wakeWordPhrase: '小助手',
     wakeWordSensitivity: 'Maximum',
-    wakeCommandSilenceMs: 3000,
+    wakeCommandSilenceMs: 700,
     wakeUseVadEndDetection: true,
     hudScreenCorner: 'BottomRight',
-    useWebStatusHud: true,
+    useWebStatusHud: false,
     pttHotkey: 'Ctrl+Alt+Space',
     selectedLlmPresetIndex: 0,
     llmPresets: [
@@ -297,11 +330,36 @@ export function createDefaultSettingsDraft(): SettingsDraft {
         name: '默认',
         llmPresetName: '预设1',
         forcedIntent: 'PlainText',
+        forcedSpecialistKey: 'plain-text',
         onRefineFailure: 'UseRawTranscript',
         optionalOverlaySkills: [],
       },
     ],
   };
+}
+
+/** Map legacy enum to manifest specialist key. */
+export function forcedIntentToSpecialistKey(intent: ForcedIntent): string {
+  switch (intent) {
+    case 'Auto':
+      return 'auto';
+    case 'PlainText':
+      return 'plain-text';
+    case 'GeneralAi':
+      return 'general-ai';
+    case 'CodeEditing':
+      return 'code-editing';
+    case 'Research':
+      return 'research';
+    case 'TaskPlan':
+      return 'task-plan';
+    default:
+      return 'plain-text';
+  }
+}
+
+export function resolveFeaturePresetStyleKey(fp: FeaturePresetDraft): string {
+  return fp.forcedSpecialistKey?.trim() || forcedIntentToSpecialistKey(fp.forcedIntent);
 }
 
 function parseJson<T>(raw: string, label: string): T {
@@ -346,6 +404,24 @@ function wrapHostObject(host: AmrHostObject): AmrBridge {
       return parseJson<SkillsCatalogStatus>(
         await host.GetSkillsCatalogStatus(skillsDirectory),
         'GetSkillsCatalogStatus',
+      );
+    },
+    async listRefinementStyles(skillsDirectory: string) {
+      return parseJson<RefinementStyleItem[]>(
+        await host.ListRefinementStyles(skillsDirectory),
+        'ListRefinementStyles',
+      );
+    },
+    async addRefinementStyle(skillsDirectory: string) {
+      return parseJson<AddRefinementStyleResult>(
+        await host.AddRefinementStyle(skillsDirectory),
+        'AddRefinementStyle',
+      );
+    },
+    async deleteRefinementStyle(skillsDirectory: string, key: string) {
+      return parseJson<DeleteRefinementStyleResult>(
+        await host.DeleteRefinementStyle(skillsDirectory, key),
+        'DeleteRefinementStyle',
       );
     },
     async loadSettingsDraft() {
@@ -497,6 +573,35 @@ function createMockBridge(): AmrBridge {
       void skillsDirectory;
       return { missingFiles: [] };
     },
+    async listRefinementStyles(_skillsDirectory: string) {
+      await delay(40);
+      return [
+        { key: 'plain-text', name: '纯文本整理', description: 'Mock 去口误、加标点', deletable: false },
+        { key: 'general-ai', name: '通用 AI Prompt', description: 'Mock 通用提示词', deletable: false },
+        { key: 'code-editing', name: '软件开发需求（产品视角）', description: 'Mock 产品需求', deletable: false },
+      ];
+    },
+    async addRefinementStyle(skillsDirectory: string) {
+      await delay(80);
+      const path = window.prompt('Mock 添加整理风格：输入 .md 绝对路径', 'C:\\temp\\style.md');
+      if (!path) return { ok: false, cancelled: true };
+      void skillsDirectory;
+      const styles = await this.listRefinementStyles(skillsDirectory);
+      return {
+        ok: true,
+        key: 'mock-custom',
+        styles: [
+          ...styles,
+          { key: 'mock-custom', name: 'Mock 自定义', description: path, deletable: true, fileName: 'mock.md' },
+        ],
+      };
+    },
+    async deleteRefinementStyle(skillsDirectory: string, key: string) {
+      await delay(80);
+      void skillsDirectory;
+      const styles = (await this.listRefinementStyles(skillsDirectory)).filter((s) => s.key !== key);
+      return { ok: true, styles };
+    },
     async loadSettingsDraft() {
       await delay(100);
       return structuredClone(draft);
@@ -588,6 +693,7 @@ function createMockBridge(): AmrBridge {
         name: p.name,
         llmPresetName: p.llmPresetName,
         forcedIntent: p.forcedIntent,
+        forcedSpecialistKey: resolveFeaturePresetStyleKey(p),
         onRefineFailure: p.onRefineFailure,
         optionalOverlaySkills: [...p.optionalOverlaySkills],
         selected: index === draft.selectedFeaturePresetIndex,
@@ -607,6 +713,7 @@ function createMockBridge(): AmrBridge {
         draft.selectedLlmPresetIndex = llmIdx;
       }
       draft.forcedIntent = fp.forcedIntent;
+      draft.forcedSpecialistKey = fp.forcedSpecialistKey;
       draft.onRefineFailure = fp.onRefineFailure;
       draft.optionalOverlaySkills = [...fp.optionalOverlaySkills];
       draft.promptRefineEnabled = true;

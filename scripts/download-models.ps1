@@ -19,7 +19,9 @@ param(
     [switch]$IncludeSpeaker,
     [switch]$SkipSpeaker,
     [switch]$IncludeKws,
-    [switch]$SkipKws
+    [switch]$SkipKws,
+    [switch]$IncludeVad,
+    [switch]$SkipVad
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,6 +38,13 @@ if (-not $PSBoundParameters.ContainsKey('IncludeKws') -and -not $SkipKws) {
 }
 if ($SkipKws) {
     $IncludeKws = $false
+}
+
+if (-not $PSBoundParameters.ContainsKey('IncludeVad') -and -not $SkipVad) {
+    $IncludeVad = $true
+}
+if ($SkipVad) {
+    $IncludeVad = $false
 }
 
 if ([string]::IsNullOrWhiteSpace($ModelsRoot)) {
@@ -185,6 +194,13 @@ if ($IncludeSpeaker) {
     }
 }
 
+if ($IncludeVad -and $manifest.phase2Vad) {
+    $vadBase = $manifest.phase2Vad.baseUrl.TrimEnd("/")
+    foreach ($pkg in @($manifest.phase2Vad.packages)) {
+        Download-SpeakerOnnx -pkg $pkg -UrlBase $vadBase
+    }
+}
+
 if ($IncludeKws -and $manifest.phase2Kws) {
     $kwsBase = $manifest.phase2Kws.baseUrl.TrimEnd("/")
     foreach ($pkg in @($manifest.phase2Kws.packages)) {
@@ -207,4 +223,7 @@ if (-not $IncludeSpeaker) {
 }
 if (-not $IncludeKws) {
     Write-Host "KWS model: omitted. Re-run with -IncludeKws for wake-word detection."
+}
+if (-not $IncludeVad) {
+    Write-Host "VAD model: omitted. Re-run without -SkipVad for Silero end-of-speech (models/silero_vad.onnx)."
 }

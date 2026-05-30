@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml?query=branch%3Amain)
 
-**当前版本：V0.4.2**
+**当前版本：V0.5.0**（见 [`VERSION.txt`](VERSION.txt)）
 
-本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。按住 **PTT** 采集 → **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理**（纯文本润色或多 Skill 意图改写）→ 剪贴板 / 光标粘贴。
+本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。触发方式：**PTT 按住**、**手动热键开关**、**唤醒词**（可组合）→ **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理** → 剪贴板 / 光标粘贴。
 
 阵列麦已在硬件侧完成降噪/增益；软件侧 `IAudioPreprocessor` 仅预留，首版不实现。
 
@@ -18,7 +18,7 @@
 | 2 | **ASR：SenseVoice int8（已定）** | Sherpa-ONNX **离线** SenseVoice；松开 PTT 整段识别；详见 [`docs/ASR_MODEL.md`](docs/ASR_MODEL.md) |
 | 3 | **首版即含 LLM 提示词整理，默认关闭** | 设置项「功能预设」/「启用提示词整理」默认 **关**；打开后才调用户配置的 API |
 | 4 | **Agent 开启时，剪贴板只放优化句** | 不写 ASR 原文；优化失败时可配置降级策略（见输出逻辑） |
-| 5 | **松开 PTT 优先触发 ASR** | **松开快捷键** 立即截断并识别，优先级 **高于** VAD 句末；按住期间 VAD 句末仅作辅助（长句中间停顿） |
+| 5 | **松开 PTT 优先触发 ASR** | **松开快捷键**（或手动模式第二次按键）立即截断并识别，优先级 **高于** VAD 句末；按住期间 VAD 句末仅作辅助（长句中间停顿） |
 | 6 | **子开关 OFF：仍写剪贴板** | 子开关只控制 **是否自动粘贴到光标**；OFF = 不粘贴，**仍更新剪贴板** |
 | 7 | **API + 他人 Skill/Prompt 栈** | 意图来自 [voice-controlled-ai-agent](https://github.com/shanttoosh/voice-controlled-ai-agent)；整理栈来自 [danielrosehill](https://github.com/danielrosehill/Speech-Tech-Index) 等（[`skills/manifest.yaml`](skills/manifest.yaml)） |
 | 8 | **Qwen3-ASR** | **首版不做**；仅文档保留对比，见 [SenseVoice vs Qwen3](#sensevoice-和-qwen3-asr-哪个好) |
@@ -198,7 +198,7 @@ ASR 原文
 
 Qwen3 在公开基准上 CER 常更低，但首版不集成第二套模型；若实测 SenseVoice 对代码术语错误太多，再通过 `IUtteranceAsr` 增加 Qwen3 工厂。Phase 5 本地 CER 实测（[`docs/CER_BASELINE.md`](docs/CER_BASELINE.md)）显示代码/英文混合术语子集均值 **>25%**，建议优先评估 Qwen3-ASR 作为补充引擎。
 
-**LLM Skill 不能替代 ASR**：`ApiService`、`async` 等听错需靠 ASR 或重说；Skill 负责改成清晰 **代码编辑指令**。
+**LLM Skill 不能替代 ASR**：`ApiService`、`async` 等听错需靠 ASR 或重说；默认整理风格 **软件开发需求（产品视角）** 把口述落成页面/流程说明，**不会**臆测你项目里的接口或框架（见 `skills/manifest.yaml`）。
 
 ---
 

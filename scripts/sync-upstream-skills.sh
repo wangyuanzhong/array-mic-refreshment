@@ -12,6 +12,12 @@ curl -fsSL -o "$UP/danielrosehill/voice-prompt-enhancement-node.prompt.md" \
 curl -fsSL -o "$UP/danielrosehill/stt-basic-cleanup.complete-system-prompt.md" \
   "https://raw.githubusercontent.com/danielrosehill/STT-Basic-Cleanup-System-Prompt/main/complete-system-prompt.md"
 
+# Trimmed variant (no subheadings every 400 words) — preferred in manifest stacks
+if [ -f "$ROOT/skills/upstream/danielrosehill/stt-basic-cleanup.minimal.md" ]; then
+  cp "$ROOT/skills/upstream/danielrosehill/stt-basic-cleanup.minimal.md" \
+    "$UP/danielrosehill/stt-basic-cleanup.minimal.md"
+fi
+
 curl -fsSL -o "$UP/danielrosehill/text-transform/code-editing.md" \
   "https://raw.githubusercontent.com/danielrosehill/Text-Transformation-Prompt-Collection-2/main/by-use-case/ai/development/code-editing.md"
 

@@ -1,5 +1,200 @@
 # Changelog
 
+## [0.5.0] - 2026-05-26
+
+V0.5 大版本：设置页「整理风格管理」与功能预设整理风格共用同一数据源；支持在 Skills 目录下增删自定义 `.md` 风格。
+
+### Added
+
+- 设置侧栏「整理风格管理」（原「目录」）：路径 + 增加/删除 + 名称/描述表格
+- `refinement-styles/*.md` 用户自定义整理风格（YAML frontmatter：`name`、`description`、`id`、`stack` 或正文为 prompt）
+- Bridge：`ListRefinementStyles` / `AddRefinementStyle` / `DeleteRefinementStyle`
+- 设置与功能预设持久化 `forcedSpecialistKey`（与 manifest specialist 键一致）
+
+### Changed
+
+- 功能预设「整理风格」下拉改为动态列表（含「自动判断」+ manifest + 用户文件），与表格严格同源
+- 内置 manifest 风格不可在 UI 删除；仅 `refinement-styles/` 下文件可删
+
+### Files / modules touched
+
+- `RefinementStyleService.cs`、`ForcedStyleSelection.cs`、`FilePickerDialog.cs`
+- `SettingsPage.ts`、`bridge.ts`、`WebUiBridge.Settings.cs`、`SettingsMetadataProvider.cs`
+- `VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj` — **V0.5.0**
+
+### Verify
+
+- 设置 → 整理风格管理：表格与功能预设「整理风格」选项一致
+- 增加：选择 `.md` → 出现在表格与下拉；删除：选中可删行后移除文件
+- `dotnet test`；`npm run build`；`.\scripts\watch-build-release.ps1 -Once`；启动日志 `V0.5.0 starting`
+
+## [0.4.32] - 2026-05-26
+
+「代码编辑」整理风格改为 **软件开发需求（产品视角）**：像产品经理写页面/流程/步骤，禁止臆测接口与框架；深度研究与待办列表拆分说明与栈约束。
+
+### Changed
+
+- `code-editing` specialist：`software-product-requirements` + 去掉 `voice-refine` / `general-prompt` / `code-editing.md`
+- `research`：增加 `stack-research-fidelity`（不编造方法论）；与 `task-plan`（`to-do-list`）职责在 manifest/UI 文案中区分
+- 设置页 / 托盘：整理风格显示为「软件开发需求（产品视角）」
+
+### Files / modules touched
+
+- `skills/manifest.yaml`、`skills/upstream/array-mic/software-product-requirements.md`、`stack-research-fidelity.md`
+- `ui/src/pages/SettingsPage.ts`、`TrayApplicationContext.cs`（SkillLabel）
+- `VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj` — **V0.4.32**
+
+### Verify
+
+- 整理 → 软件开发需求：口述「点设置进 XX 页」类需求，输出无 API/框架名
+- 深度研究 vs 待办：分别选两种风格，输出形态不同（研究提示 vs 短待办）
+- `dotnet test`；`npm run build`；`.\scripts\watch-build-release.ps1 -Once`；启动日志 `V0.4.32 starting`
+
+## [0.4.31] - 2026-05-26
+
+修正 V0.4.30 对产品「手动模式」的误解，并收紧提示词整理栈（少扩写、多用现成上游 skill 拼接）。
+
+### Fixed
+
+- **手动模式**改为独立触发方式 `VoiceTriggerMode.Manual`（与 PTT 按住、唤醒词并列），不再作为 PTT 的「录音方式」子选项；旧 `pttRecordingMode: Toggle` 自动迁移为 `triggerMode: Manual`
+- **PTT** 仅表示按住热键说话、松开停止
+
+### Changed
+
+- 提示词栈：各 specialist 用 `stt-basic-cleanup.minimal` 替代完整 cleanup + 去掉 `voice-prompt-enhancement-node`；栈末加 `stack-output-fidelity`（不扩写）；「代码编辑」改为 **Agent 任务说明**（`general-prompt` + `voice-refine` 拼接，不再用 `code-editing.md` 写实现步骤）
+
+### Files / modules touched
+
+- `VoiceTrigger.cs`、`VoiceCaptureOrchestrator`、`TrayApplicationContext`、`SettingsApplyService`
+- `ui` 触发模式下拉；移除 `pttRecordingMode`
+- `skills/manifest.yaml`、`skills/upstream/array-mic/stack-output-fidelity.md`
+- `VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj` — **V0.4.31**
+
+### Verify
+
+- 触发模式选「手动」：按热键开始、松开继续录、再按热键结束；PTT 模式仍为按住/松开
+- 启用整理 →「Agent 任务说明」：输出应为结构化任务说明，无凭空新增需求
+- `dotnet test`；`npm run build`；`watch-build-release.ps1 -Once`
+
+## [0.4.30] - 2026-05-26
+
+PTT 热键除默认「按住录音、松开停止」外，新增**手动模式**：同一热键按一下开始持续录音，再按一下停止。
+
+### Added
+
+- `PttRecordingMode`：`Hold`（默认）/ `Toggle`；设置页「PTT 录音方式」下拉
+- `PttHotkeyInteraction` + `GlobalHotkeyListener` / `LowLevelHotkeyHost`：切换模式不依赖松开检测；Toggle 下 10 分钟安全自动停录
+
+### Files / modules touched
+
+- `ArrayMicRefreshment.Core` — `PttRecordingMode`、`AppSettings.PttRecordingMode`
+- `ArrayMicRefreshment.Audio` — `PttHotkeyInteraction`、`IGlobalHotkeyHost.RecordingMode`
+- `ArrayMicRefreshment.App` — `SettingsApplyService`、`SettingsDraft*`、托盘应用
+- `ui/src/pages/SettingsPage.ts`、`ui/src/bridge.ts`
+- `tests/ArrayMicRefreshment.Audio.Tests/PttHotkeyInteractionTests.cs`
+- `VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj`（`Version` / `AssemblyVersion` / `FileVersion` **0.4.30.0** + `InformationalVersion` **V0.4.30**）
+- `README.md`、`docs/LOCAL_DEVELOPMENT.md`、`docs/UI_ROUTE_B_WEBVIEW2.md`
+
+### Verify
+
+- 设置 → PTT 录音方式 → 手动模式；按热键开始 HUD/录音，再按一次松开并识别
+- 按住模式行为与旧版一致
+- `dotnet test`；`npm run build`；`.\scripts\watch-build-release.ps1 -Once`；启动日志 `V0.4.30 starting`
+
+## [0.4.29] - 2026-05-30
+
+修复设置页「功能预设」在改名后切换下拉项时，把新名称误写到其他预设上的问题。
+
+### Fixed
+
+- 功能预设：切换「当前使用的功能预设」前先保存到**原选中项**，不再误用下拉框新索引覆盖别的预设名称
+
+### Files / modules touched
+
+- `ui/src/pages/SettingsPage.ts` — `saveFeaturePresetFieldsFromDom(presetIndex)`、`syncSelectedFeaturePresetIndexFromDom`
+- `VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj` — **V0.4.29**
+
+### Verify
+
+- 设置 → 功能预设：新建 → 改名 → 切回其他预设，名称各自独立
+- 启动日志 `V0.4.29 starting`；`npm run build` + `.\scripts\watch-build-release.ps1 -Once`
+
+## [0.4.28] - 2026-05-30
+
+设置/Web 内「说话人注册」页此前未注入麦克风采集，点录音会报未配置采集源；现与托盘注册共用 `EnrollmentUtteranceCapture`。
+
+### Fixed
+
+- Web 设置壳内 `#/enroll` 路由可正常开始录音注册
+
+### Files / modules touched
+
+- `TrayApplicationContext.cs` — 为设置 WebView 自动创建 enrollment capture
+- `WebUiBridgeContext.cs`、`WebUiBridge.EnrollmentPrivacy.cs`
+
+### Verify
+
+- 设置 → 说话人注册 → 开始录音，不再出现采集源错误
+
+## [0.4.27] - 2026-05-30
+
+唤醒指令结束改为内置 Silero VAD + 固定约 0.7 秒自然停顿，不再在设置里暴露毫秒；版本号与 `VERSION.txt` / csproj 对齐。
+
+### Changed
+
+- 唤醒「说完」检测：固定 **700ms** 停顿（`WakeWordCaptureDefaults`），有 `models/silero_vad.onnx` 时自动用 Silero VAD
+- 设置页移除「指令结束静音（ms）」与 VAD 开关，改为一句说明（傻瓜式）
+
+### Fixed
+
+- 版本合规：`VERSION.txt`、`AppInfo`、`ArrayMicRefreshment.App.csproj` 与 CHANGELOG 统一到 **V0.4.27**
+
+### Files / modules touched
+
+- `src/ArrayMicRefreshment.Core/WakeWordCaptureDefaults.cs` — 内置结束停顿
+- `src/ArrayMicRefreshment.Audio/WakeWordCaptureService.cs`、`Windows/SileroVoiceActivityDetector.cs` — 固定计时 + VAD
+- `ui/src/pages/SettingsPage.ts` — 去掉毫秒/VAD 控件
+- `VERSION.txt`、`AppInfo.cs`、`ArrayMicRefreshment.App.csproj` — 版本同步
+- `docs/LOCAL_DEVELOPMENT.md` — VAD 模型说明
+
+### Verify
+
+- `Test-Path models\silero_vad.onnx` 为真；日志有 `Silero VAD loaded`
+- 启动日志 `V0.4.27 starting`；唤醒说一句短指令，约 0.7s 后应结束「聆听中」并识别
+- `dotnet test` 通过；`.\scripts\watch-build-release.ps1 -Once` 打出 exe
+
+## V0.4.26 — 2026-05-26
+
+### Fixed
+
+- **唤醒后无限「聆听中」**：结束检测改用 **Sherpa Silero VAD**（需 `models/silero_vad.onnx`），不再依赖 RMS 是否低于噪声阈值；嘈杂环境下也能在说完后结束
+- **无 VAD 模型时的回退**：按「距上次语音活动」计时（extend 档），避免环境噪声永远高于 speech 阈值导致无法结束
+
+### Added
+
+- `download-models.ps1` 默认下载 `silero_vad.onnx` 到 `models/`
+
+## V0.4.25 — 2026-05-26
+
+### Fixed
+
+- **HUD 字被裁成半条**：去掉子控件 Label/WebView，改为 Form 自绘整片客户区 + 按 DPI 缩放客户区高度；避免 Padding/Dock 只占上半截
+- **唤醒后静音很久才识别**：静音计时仅在能量**低于 speech 阈值**时累计；不再因 extend 档环境噪声反复清零计时器
+
+## V0.4.24 — 2026-05-26
+
+### Fixed
+
+- **HUD 高度只显示半条**：根因是 Form `Padding` 吃掉约一半客户区；改为零 Padding + 标签内边距，固定 52px 客户区，默认**仅用原生 HUD**（Web 需 `AMR_WEB_HUD=1`）
+- **唤醒后一直「聆听中」不结束**：结束条件改为「连续低于 extend 能量阈值满 `WakeCommandSilenceMs`」；不再要求先进入非 speech 块（环境噪声持续高于 speech 阈值时会永远卡住）
+
+## V0.4.23 — 2026-05-26
+
+### Fixed
+
+- **Web HUD 仍只显示一条**：改用独立 `hud.html`（无 SPA / 无 `100vh`），去掉 `ZoomFactor` DPI 缩放；默认改用原生浅色 HUD（`UseWebStatusHud=false`）
+- **唤醒指令计时**：移除 12s 固定 `maxCommand` 截断；静音计时仅在连续 2 个「强语音」块后重置，避免环境噪声拖长或误触发
+
 ## V0.4.22 — 2026-05-26
 
 ### Fixed
