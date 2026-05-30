@@ -1,3 +1,4 @@
+using ArrayMicRefreshment.App.Services;
 using ArrayMicRefreshment.Core;
 
 namespace ArrayMicRefreshment.App.Web;
@@ -9,6 +10,7 @@ public static class SettingsDraftMapper
     {
         settings.MigrateLegacyApiSettings();
         settings.MigrateLegacyFeaturePresets();
+        SettingsPathNormalizer.Normalize(settings);
 
         return new SettingsDraftDto
         {
@@ -24,7 +26,7 @@ public static class SettingsDraftMapper
             SelectedAsrModelId = settings.SelectedAsrModelId,
             SkillsDirectory = settings.SkillsDirectory,
             ModelsDirectory = settings.ModelsDirectory,
-            TriggerMode = runtimeTriggerMode ?? settings.TriggerMode,
+            TriggerMode = settings.TriggerMode,
             WakeWordPhrase = settings.WakeWordPhrase,
             WakeWordSensitivity = settings.WakeWordSensitivity,
             WakeCommandSilenceMs = settings.WakeCommandSilenceMs,
@@ -70,10 +72,12 @@ public static class SettingsDraftMapper
         settings.CurrentSpeakerUserId = draft.CurrentSpeakerUserId;
         settings.SpeakerVerifyThreshold = Math.Clamp(draft.SpeakerVerifyThreshold, 0.25f, 0.85f);
         settings.SelectedAsrModelId = draft.SelectedAsrModelId ?? string.Empty;
-        settings.SkillsDirectory = draft.SkillsDirectory?.Trim() ?? "skills";
-        settings.ModelsDirectory = string.IsNullOrWhiteSpace(draft.ModelsDirectory)
-            ? settings.ModelsDirectory
-            : draft.ModelsDirectory.Trim();
+        settings.SkillsDirectory = SettingsPathNormalizer.NormalizeSkillsDirectory(
+            draft.SkillsDirectory?.Trim() ?? settings.SkillsDirectory);
+        settings.ModelsDirectory = SettingsPathNormalizer.NormalizeModelsDirectory(
+            string.IsNullOrWhiteSpace(draft.ModelsDirectory)
+                ? settings.ModelsDirectory
+                : draft.ModelsDirectory.Trim());
         settings.TriggerMode = draft.TriggerMode;
         settings.WakeWordPhrase = draft.WakeWordPhrase?.Trim() ?? string.Empty;
         settings.WakeWordSensitivity = draft.WakeWordSensitivity;

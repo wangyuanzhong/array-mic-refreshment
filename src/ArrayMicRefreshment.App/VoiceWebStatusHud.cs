@@ -15,6 +15,8 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
 {
     private const int HideDelayMs = 120;
     private const int MarginPx = 16;
+    private const int HudClientWidth = 400;
+    private const int HudClientHeight = 72;
     private const int WsExToolWindow = 0x00000080;
     private const int WsExNoActivate = 0x08000000;
 
@@ -25,6 +27,9 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
     private HudScreenCorner _corner = HudScreenCorner.BottomRight;
     private string _pendingMessage = string.Empty;
     private bool _navigationReady;
+    private Task? _initTask;
+    private bool _initFailed;
+    private bool _coreInitialized;
 
     private VoiceWebStatusHud()
     {
@@ -32,8 +37,9 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        Size = new Size(300, 52);
-        BackColor = Color.Black;
+        AutoScaleMode = AutoScaleMode.Dpi;
+        ClientSize = new Size(HudClientWidth, HudClientHeight);
+        BackColor = Color.Transparent;
         Opacity = 0.99;
         Controls.Add(_webView);
 
@@ -48,11 +54,23 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
         };
     }
 
-    public static VoiceWebStatusHud CreateSynchronously()
+    public static VoiceWebStatusHud CreateSynchronously() => new();
+
+    /// <summary>Start WebView2 on this form's UI thread (STA). Must not use <see cref="Task.Run"/>.</summary>
+    public void BeginInitialization()
     {
-        var hud = new VoiceWebStatusHud();
-        hud.InitializeCoreWebView();
-        return hud;
+        if (_coreInitialized || _initFailed || _initTask is not null)
+        {
+            return;
+        }
+
+        if (InvokeRequired)
+        {
+            BeginInvoke(BeginInitialization);
+            return;
+        }
+
+        _initTask = InitializeCoreWebViewAsync();
     }
 
     public VoiceActivityPhase Phase => _phase;
@@ -97,7 +115,18 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
             return;
         }
 
+        if (_initFailed)
+        {
+            return;
+        }
+
         _pendingMessage = message;
+        if (!_coreInitialized)
+        {
+            BeginInitialization();
+            return;
+        }
+
         PostToWeb(phase, message);
 
         if (!Visible)
@@ -132,30 +161,48 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
 
     protected override bool ShowWithoutActivation => true;
 
-    private void InitializeCoreWebView()
+    private async Task InitializeCoreWebViewAsync()
     {
-        _webView.EnsureCoreWebView2Async().GetAwaiter().GetResult();
-        _core = _webView.CoreWebView2;
-        _webView.DefaultBackgroundColor = Color.Transparent;
-        _core.Settings.AreDefaultContextMenusEnabled = false;
-        _core.Settings.AreDevToolsEnabled = false;
-        _core.Settings.IsStatusBarEnabled = false;
-        _core.Settings.AreBrowserAcceleratorKeysEnabled = false;
-        _core.NavigationCompleted += OnNavigationCompleted;
-
-        var wwwRootDir = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-        var indexPath = Path.Combine(wwwRootDir, "index.html");
-        if (!File.Exists(indexPath))
+        try
         {
-            throw new FileNotFoundException("Web UI wwwroot missing for HUD", indexPath);
+            await _webView.EnsureCoreWebView2Async().ConfigureAwait(true);
+
+            _core = _webView.CoreWebView2;
+            _webView.ZoomFactor = 1.0;
+            _webView.DefaultBackgroundColor = Color.Transparent;
+            _core.Settings.AreDefaultContextMenusEnabled = false;
+            _core.Settings.AreDevToolsEnabled = false;
+            _core.Settings.IsStatusBarEnabled = false;
+            _core.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            _core.NavigationCompleted += OnNavigationCompleted;
+
+            var wwwRootDir = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+            var indexPath = Path.Combine(wwwRootDir, "index.html");
+            if (!File.Exists(indexPath))
+            {
+                throw new FileNotFoundException("Web UI wwwroot missing for HUD", indexPath);
+            }
+
+            _core.SetVirtualHostNameToFolderMapping(
+                WebUiConstants.WwwRootVirtualHost,
+                wwwRootDir,
+                CoreWebView2HostResourceAccessKind.Allow);
+
+            _core.Navigate(WebUiConstants.HashUrl("#/hud"));
+            _coreInitialized = true;
+
+            if (_phase != VoiceActivityPhase.Idle && !string.IsNullOrWhiteSpace(_pendingMessage))
+            {
+                Reposition();
+                Show();
+                PostToWeb(_phase, _pendingMessage);
+            }
         }
-
-        _core.SetVirtualHostNameToFolderMapping(
-            WebUiConstants.WwwRootVirtualHost,
-            wwwRootDir,
-            CoreWebView2HostResourceAccessKind.Allow);
-
-        _core.Navigate(WebUiConstants.HashUrl("#/hud"));
+        catch (Exception ex)
+        {
+            _initFailed = true;
+            Log.Warning(ex, "Voice Web HUD init failed; tray icon feedback still works (set AMR_WEB_HUD=0 for native HUD)");
+        }
     }
 
     private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)

@@ -1,4 +1,5 @@
 using ArrayMicRefreshment.App.Web;
+using ArrayMicRefreshment.Asr;
 using ArrayMicRefreshment.Core;
 
 namespace ArrayMicRefreshment.App.Tests;
@@ -24,6 +25,23 @@ public class SettingsDraftValidatorTests
         var draft = SettingsDraftMapper.ToDraft(template, null);
         draft.TriggerMode = VoiceTriggerMode.WakeWordOnly;
         draft.WakeWordPhrase = "   ";
+
+        var result = SettingsDraftValidator.Validate(draft, template);
+        Assert.False(result.Ok);
+        Assert.Contains(result.Errors, e => e.Field == "wakeWordPhrase");
+    }
+
+    [Fact]
+    public void Validate_rejects_wake_phrase_that_cannot_be_encoded_when_kws_installed()
+    {
+        if (!WakeWordModelPaths.TryResolve("models", out _))
+        {
+            return;
+        }
+
+        var template = new AppSettings { ModelsDirectory = "models" };
+        var draft = SettingsDraftMapper.ToDraft(template, null);
+        draft.WakeWordPhrase = "自定义测试词";
 
         var result = SettingsDraftValidator.Validate(draft, template);
         Assert.False(result.Ok);

@@ -10,6 +10,7 @@ import {
   type SettingsDraft,
   type TriggerMode,
   type WakeWordSensitivity,
+  type WakeWordModelStatus,
   getBridge,
   getBridgeSource,
   isMockBridge,
@@ -147,8 +148,13 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     };
   }
   const runtime = await bridge.getRuntimeState().catch(() => null);
-  if (runtime?.triggerMode) {
-    draft = { ...draft, triggerMode: runtime.triggerMode };
+  const runtimeTriggerMode =
+    runtime?.triggerMode && TRIGGER_MODE_OPTIONS.some((o) => o.value === runtime.triggerMode)
+      ? (runtime.triggerMode as TriggerMode)
+      : null;
+
+  if (runtimeTriggerMode && runtimeTriggerMode !== draft.triggerMode) {
+    draft = { ...draft, triggerMode: runtimeTriggerMode };
   }
 
   const appInfo = await bridge.getAppInfo().catch(() => ({ version: '—', platform: '—' }));
@@ -166,7 +172,16 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     draft.optionalOverlaySkills;
   await refreshSkillsLists(bridge, draft.skillsDirectory, lists, initialFpOverlays);
 
-  let activeSection: SectionId = 'general';
+  let wakeModelStatus: WakeWordModelStatus = {
+    displayName: 'sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01',
+    installed: false,
+    engineReady: false,
+    resolvedPath: draft.modelsDirectory,
+  };
+  wakeModelStatus = await bridge.getWakeWordModelStatus().catch(() => wakeModelStatus);
+
+  let activeSection: SectionId =
+    runtimeTriggerMode && wakeModeActive(runtimeTriggerMode) ? 'trigger' : 'general';
   let testConnectionRunning = false;
   const fieldErrors = new Map<string, string>();
 
@@ -182,7 +197,10 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
     );
     const fp = draft.featurePresets[fpIdx];
     const llmPresetNameOptions = draft.llmPresets.map((p) => p.name);
-    const wakeVisible = wakeModeActive(draft.triggerMode);
+    const wakeHintWhenPtt =
+      !wakeModeActive(draft.triggerMode)
+        ? '<p class="form-hint">当前为「仅 PTT」模式；下方唤醒词设置可先改好并保存，切换到「唤醒词」或「PTT + 唤醒词」后生效。</p>'
+        : '';
     const globalError = fieldErrors.get('_global');
     const mockBanner = isMockBridge()
       ? `<div class="status-banner status-banner--warn">开发模式：mock bridge（${escapeHtml(getBridgeSource())}）。集成 WebUiBridge 后使用 hostObjects.amr。</div>`
@@ -221,7 +239,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
               ${mockBanner}
               ${globalErrorBanner}
 
-              <section id="section-general" class="settings-section card">
+              <section id="section-general" class="settings-section card${activeSection === 'general' ? ' is-active' : ''}">
                 <h2 class="card-title">通用</h2>
                 <p class="card-subtitle">总开关与输出行为（托盘菜单对应项）。</p>
                 <div class="form-grid">
@@ -240,7 +258,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                 </div>
               </section>
 
-              <section id="section-audio" class="settings-section card">
+              <section id="section-audio" class="settings-section card${activeSection === 'audio' ? ' is-active' : ''}">
                 <h2 class="card-title">录音设备</h2>
                 <div class="form-field${fieldErrorClass(fieldErrors, 'selectedDeviceId')}">
                   <label for="selectedDeviceId">输入设备</label>
@@ -258,7 +276,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                 </div>
               </section>
 
-              <section id="section-speaker" class="settings-section card">
+              <section id="section-speaker" class="settings-section card${activeSection === 'speaker' ? ' is-active' : ''}">
                 <h2 class="card-title">声纹用户</h2>
                 <div class="form-grid">
                   <div class="form-field${fieldErrorClass(fieldErrors, 'currentSpeakerUserId')}">
@@ -283,7 +301,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                 </div>
               </section>
 
-              <section id="section-asr" class="settings-section card">
+              <section id="section-asr" class="settings-section card${activeSection === 'asr' ? ' is-active' : ''}">
                 <h2 class="card-title">ASR 模型</h2>
                 <div class="form-grid">
                   <div class="form-field${fieldErrorClass(fieldErrors, 'selectedAsrModelId')}">
@@ -300,14 +318,18 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                     ${fieldErrorHtml(fieldErrors, 'selectedAsrModelId')}
                   </div>
                   <div class="form-field${fieldErrorClass(fieldErrors, 'modelsDirectory')}">
-                    <label for="modelsDirectory">模型目录</label>
-                    <input type="text" id="modelsDirectory" value="${escapeHtml(draft.modelsDirectory)}" />
+                    <span class="form-label">模型目录</span>
+                    <div class="path-field">
+                      <input type="text" id="modelsDirectory" value="${escapeHtml(draft.modelsDirectory)}" />
+                      <button type="button" class="btn-ghost btn-sm" id="btnBrowseModels">浏览…</button>
+                    </div>
+                    <p class="form-hint">保存为绝对路径；ASR / KWS / 声纹模型均在此目录下。</p>
                     ${fieldErrorHtml(fieldErrors, 'modelsDirectory')}
                   </div>
                 </div>
               </section>
 
-              <section id="section-llm" class="settings-section card">
+              <section id="section-llm" class="settings-section card${activeSection === 'llm' ? ' is-active' : ''}">
                 <h2 class="card-title">LLM 预设</h2>
                 <p class="card-subtitle">三组 API 预设；切换前自动保存当前编辑内容。</p>
                 <div class="preset-tabs" role="tablist">
@@ -346,32 +368,64 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                 </div>
               </section>
 
-              <section id="section-trigger" class="settings-section card">
+              <section id="section-trigger" class="settings-section card${activeSection === 'trigger' ? ' is-active' : ''}">
                 <h2 class="card-title">触发与 HUD</h2>
+                <p class="card-subtitle">唤醒词依赖 KWS 模型（与 ASR 的 SenseVoice 不同）。</p>
                 <div class="form-grid">
+                  <div class="form-field">
+                    <span class="form-label">唤醒 KWS 模型</span>
+                    <p class="form-hint${wakeModelStatus.engineReady ? ' is-success-hint' : wakeModelStatus.installed ? ' is-warn-hint' : ''}">
+                      ${
+                        wakeModelStatus.engineReady
+                          ? '✓ 已安装且引擎可加载'
+                          : wakeModelStatus.installed
+                            ? '⚠ 文件已就绪，引擎未能加载（见日志）'
+                            : '✗ 未安装'
+                      } — ${escapeHtml(wakeModelStatus.displayName)}
+                    </p>
+                    <p class="form-hint">路径：<code>${escapeHtml(wakeModelStatus.resolvedPath)}</code></p>
+                    <p class="form-hint">未安装时在仓库根目录运行：<code>scripts\\download-models.ps1 -IncludeKws</code>，并确认上方「ASR 模型」里的模型目录正确。</p>
+                  </div>
                   <div class="form-field">
                     <label for="triggerMode">触发模式</label>
                     <select id="triggerMode">${optionTags(TRIGGER_MODE_OPTIONS, draft.triggerMode)}</select>
+                    ${
+                      runtimeTriggerMode && runtimeTriggerMode !== draft.triggerMode
+                        ? `<p class="form-hint">当前运行时：${escapeHtml(runtimeTriggerMode)}；保存后将写入 settings 并同步到托盘。</p>`
+                        : ''
+                    }
                   </div>
 
-                  <div id="wakeSection" class="form-grid wake-section${wakeVisible ? '' : ' is-hidden'}">
+                  <div id="wakeSection" class="form-grid wake-section">
                     <h3 class="wake-section__title">唤醒词</h3>
+                    ${wakeHintWhenPtt}
                     <div class="form-field${fieldErrorClass(fieldErrors, 'wakeWordPhrase')}">
                       <label for="wakeWordPhrase">唤醒词文本</label>
-                      <input type="text" id="wakeWordPhrase" value="${escapeHtml(draft.wakeWordPhrase)}"${wakeVisible ? '' : ' disabled'} />
+                      <input
+                        type="text"
+                        id="wakeWordPhrase"
+                        list="wakePhrasePresets"
+                        value="${escapeHtml(draft.wakeWordPhrase)}"
+                      />
+                      <datalist id="wakePhrasePresets">
+                        ${(wakeModelStatus.builtinPhrases ?? ['小助手', '小德小德', '你好', '蛋哥蛋哥'])
+                          .map((p) => `<option value="${escapeHtml(p)}"></option>`)
+                          .join('')}
+                      </datalist>
+                      <p class="form-hint">仅中文汉字。内置词可直接保存；自定义词需本机 Python + sherpa-onnx，或从下拉选择内置示例。</p>
                       ${fieldErrorHtml(fieldErrors, 'wakeWordPhrase')}
                     </div>
                     <div class="form-field">
                       <label for="wakeWordSensitivity">唤醒灵敏度</label>
-                      <select id="wakeWordSensitivity"${wakeVisible ? '' : ' disabled'}>${optionTags(WAKE_SENSITIVITY_OPTIONS, draft.wakeWordSensitivity)}</select>
+                      <select id="wakeWordSensitivity">${optionTags(WAKE_SENSITIVITY_OPTIONS, draft.wakeWordSensitivity)}</select>
                     </div>
                     <div class="form-field">
                       <label for="wakeCommandSilenceMs">指令结束静音（ms）</label>
-                      <input type="number" id="wakeCommandSilenceMs" min="800" max="8000" step="200" value="${draft.wakeCommandSilenceMs}"${wakeVisible ? '' : ' disabled'} />
+                      <input type="number" id="wakeCommandSilenceMs" min="800" max="8000" step="200" value="${draft.wakeCommandSilenceMs}" />
                       <p class="form-hint">说完指令后，连续静音达到该时长即提交（不含 ASR 识别耗时）。</p>
                     </div>
                     <div class="form-check">
-                      <input type="checkbox" id="wakeUseVadEndDetection"${draft.wakeUseVadEndDetection ? ' checked' : ''}${wakeVisible ? '' : ' disabled'} />
+                      <input type="checkbox" id="wakeUseVadEndDetection"${draft.wakeUseVadEndDetection ? ' checked' : ''} />
                       <label for="wakeUseVadEndDetection">使用 VAD 尾部分析结束唤醒听写</label>
                     </div>
                   </div>
@@ -393,15 +447,15 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                       <input type="text" id="pttHotkey" readonly value="${escapeHtml(draft.pttHotkey)}" />
                       <button type="button" class="btn-ghost btn-sm" id="btnCaptureHotkey">点击录入…</button>
                     </div>
-                    <p class="form-hint">通过原生对话框录入；Web 不监听全局热键。</p>
+                    <p class="form-hint">通过原生对话框录入，<strong>录入后立即注册</strong>到托盘（无需等保存其他项）；日志中 <code>PTT hotkey loaded</code> 应显示你的组合。</p>
                     ${fieldErrorHtml(fieldErrors, 'pttHotkey')}
                   </div>
                 </div>
               </section>
 
-              <section id="section-feature" class="settings-section card">
+              <section id="section-feature" class="settings-section card${activeSection === 'feature' ? ' is-active' : ''}">
                 <h2 class="card-title">功能预设</h2>
-                <p class="card-subtitle">将 LLM 预设（API）与整理风格、叠加 skill 组合为一键切换的功能配置；保存后写入 settings.json。</p>
+                <p class="card-subtitle">将 LLM 预设（API）与整理风格、叠加 skill 组合为一键切换；<strong>不</strong>改变 PTT/唤醒触发方式（见上方「触发模式」或托盘「触发模式（运行时）」）。</p>
                 <div class="form-grid">
                   <div class="form-field">
                     <label for="activeFeaturePreset">当前使用的功能预设</label>
@@ -465,12 +519,16 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                 </div>
               </section>
 
-              <section id="section-paths" class="settings-section card">
+              <section id="section-paths" class="settings-section card${activeSection === 'paths' ? ' is-active' : ''}">
                 <h2 class="card-title">目录</h2>
                 <div class="form-grid">
                   <div class="form-field${fieldErrorClass(fieldErrors, 'skillsDirectory')}">
-                    <label for="skillsDirectory">Skills 目录</label>
-                    <input type="text" id="skillsDirectory" value="${escapeHtml(draft.skillsDirectory)}" />
+                    <span class="form-label">Skills 目录</span>
+                    <div class="path-field">
+                      <input type="text" id="skillsDirectory" value="${escapeHtml(draft.skillsDirectory)}" />
+                      <button type="button" class="btn-ghost btn-sm" id="btnBrowseSkills">浏览…</button>
+                    </div>
+                    <p class="form-hint">须包含 <code>manifest.yaml</code>；保存为绝对路径。</p>
                     ${fieldErrorHtml(fieldErrors, 'skillsDirectory')}
                   </div>
                   ${
@@ -599,10 +657,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       btn.addEventListener('click', () => {
         draft = readDraftFromDom();
         activeSection = btn.dataset.sectionNav as SectionId;
-        root.querySelectorAll('.settings-section-nav__link').forEach((link) => {
-          link.classList.toggle('is-active', link === btn);
-        });
-        scrollSettingsSection(root, activeSection);
+        render();
       });
     });
 
@@ -671,10 +726,55 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       void (async () => {
         draft = readDraftFromDom();
         const result = await bridge.openHotkeyCaptureDialog(draft.pttHotkey);
-        if (!result.cancelled) {
-          draft.pttHotkey = result.hotkey;
-          const input = root.querySelector<HTMLInputElement>('#pttHotkey');
-          if (input) input.value = result.hotkey;
+        if (result.cancelled) {
+          return;
+        }
+
+        const applied = await bridge.applyPttHotkey(result.hotkey);
+        draft.pttHotkey = applied.activeHotkey;
+        const input = root.querySelector<HTMLInputElement>('#pttHotkey');
+        if (input) input.value = applied.activeHotkey;
+
+        if (applied.ok) {
+          fieldErrors.delete('pttHotkey');
+          fieldErrors.delete('_global');
+          if (applied.error) {
+            fieldErrors.set('_global', applied.error);
+          }
+        } else {
+          fieldErrors.set('pttHotkey', applied.error ?? '热键注册失败');
+        }
+
+        render();
+      })();
+    });
+
+    root.querySelector('#btnBrowseModels')?.addEventListener('click', () => {
+      void (async () => {
+        const current =
+          root.querySelector<HTMLInputElement>('#modelsDirectory')?.value.trim() ?? draft.modelsDirectory;
+        const result = await bridge.openFolderPickerDialog(current);
+        if (!result.cancelled && result.path) {
+          const input = root.querySelector<HTMLInputElement>('#modelsDirectory');
+          if (input) input.value = result.path;
+        }
+      })();
+    });
+
+    root.querySelector('#btnBrowseSkills')?.addEventListener('click', () => {
+      void (async () => {
+        const current =
+          root.querySelector<HTMLInputElement>('#skillsDirectory')?.value.trim() ?? draft.skillsDirectory;
+        const result = await bridge.openFolderPickerDialog(current);
+        if (!result.cancelled && result.path) {
+          const input = root.querySelector<HTMLInputElement>('#skillsDirectory');
+          if (input) input.value = result.path;
+          draft = readDraftFromDom();
+          const fpOverlays =
+            draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
+            draft.optionalOverlaySkills;
+          await refreshSkillsLists(bridge, draft.skillsDirectory, lists, fpOverlays);
+          render();
         }
       })();
     });
@@ -731,6 +831,11 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
         return;
       }
 
+      if (save.warning) {
+        fieldErrors.set('_global', save.warning);
+        render();
+      }
+
       window.chrome?.webview?.postMessage?.(JSON.stringify({ type: 'settingsSaved', ok: true }));
     } catch (err) {
       fieldErrors.set('_global', err instanceof Error ? err.message : String(err));
@@ -740,9 +845,6 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
 
   async function handleCancel(): Promise<void> {
     draft = await bridge.loadSettingsDraft();
-    if (runtime?.triggerMode) {
-      draft = { ...draft, triggerMode: runtime.triggerMode };
-    }
     fieldErrors.clear();
     const cancelFpOverlays =
       draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??

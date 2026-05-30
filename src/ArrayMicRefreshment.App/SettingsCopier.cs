@@ -22,6 +22,8 @@ internal static class SettingsCopier
         target.WakeUseVadEndDetection = source.WakeUseVadEndDetection;
         target.HudScreenCorner = source.HudScreenCorner;
         target.UseWebStatusHud = source.UseWebStatusHud;
+        target.SettingsWindowWidth = source.SettingsWindowWidth;
+        target.SettingsWindowHeight = source.SettingsWindowHeight;
         target.SkillsDirectory = source.SkillsDirectory;
         target.ModelsDirectory = source.ModelsDirectory;
         target.SelectedAsrModelId = source.SelectedAsrModelId;

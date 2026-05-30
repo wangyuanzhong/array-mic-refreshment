@@ -23,6 +23,11 @@ internal sealed class VoiceFeedbackPresenter : IDisposable
         _uiContext = uiContext;
         _onPhaseChanged = onPhaseChanged;
         _hud = VoiceStatusHudFactory.Create(settings);
+        if (_hud is VoiceWebStatusHud webHud)
+        {
+            RunOnUi(webHud.BeginInitialization);
+        }
+
         ApplyTrayIcon(VoiceActivityPhase.Idle);
     }
 
@@ -61,7 +66,15 @@ internal sealed class VoiceFeedbackPresenter : IDisposable
             }
 
             var message = hudMessage ?? _activityHint;
-            _hud.SetPhase(phase, message);
+            try
+            {
+                _hud.SetPhase(phase, message);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "HUD SetPhase failed; tray icon state still updated");
+            }
+
             _onPhaseChanged?.Invoke();
         });
     }

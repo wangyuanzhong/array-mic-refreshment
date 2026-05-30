@@ -190,6 +190,13 @@ if ($IncludeKws -and $manifest.phase2Kws) {
     foreach ($pkg in @($manifest.phase2Kws.packages)) {
         Download-PackageArchive -pkg $pkg -UrlBase $kwsBase
     }
+
+    $bundledEnc = Join-Path $repoRoot 'src\ArrayMicRefreshment.Asr\Resources\wake-phrase-encodings.json'
+    $kwsDir = Join-Path $ModelsRoot 'sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01'
+    if ((Test-Path $bundledEnc) -and (Test-Path $kwsDir)) {
+        Copy-Item -Path $bundledEnc -Destination (Join-Path $kwsDir 'wake-phrase-encodings.json') -Force
+        Write-Host "Copied wake-phrase-encodings.json into KWS model folder." -ForegroundColor Green
+    }
 }
 
 Write-Host ""

@@ -173,6 +173,14 @@ public sealed partial class WebUiBridge
             return (string)form.Invoke(action)!;
         }
 
+        if (_context.UiSynchronizationContext is { } uiContext
+            && SynchronizationContext.Current != uiContext)
+        {
+            string? result = null;
+            uiContext.Send(_ => result = action(), null);
+            return result!;
+        }
+
         return action();
     }
 }

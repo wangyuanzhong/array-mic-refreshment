@@ -38,6 +38,10 @@
 
   <ItemGroup Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
     <Compile Remove="TrayApplicationContextSmokeTests.cs" />
+    <Compile Remove="PttHotkeyBlackBoxTests.cs" />
+    <Compile Remove="PttHotkeyE2eTests.cs" />
+    <Compile Remove="Support\WindowsKeyboardSimulator.cs" />
+    <Compile Remove="Support\PttTrayLikeE2eHarness.cs" />
   </ItemGroup>
 
 </Project>

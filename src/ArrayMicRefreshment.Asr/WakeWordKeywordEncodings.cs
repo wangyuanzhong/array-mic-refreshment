@@ -54,4 +54,5 @@ internal static class WakeWordKeywordEncodings
         var json = JsonSerializer.Serialize(lines, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(path, json, Utf8NoBom);
     }
+
 }

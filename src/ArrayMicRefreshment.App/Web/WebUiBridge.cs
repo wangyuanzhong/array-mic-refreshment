@@ -45,13 +45,15 @@ public sealed partial class WebUiBridge : IWebUiBridge
             if (success)
             {
                 _context.OnSuccess?.Invoke();
-                form.DialogResult = DialogResult.OK;
-            }
-            else
-            {
-                form.DialogResult = DialogResult.Cancel;
             }
 
+            if (form.HideOnClose)
+            {
+                form.Hide();
+                return;
+            }
+
+            form.DialogResult = success ? DialogResult.OK : DialogResult.Cancel;
             form.Close();
         });
     }

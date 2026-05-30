@@ -59,6 +59,8 @@ public interface ISettingsApplyHost
 
     void RefreshAudioCaptureAfterSettings();
 
+    void EnsurePttHotkeyRegistered();
+
     void ShowWakePhraseWarning(string message);
 }
 
@@ -115,6 +117,28 @@ public sealed class SettingsApplyService
                 result = result with { HotkeyUpdateSucceeded = true };
             }
         }
+#if WINDOWS
+        else if (host.PushToTalk is NAudioPushToTalkSource { IsRegistered: false }
+                 && !string.IsNullOrWhiteSpace(current.PttHotkey))
+        {
+            result = result with { HotkeyUpdateAttempted = true };
+            if (!host.TryUpdatePttHotkey(current.PttHotkey, out var hotkeyError))
+            {
+                host.NotifyPttHotkeyFailed(hotkeyError);
+                result = result with
+                {
+                    HotkeyUpdateSucceeded = false,
+                    HotkeyError = hotkeyError,
+                };
+            }
+            else
+            {
+                host.RegisteredPttHotkey = current.PttHotkey;
+                host.NotifyPttHotkeyUpdated(host.PushToTalk.HotkeyDisplay);
+                result = result with { HotkeyUpdateSucceeded = true };
+            }
+        }
+#endif
 
         if (result.TriggerModeChanged)
         {
@@ -162,6 +186,8 @@ public sealed class SettingsApplyService
         {
             host.RefreshAudioCaptureAfterSettings();
         }
+
+        host.EnsurePttHotkeyRegistered();
 
         return result;
     }

@@ -30,7 +30,7 @@ public sealed class Phase2AcceptanceTests
                 $"LoadSettingsDraft missing property '{name}' (§7.3).");
         }
 
-        Assert.Equal("WakeWordOnly", doc.RootElement.GetProperty("triggerMode").GetString());
+        Assert.Equal("Both", doc.RootElement.GetProperty("triggerMode").GetString());
         Assert.Equal(3, doc.RootElement.GetProperty("llmPresets").GetArrayLength());
     }
 

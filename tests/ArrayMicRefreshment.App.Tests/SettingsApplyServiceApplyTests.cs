@@ -226,6 +226,10 @@ public sealed class SettingsApplyServiceApplyTests
 
         public void RefreshAudioCaptureAfterSettings() => RefreshAudioCaptureAfterSettingsCalled = true;
 
+        public void EnsurePttHotkeyRegistered()
+        {
+        }
+
         public void ShowWakePhraseWarning(string message) => LastWakePhraseWarning = message;
     }
 

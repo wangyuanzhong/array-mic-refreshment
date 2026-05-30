@@ -54,7 +54,7 @@ function Test-ShouldWatchFile([string]$FullPath) {
     return $true
 }
 
-function Get-WatchRoots() {
+function Get-WatchRoots {
     @(
         (Join-Path $repoRoot 'src'),
         (Join-Path $repoRoot 'ui'),
@@ -64,7 +64,7 @@ function Get-WatchRoots() {
     ) | Where-Object { Test-Path $_ }
 }
 
-function Get-LatestSourceWriteUtc() {
+function Get-LatestSourceWriteUtc {
     $latest = [datetime]::MinValue
     foreach ($root in (Get-WatchRoots)) {
         if (Test-Path $root -PathType Leaf) {
@@ -84,7 +84,7 @@ function Get-LatestSourceWriteUtc() {
     return $latest
 }
 
-function Stop-RunningApp() {
+function Stop-RunningApp {
     $proc = Get-Process -Name 'ArrayMicRefreshment' -ErrorAction SilentlyContinue
     if ($proc) {
         Write-Log 'Stopping running ArrayMicRefreshment.exe so dist/ can be updated.' Yellow
@@ -93,7 +93,7 @@ function Stop-RunningApp() {
     }
 }
 
-function Invoke-ReleaseBuild() {
+function Invoke-ReleaseBuild {
     if (Test-Path $lockPath) {
         $lockAge = (Get-Date) - (Get-Item $lockPath).LastWriteTime
         if ($lockAge.TotalMinutes -lt 30) {
@@ -106,22 +106,25 @@ function Invoke-ReleaseBuild() {
     New-Item -ItemType File -Path $lockPath -Force | Out-Null
     try {
         Stop-RunningApp
-        Write-Log "→ build-release.ps1 -Mode $Mode$(if ($IncludeModels) { ' -IncludeModels' })" Cyan
-        $buildArgs = @('-Mode', $Mode)
-        if ($IncludeModels) { $buildArgs += '-IncludeModels' }
-
-        & (Join-Path $repoRoot 'scripts\build-release.ps1') @buildArgs
+        Write-Log "-> build-release.ps1 -Mode $Mode$(if ($IncludeModels) { ' -IncludeModels' })" Cyan
+        $buildScript = Join-Path $repoRoot 'scripts\build-release.ps1'
+        if ($IncludeModels) {
+            & $buildScript -Mode $Mode -IncludeModels
+        }
+        else {
+            & $buildScript -Mode $Mode
+        }
         if ($LASTEXITCODE -ne 0) { throw "build-release.ps1 failed (exit $LASTEXITCODE)" }
 
         $exe = Join-Path $repoRoot "dist\ArrayMicRefreshment-$Mode\ArrayMicRefreshment.exe"
         if (-not (Test-Path $exe)) { throw "Expected output missing: $exe" }
 
         Set-Content -Path $stampPath -Value (Get-Date).ToString('o') -Encoding UTF8
-        Write-Log "✔ $exe" Green
+        Write-Log "OK $exe" Green
         return $true
     }
     catch {
-        Write-Log "✖ Build failed: $($_.Exception.Message)" Red
+        Write-Log "FAIL Build failed: $($_.Exception.Message)" Red
         return $false
     }
     finally {
@@ -149,17 +152,17 @@ $pendingLatestUtc = $null
 
 try {
     while ($true) {
-        $latest = Get-LatestSourceWriteUtc()
+        $latest = Get-LatestSourceWriteUtc
         if ($latest -gt $lastBuiltUtc) {
             if (-not $pendingLatestUtc -or $latest -gt $pendingLatestUtc) {
                 $pendingLatestUtc = $latest
-                Write-Log 'Source changed — waiting for edits to settle…' DarkCyan
+                Write-Log 'Source changed - waiting for edits to settle...' DarkCyan
             }
 
             $quietCutoff = (Get-Date).ToUniversalTime().AddSeconds(-$DebounceSeconds)
             if ($pendingLatestUtc -le $quietCutoff) {
                 if (Invoke-ReleaseBuild) {
-                    $lastBuiltUtc = Get-LatestSourceWriteUtc()
+                    $lastBuiltUtc = Get-LatestSourceWriteUtc
                 }
                 $pendingLatestUtc = $null
             }

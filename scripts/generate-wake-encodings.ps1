@@ -30,6 +30,12 @@ if (-not (Get-Command sherpa-onnx-cli -ErrorAction SilentlyContinue)) {
     throw "sherpa-onnx-cli not found. pip install sherpa-onnx click sentencepiece pypinyin"
 }
 
+python -c "import click" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Installing Python click (required by sherpa-onnx-cli)..." -ForegroundColor Cyan
+    pip install click -q
+}
+
 sherpa-onnx-cli text2token --tokens $tokens --tokens-type ppinyin $raw $out
 if ($LASTEXITCODE -ne 0) { throw "text2token failed" }
 

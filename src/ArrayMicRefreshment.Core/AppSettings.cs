@@ -74,6 +74,12 @@ public sealed class AppSettings
     /// </summary>
     public bool UseWebStatusHud { get; set; } = true;
 
+    /// <summary>Last Web settings window client width (px).</summary>
+    public int SettingsWindowWidth { get; set; } = 960;
+
+    /// <summary>Last Web settings window client height (px).</summary>
+    public int SettingsWindowHeight { get; set; } = 720;
+
     public string SkillsDirectory { get; set; } = "skills";
     public string ModelsDirectory { get; set; } = "models";
     public string SelectedAsrModelId { get; set; } = string.Empty;

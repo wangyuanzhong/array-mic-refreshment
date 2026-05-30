@@ -14,6 +14,11 @@ public sealed class HotkeyCaptureTextBox : TextBox
     private bool _capturing;
     private string _committed = string.Empty;
 
+    public event EventHandler<string>? HotkeyCaptured;
+
+    /// <summary>True while waiting for the user to press a chord.</summary>
+    public bool CaptureFocus => _capturing;
+
     public HotkeyCaptureTextBox()
     {
         ReadOnly = true;
@@ -64,12 +69,24 @@ public sealed class HotkeyCaptureTextBox : TextBox
             return;
         }
 
+        ProcessKeyDown(e);
+    }
+
+    public void BeginCapturePublic() => BeginCapture();
+
+    public void ProcessKeyDown(KeyEventArgs e)
+    {
+        if (!_capturing)
+        {
+            return;
+        }
+
         e.SuppressKeyPress = true;
         e.Handled = true;
 
         if (IsModifierKey(e.KeyCode))
         {
-            Text = FormatModifiers(e) + "…";
+            Text = FormatModifiers(e) + "...";
             return;
         }
 
@@ -79,11 +96,7 @@ public sealed class HotkeyCaptureTextBox : TextBox
             return;
         }
 
-        _committed = expression;
-        Text = expression;
-        _capturing = false;
-        BackColor = SystemColors.Window;
-        Parent?.SelectNextControl(this, forward: true, tabStopOnly: true, nested: false, wrap: true);
+        CommitCapture(expression);
     }
 
     protected override void OnKeyUp(KeyEventArgs e)
@@ -113,9 +126,18 @@ public sealed class HotkeyCaptureTextBox : TextBox
     private void BeginCapture()
     {
         _capturing = true;
-        Text = "请按下热键组合…";
+        Text = "请按下热键组合...";
         BackColor = Color.FromArgb(255, 255, 224);
         SelectAll();
+    }
+
+    private void CommitCapture(string expression)
+    {
+        _committed = expression;
+        Text = expression;
+        _capturing = false;
+        BackColor = SystemColors.Window;
+        HotkeyCaptured?.Invoke(this, expression);
     }
 
     private static bool IsModifierKey(Keys key) =>
@@ -172,9 +194,6 @@ public sealed class HotkeyCaptureTextBox : TextBox
         return parts.Count == 0 ? "" : string.Join('+', parts) + "+";
     }
 
-    /// <summary>
-    /// Do not use (KeyData &amp; Keys.LWin): LWin=0x5B overlaps Space/Ctrl+Space bit patterns.
-    /// </summary>
     private static bool IsWindowsKeyPhysicallyDown() =>
         IsKeyDown(VkLWin) || IsKeyDown(VkRWin);
 

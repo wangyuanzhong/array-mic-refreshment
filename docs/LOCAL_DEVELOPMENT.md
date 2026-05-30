@@ -234,7 +234,7 @@ explorer "$env:APPDATA\ArrayMicRefreshment\logs"
 
 ### 7.2 开发模式下的 `models/` 解析
 
-默认 `AppSettings.ModelsDirectory = "models"`，相对 **当前工作目录** 或 **exe 所在目录** 解析（见 `ModelsPathResolver`）。
+默认 `AppSettings.ModelsDirectory = "models"`，加载后规范为 **绝对路径**（`SettingsPathNormalizer` + `ModelsPathResolver`，相对 exe 目录取候选）。
 
 - `dotnet run --project src\ArrayMicRefreshment.App` 时，工作目录应为 **仓库根**，这样 `models\` 才能找到。
 - 打包 exe 时，需把 `models\` 放在 exe 同级。
@@ -248,7 +248,7 @@ explorer "$env:APPDATA\ArrayMicRefreshment\logs"
 | `WakeWordPhrase` | `小助手` | 唤醒词文本 |
 | `WakeWordSensitivity` | `Maximum` | KWS/AGC 灵敏度档位 |
 | `SpeakerVerifyThreshold` | `0.40` | 声纹相似度阈值 |
-| `ModelsDirectory` | `models` | 模型根目录 |
+| `ModelsDirectory` | `models`（加载后规范为 **绝对路径**，见 `SettingsPathNormalizer`） | 模型根目录 |
 | `SkillsDirectory` | `skills` | LLM Skill |
 
 ---
@@ -410,7 +410,13 @@ Stop-Process -Name ArrayMicRefreshment -Force -ErrorAction SilentlyContinue
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
 | 启动后无 ASR，托盘提示模型 | `models/` 为空 | 运行 `download-models.ps1` |
-| 唤醒词从不触发 | 未下 KWS；或 keywords 用了 `#0.30` 高阈值 | `-IncludeKws`；装 Python 跑 `generate-wake-encodings.ps1`；查 `[WAKE-DIAG]` |
+| 设置页只有分区标题、没有控件 | 旧版 UI 多 section 同时渲染叠在一起 | 用最新 `dist\...\ArrayMicRefreshment.exe`；左侧 Nav 应切换分区；KWS 状态在 **触发与 HUD**（非单独「唤醒模型」菜单） |
+| PTT 热键无效 / 松开无反应 / 卡死 | 托盘收不到 `WM_HOTKEY` 或钩子回调死锁 UI | **V0.4.16** 低级钩子 + `BeginInvoke`；日志应有 `chord released` |
+| 仅 PTT 未按键麦克风常亮 | 待机采集 `standby capture started` | **V0.4.16** `keepStandbyCaptureBetweenSessions: false`；仅按住热键时开麦 |
+| 仅 PTT 未按键麦克风常亮 | 待机采集预开设备 | **V0.4.11+** 不再 `StartStandbyListening`；仅按住热键时开麦 |
+| PTT 热键无效 / 仅 PTT 仍唤醒 | 保存后未停唤醒 | Idle 重注册 `EnsurePttHotkeyRegistered`；仅 PTT 查 `Wake-word listening stopped` |
+| KWS 显示已安装仍警告 | 缺少 `wake-phrase-encodings.json` 或 Python | **V0.4.10+** 内置编码；或 `download-models.ps1 -IncludeKws`；日志勿出现 `Failed to encode wake phrase` |
+| 唤醒词从不触发 | 未下 KWS；或 keywords 用了 `#0.30` 高阈值 | `-IncludeKws`；装 Python 跑 `generate-wake-encodings.ps1`；查 `[WAKE-DIAG]`；设置页 **触发与 HUD** 看 KWS 是否 `installed` |
 | 识别成功后再唤醒要等很久 | KWS 流/AGC 状态；关键词阈值 | 查日志 `RearmAfterDictation`、`lifetimeHits`；见近期 wake 相关 commit |
 | 声纹明明够分仍拒绝 | 自适应阈值高于用户阈值 | 查日志 `effectiveThreshold`；确认最新 `UserEnrollmentService` |
 | PTT 吞字 | 采集启动晚于 UI | 查 `PttCaptureService` handoff；WASAPI buffer 20ms |
@@ -444,7 +450,10 @@ Windows 实机验证：PTT、唤醒、声纹、Both 模式各测一遍。
 ```powershell
 .\scripts\test-phase2-route-b.ps1
 .\scripts\test-feature-presets.ps1
+.\scripts\test-ptt-blackbox.ps1    # 模拟：启动→设置保存改热键→按键→验证开录（热键可参数化，不限 Space）
 ```
+
+`test-ptt-blackbox.ps1` 需在**可交互桌面**运行（本机 PowerShell）；无头 CI 会跳过 SendInput 用例，仅测钩子注册。
 
 ### 14.2.1 Push 后 CI（Agent 强制）
 

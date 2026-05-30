@@ -402,12 +402,20 @@
 
 .settings-sections .card {
   max-width: none;
+  overflow: visible;
+}
+
+/* One section visible at a time (left nav switches panels). */
+.settings-sections .settings-section.card:not(.is-active) {
+  display: none;
+}
+
+.settings-sections .settings-section.card.is-active {
+  display: block;
 }
 
 .settings-section {
   scroll-margin-top: var(--space-4);
-  content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
 }
 
 .feature-preset-toolbar {
@@ -437,6 +445,21 @@
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
+}
+
+.form-hint.is-success-hint {
+  color: var(--color-success);
+  font-weight: 500;
+}
+
+.form-hint.is-warn-hint {
+  color: var(--color-warning, #b45309);
+  font-weight: 500;
+}
+
+.form-hint code {
+  font-size: 12px;
+  word-break: break-all;
 }
 
 .form-field input,
@@ -587,6 +610,18 @@
   font-family: ui-monospace, monospace;
 }
 
+.path-field {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.path-field input {
+  flex: 1;
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-size-sm);
+}
+
 .wake-section.is-hidden {
   display: none;
 }
@@ -623,48 +658,113 @@
   gap: var(--space-3);
 }
 
-/* Voice status HUD overlay (#/hud) — WebView2 shell; body transparent */
+/* Voice status HUD overlay (#/hud) — light frosted card in transparent WebView2 */
+html:has(body.hud-mode),
 body.hud-mode {
   margin: 0;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: transparent;
+  --hud-bg: rgb(255 255 255 / 97%);
+  --hud-text: #3d3d56;
+  --hud-muted: #7a7a9a;
+  --hud-error: #d94a6a;
+  --hud-accent: #2a9fd4;
+  --hud-wake: #7b5fc7;
+  --hud-border: rgb(126 200 227 / 50%);
 }
 
 body.hud-mode #app {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
   min-height: 0;
 }
 
 .voice-hud {
   display: flex;
   align-items: center;
+  gap: 10px;
   box-sizing: border-box;
-  width: 300px;
-  min-height: 52px;
-  padding: 10px 12px;
-  border-radius: var(--radius-md, 10px);
+  width: 100%;
+  height: 100%;
+  min-height: 72px;
+  padding: 14px 16px;
+  border: 1px solid var(--hud-border);
+  border-radius: 14px;
   background: var(--hud-bg);
   color: var(--hud-text);
-  font-family: var(--font-sans);
-  font-size: var(--font-size-sm);
-  line-height: 1.35;
-  box-shadow: var(--shadow-md);
+  font-family: "Segoe UI Variable", "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  box-shadow:
+    0 12px 32px rgb(61 61 86 / 12%),
+    0 2px 8px rgb(126 200 227 / 14%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   user-select: none;
   -webkit-user-select: none;
 }
 
+.voice-hud__dot {
+  flex: 0 0 10px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--hud-muted);
+  box-shadow: 0 0 0 3px rgb(122 122 154 / 18%);
+}
+
 .voice-hud__text {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-word;
 }
 
 .voice-hud[data-phase='Error'] {
   color: var(--hud-error);
 }
 
-.voice-hud[data-phase='Recording'],
-.voice-hud[data-phase='Recognizing'],
+.voice-hud[data-phase='Error'] .voice-hud__dot {
+  background: var(--hud-error);
+  box-shadow: 0 0 0 3px rgb(217 74 106 / 22%);
+}
+
+.voice-hud[data-phase='Recording'] .voice-hud__dot,
+.voice-hud[data-phase='Recognizing'] .voice-hud__dot {
+  background: var(--hud-accent);
+  box-shadow: 0 0 0 3px rgb(42 159 212 / 22%);
+  animation: hud-pulse 1.2s ease-in-out infinite;
+}
+
 .voice-hud[data-phase='WakePrompt'] {
-  color: var(--hud-accent);
+  color: var(--hud-wake);
+}
+
+.voice-hud[data-phase='WakePrompt'] .voice-hud__dot {
+  background: var(--hud-wake);
+  box-shadow: 0 0 0 3px rgb(123 95 199 / 22%);
+}
+
+@keyframes hud-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.65;
+    transform: scale(0.92);
+  }
 }
 

@@ -34,10 +34,16 @@ public sealed class TrayApplicationContext : ApplicationContext
     private nint _settingsWindowHandle;
     private string? _registeredPttHotkey;
     private readonly SettingsApplyService _settingsApplyService = new();
+    private WebUiHostForm? _settingsWebForm;
+    private WebUiBridgeContext? _settingsWebContext;
+#if WINDOWS
+    private GlobalHotkeyListener? _pttHotkeyHost;
+#endif
 
     public TrayApplicationContext()
     {
         _settings = _settingsStore.Load();
+        SettingsPathNormalizer.Normalize(_settings);
         _voiceTriggerMode = NormalizePersistedMode(_settings.TriggerMode);
         _uiContext = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         if (SynchronizationContext.Current is null)
@@ -69,7 +75,6 @@ public sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_statusItem);
         menu.Items.Add(new ToolStripMenuItem("设置…", null, OnOpenSettings));
-        menu.Items.Add(new ToolStripMenuItem("注册说话人…", null, OnEnrollSpeaker));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("强制结束录音（卡住时用）", null, OnSimulatePttRelease));
         menu.Items.Add(BuildTriggerModeMenu());
@@ -92,7 +97,15 @@ public sealed class TrayApplicationContext : ApplicationContext
         _sink.Emitted += (text, paste) =>
             Log.Information("Transcript emitted (paste={Paste}): {Text}", paste, text);
 
-        _ptt = new NAudioPushToTalkSource(_settings.PttHotkey);
+#if WINDOWS
+        // RegisterHotKey on a dedicated hidden Form (reliable WM_HOTKEY + release polling on same pump).
+        // LowLevelHotkeyHost caused "PTT pressed" without "released" on user machines (stuck red icon).
+        _pttHotkeyHost = new GlobalHotkeyListener();
+        _pttHotkeyHost.Show();
+        _ptt = new NAudioPushToTalkSource(_settings.PttHotkey, _pttHotkeyHost);
+#else
+        _ptt = new StubPushToTalkSource();
+#endif
         _registeredPttHotkey = _settings.PttHotkey;
         if (_ptt is NAudioPushToTalkSource winPtt)
         {
@@ -111,7 +124,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             captureFactory,
             vad,
             pttCaptureAllowed: IsPttCaptureEnabled,
-            keepStandbyCaptureBetweenSessions: () => _voiceTriggerMode == VoiceTriggerMode.PttOnly,
+            keepStandbyCaptureBetweenSessions: () => false,
             tryCaptureHandoffOnPress: TryHandoffWakeStreamForPtt,
             takePreRollOnPress: TakeWakePreRollForPtt,
             beforeCaptureStarts: PauseWakeListeningForPtt,
@@ -174,6 +187,8 @@ public sealed class TrayApplicationContext : ApplicationContext
 
         Log.Information("Voice capture orchestrator started (mode={Mode})", _voiceTriggerMode);
 
+        _pttCaptureService.StopStandbyListening();
+
 #if WINDOWS
         if (_ptt is NAudioPushToTalkSource { IsRegistered: false })
         {
@@ -181,21 +196,10 @@ public sealed class TrayApplicationContext : ApplicationContext
             _balloons.Show(
                 6000,
                 "Array Mic",
-                "PTT 全局热键注册失败，按键录音不可用。请在设置中更换热键组合。",
+                "PTT 全局热键启用失败，按键录音不可用。请重启应用；若仍失败可尝试以管理员身份运行。",
                 ToolTipIcon.Error);
-            Log.Error("PTT RegisterHotKey failed for {Hotkey}", _settings.PttHotkey);
+            Log.Error("PTT hotkey hook failed for {Hotkey}", _settings.PttHotkey);
         }
-#endif
-
-#if WINDOWS
-        var warmTimer = new System.Windows.Forms.Timer { Interval = 100 };
-        warmTimer.Tick += (_, _) =>
-        {
-            warmTimer.Stop();
-            warmTimer.Dispose();
-            WarmAudioCaptureIfNeeded();
-        };
-        warmTimer.Start();
 #endif
 
         UpdateTrayTooltip();
@@ -371,11 +375,48 @@ public sealed class TrayApplicationContext : ApplicationContext
         IAudioDeviceEnumerator? deviceEnumerator = null;
 #endif
 
-        var context = CreateWebUiBridgeContext(enrollmentCapture: null, deviceEnumerator: deviceEnumerator);
-        using var form = new WebUiHostForm("#/settings", context);
-        form.Shown += (_, _) => _settingsWindowHandle = form.Handle;
-        form.ShowDialog();
-        _settingsWindowHandle = IntPtr.Zero;
+        if (_settingsWebForm is { IsDisposed: false })
+        {
+            RefreshSettingsWebContext(deviceEnumerator);
+            _settingsWebContext!.HostForm = _settingsWebForm;
+            _settingsWebForm.NavigateTo("#/settings");
+            if (!_settingsWebForm.Visible)
+            {
+                _settingsWebForm.Show();
+            }
+
+            _settingsWebForm.WindowState = FormWindowState.Normal;
+            _settingsWebForm.BringToFront();
+            _settingsWebForm.Activate();
+            _settingsWindowHandle = _settingsWebForm.Handle;
+            return;
+        }
+
+        _settingsWebContext = CreateWebUiBridgeContext(enrollmentCapture: null, deviceEnumerator: deviceEnumerator);
+        _settingsWebForm = new WebUiHostForm("#/settings", _settingsWebContext)
+        {
+            HideOnClose = true,
+        };
+        _settingsWebForm.Shown += (_, _) => _settingsWindowHandle = _settingsWebForm!.Handle;
+        _settingsWebForm.FormClosed += (_, _) => _settingsWindowHandle = IntPtr.Zero;
+        _settingsWebForm.Show();
+        _settingsWindowHandle = _settingsWebForm.Handle;
+    }
+
+    private void RefreshSettingsWebContext(IAudioDeviceEnumerator? deviceEnumerator)
+    {
+        if (_settingsWebContext is null)
+        {
+            return;
+        }
+
+        _settingsWebContext.RuntimeTriggerMode = _voiceTriggerMode;
+        _settingsWebContext.MasterEnabled = _settings.MasterEnabled;
+        _settingsWebContext.SpeakerModelMissing = _sherpaComponents?.SpeakerModelMissing == true;
+        if (deviceEnumerator is not null)
+        {
+            // Device list is re-queried on each settings page render via bridge.
+        }
     }
 
     private WebUiBridgeContext CreateWebUiBridgeContext(
@@ -401,6 +442,7 @@ public sealed class TrayApplicationContext : ApplicationContext
             SpeakerModelMissing = _sherpaComponents?.SpeakerModelMissing == true,
             SettingsApplyHost = new TraySettingsApplyHost(this),
             SettingsApplyService = _settingsApplyService,
+            UiSynchronizationContext = _uiContext,
             OnSuccess = onSuccess,
         };
     }
@@ -554,7 +596,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         if (mode is VoiceTriggerMode.PttOnly)
         {
             _feedback.ClearSession();
-            _pttCaptureService.StartStandbyListeningIfNeeded();
+            _pttCaptureService.StopStandbyListening();
         }
         else
         {
@@ -573,13 +615,14 @@ public sealed class TrayApplicationContext : ApplicationContext
     {
         if (_wakeDetector.DetectorId.StartsWith("stub", StringComparison.OrdinalIgnoreCase))
         {
-            _balloons.Show(
-                8000,
-                "Array Mic — 唤醒词",
-                "未检测到 Sherpa 唤醒模型，设置里的唤醒词暂无法从语音识别。\n" +
-                "请在 exe 旁运行：scripts\\download-models.ps1 -IncludeKws\n" +
-                "安装前可用托盘「模拟唤醒」测试后续流程。",
-                ToolTipIcon.Warning);
+            var filesPresent = WakeWordModelPaths.TryResolve(_settings.ModelsDirectory, out _);
+            var body = filesPresent
+                ? "唤醒 KWS 模型文件已在设置目录中找到，但 Sherpa 引擎未能加载。\n" +
+                  "请查看 %AppData%\\ArrayMicRefreshment\\logs 中的错误；设置页会显示「已安装 / 引擎未就绪」。"
+                : "未检测到 Sherpa 唤醒模型文件，设置里的唤醒词暂无法从语音识别。\n" +
+                  "请在 exe 旁运行：scripts\\download-models.ps1 -IncludeKws\n" +
+                  "安装前可用托盘「模拟唤醒」测试后续流程。";
+            _balloons.Show(8000, "Array Mic — 唤醒词", body, ToolTipIcon.Warning);
         }
         else
         {
@@ -589,6 +632,11 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnWakeWordActivated(object? sender, WakeWordDetectedEventArgs e)
     {
+        if (_voiceTriggerMode == VoiceTriggerMode.PttOnly)
+        {
+            return;
+        }
+
         if (!_settings.MasterEnabled)
         {
             return;
@@ -608,26 +656,9 @@ public sealed class TrayApplicationContext : ApplicationContext
     private bool IsPttCaptureEnabled() =>
         _voiceTriggerMode is VoiceTriggerMode.PttOnly or VoiceTriggerMode.Both;
 
-    private void WarmAudioCaptureIfNeeded()
-    {
-        if (!IsPttCaptureEnabled())
-        {
-            return;
-        }
-
-        _pttCaptureService.WarmCaptureDevice();
-    }
-
     private void RefreshAudioCaptureAfterSettings()
     {
-        if (IsPttCaptureEnabled())
-        {
-            _pttCaptureService.StartStandbyListeningIfNeeded();
-        }
-        else
-        {
-            _pttCaptureService.StopStandbyListening();
-        }
+        _pttCaptureService.StopStandbyListening();
 
         if (_voiceTriggerMode is VoiceTriggerMode.WakeWordOnly or VoiceTriggerMode.Both)
         {
@@ -641,6 +672,24 @@ public sealed class TrayApplicationContext : ApplicationContext
                 _voiceOrchestrator.WakeCapture.StartListening();
             }
         }
+    }
+
+    private void EnsurePttHotkeyRegistered()
+    {
+#if WINDOWS
+        if (_ptt is NAudioPushToTalkSource naudio && !naudio.IsRegistered)
+        {
+            if (naudio.TryUpdateHotkey(_settings.PttHotkey, out var error))
+            {
+                _registeredPttHotkey = _settings.PttHotkey;
+                Log.Information("PTT hotkey re-registered: {Hotkey}", _settings.PttHotkey);
+            }
+            else
+            {
+                Log.Warning("PTT hotkey re-register failed: {Error}", error);
+            }
+        }
+#endif
     }
 
     private void PauseWakeListeningForPtt()
@@ -883,6 +932,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
             _statusItem.Text = "状态: 录音中…";
             _feedback.SetPhase(VoiceActivityPhase.Recording, "录音中…");
+            UpdateTrayTooltip();
         });
     }
 
@@ -1150,6 +1200,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void PersistAndRefresh()
     {
+        SettingsPathNormalizer.Normalize(_settings);
         _settingsStore.Save(_settings);
         UpdateTrayTooltip();
     }
@@ -1181,12 +1232,27 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnExit(object? sender, EventArgs e)
     {
+        if (_settingsWebForm is { IsDisposed: false })
+        {
+            _settingsWebForm.HideOnClose = false;
+            _settingsWebForm.Close();
+            _settingsWebForm.Dispose();
+        }
+
         _voiceOrchestrator.Dispose();
         _pttCaptureService.Dispose();
         if (_ptt is IDisposable d)
         {
             d.Dispose();
         }
+
+#if WINDOWS
+        if (_pttHotkeyHost is { IsDisposed: false })
+        {
+            _pttHotkeyHost.Hide();
+            _pttHotkeyHost.Dispose();
+        }
+#endif
 
         _trayIcon.Visible = false;
         _trayIcon.Dispose();
@@ -1291,6 +1357,8 @@ public sealed class TrayApplicationContext : ApplicationContext
         public void InvalidateCaptureDevice() => _ctx._pttCaptureService.InvalidateCaptureDevice();
 
         public void PersistAndRefresh() => _ctx.PersistAndRefresh();
+
+        public void EnsurePttHotkeyRegistered() => _ctx.EnsurePttHotkeyRegistered();
 
         public void RefreshAudioCaptureAfterSettings()
         {

@@ -3,6 +3,7 @@ export function mountHudPage(root: HTMLElement): void {
   document.body.classList.add('hud-mode');
   root.innerHTML = `
     <div class="voice-hud" id="voiceHud" hidden>
+      <span class="voice-hud__dot" id="voiceHudDot" aria-hidden="true"></span>
       <span class="voice-hud__text" id="voiceHudText"></span>
     </div>
   `;

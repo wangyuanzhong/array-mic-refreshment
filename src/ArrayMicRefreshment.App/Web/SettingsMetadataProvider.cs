@@ -38,6 +38,43 @@ public static class SettingsMetadataProvider
             .ToArray();
     }
 
+    public sealed record WakeWordModelStatusEntry(
+        string DisplayName,
+        bool Installed,
+        bool EngineReady,
+        string ResolvedPath);
+
+    public static WakeWordModelStatusEntry GetWakeWordModelStatus(
+        string modelsDirectory,
+        string? wakePhrase = null,
+        WakeWordSensitivity sensitivity = WakeWordSensitivity.High)
+    {
+        var installed = WakeWordModelPaths.TryResolve(modelsDirectory, out var paths);
+        var resolvedPath = installed
+            ? Path.GetDirectoryName(paths!.TokensPath) ?? string.Empty
+            : Path.Combine(ModelsPathResolver.Resolve(modelsDirectory), WakeWordModelPaths.ModelDirName);
+
+        var engineReady = false;
+        if (installed)
+        {
+            var modelRoot = Path.GetDirectoryName(paths!.TokensPath) ?? resolvedPath;
+            WakeWordEncodingBootstrap.EnsureDefaultEncodings(modelRoot);
+            var phrase = string.IsNullOrWhiteSpace(wakePhrase) ? "小助手" : wakePhrase.Trim();
+            if (SherpaKeywordWakeWordDetector.TryCreate(modelsDirectory, phrase, out var probe, sensitivity)
+                && probe is not null)
+            {
+                probe.Dispose();
+                engineReady = true;
+            }
+        }
+
+        return new WakeWordModelStatusEntry(
+            WakeWordModelPaths.ModelDirName,
+            installed,
+            engineReady,
+            resolvedPath);
+    }
+
     public static IReadOnlyList<OptionalOverlaySkillEntry> ListOptionalOverlaySkills(
         string skillsDirectory,
         IEnumerable<string> checkedKeys)
@@ -76,13 +113,26 @@ public static class SettingsMetadataProvider
 
     public static IReadOnlyList<SpeakerUserEntry> ListSpeakerUsers(IUserEnrollmentService? enrollment)
     {
+        var list = new List<SpeakerUserEntry>
+        {
+            new(string.Empty, "无用户（不做声纹识别）", IsNone: true),
+        };
+
         if (enrollment is null)
         {
-            return Array.Empty<SpeakerUserEntry>();
+            return list;
         }
 
-        return enrollment.ListEnrolledUsers()
-            .Select(u => new SpeakerUserEntry(u.Id, u.Name, u.IsNone))
-            .ToArray();
+        foreach (var u in enrollment.ListEnrolledUsers())
+        {
+            if (u.IsNone)
+            {
+                continue;
+            }
+
+            list.Add(new SpeakerUserEntry(u.Id, u.Name, IsNone: false));
+        }
+
+        return list;
     }
 }

@@ -17,19 +17,22 @@ public sealed class WebUiBridgeContext
     public IEnrollmentUtteranceSource? EnrollmentCapture { get; init; }
 
     /// <summary>Live tray trigger mode override (shown in Web settings when runtime mode differs from persisted).</summary>
-    public VoiceTriggerMode? RuntimeTriggerMode { get; init; }
+    public VoiceTriggerMode? RuntimeTriggerMode { get; set; }
 
     /// <summary>Live master enable flag from tray runtime.</summary>
-    public bool? MasterEnabled { get; init; }
+    public bool? MasterEnabled { get; set; }
 
     public IAudioDeviceEnumerator? DeviceEnumerator { get; init; }
 
-    public bool SpeakerModelMissing { get; init; }
+    public bool SpeakerModelMissing { get; set; }
 
     /// <summary>When set, <see cref="WebUiBridge.SaveSettingsDraft"/> uses <see cref="SettingsApplyService"/>.</summary>
     public ISettingsApplyHost? SettingsApplyHost { get; init; }
 
     public SettingsApplyService? SettingsApplyService { get; init; }
+
+    /// <summary>Tray UI thread for dialogs when settings WebView is hidden.</summary>
+    public SynchronizationContext? UiSynchronizationContext { get; init; }
 
     /// <summary>Called on UI thread when a Web route completes successfully (e.g. enrollment).</summary>
     public Action? OnSuccess { get; init; }

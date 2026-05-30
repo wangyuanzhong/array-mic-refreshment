@@ -41,11 +41,14 @@
   --space-6: 24px;
   --space-8: 32px;
 
-  /* HUD — dark bar with macaron error tint (C# VoiceStatusHud can align later) */
-  --hud-bg: rgb(45 40 58 / 92%);
-  --hud-text: #faf8ff;
-  --hud-error: #ffb8d0;
-  --hud-accent: #7ec8e3;
+  /* HUD defaults (overridden on body.hud-mode for light frosted card) */
+  --hud-bg: rgb(255 255 255 / 97%);
+  --hud-text: #3d3d56;
+  --hud-muted: #7a7a9a;
+  --hud-error: #d94a6a;
+  --hud-accent: #2a9fd4;
+  --hud-wake: #7b5fc7;
+  --hud-border: rgb(126 200 227 / 45%);
 }
 
 @media (prefers-color-scheme: dark) {

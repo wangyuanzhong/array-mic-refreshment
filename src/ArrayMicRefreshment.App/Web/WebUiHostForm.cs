@@ -7,10 +7,13 @@ namespace ArrayMicRefreshment.App.Web;
 /// <summary>WinForms shell hosting the unified Web UI (Route B). WebView2 is created on demand when the form loads.</summary>
 public sealed class WebUiHostForm : Form
 {
-    private readonly string _hashRoute;
     private readonly WebUiBridgeContext? _context;
     private readonly WebView2 _webView = new() { Dock = DockStyle.Fill };
     private WebUiBridge? _bridge;
+    private string _hashRoute;
+
+    /// <summary>When true, user closing the window hides it instead of disposing (settings singleton).</summary>
+    public bool HideOnClose { get; set; }
 
     public WebUiHostForm(string hashRoute = "#/settings")
         : this(hashRoute, null)
@@ -28,13 +31,82 @@ public sealed class WebUiHostForm : Form
 
         Text = TitleForRoute(_hashRoute);
         StartPosition = FormStartPosition.CenterScreen;
+        AutoScaleMode = AutoScaleMode.Dpi;
         MinimumSize = new Size(640, 480);
-        ClientSize = new Size(960, 720);
+        ClientSize = ResolveInitialClientSize(context);
         TopMost = false;
         Controls.Add(_webView);
 
         Load += OnFormLoad;
+        ResizeEnd += OnResizeEnd;
         FormClosing += OnFormClosing;
+    }
+
+    private static Size ResolveInitialClientSize(WebUiBridgeContext? context)
+    {
+        const int defaultW = 960;
+        const int defaultH = 720;
+        if (context?.Settings is null)
+        {
+            return new Size(defaultW, defaultH);
+        }
+
+        var w = context.Settings.SettingsWindowWidth;
+        var h = context.Settings.SettingsWindowHeight;
+        if (w < 640)
+        {
+            w = defaultW;
+        }
+
+        if (h < 480)
+        {
+            h = defaultH;
+        }
+
+        return new Size(w, h);
+    }
+
+    private void OnResizeEnd(object? sender, EventArgs e) => PersistClientSize();
+
+    private void PersistClientSize()
+    {
+        if (_context?.Settings is null || _context.SettingsStore is null)
+        {
+            return;
+        }
+
+        if (!IsHandleCreated || WindowState != FormWindowState.Normal)
+        {
+            return;
+        }
+
+        var size = ClientSize;
+        if (size.Width < MinimumSize.Width || size.Height < MinimumSize.Height)
+        {
+            return;
+        }
+
+        if (_context.Settings.SettingsWindowWidth == size.Width
+            && _context.Settings.SettingsWindowHeight == size.Height)
+        {
+            return;
+        }
+
+        _context.Settings.SettingsWindowWidth = size.Width;
+        _context.Settings.SettingsWindowHeight = size.Height;
+        _context.SettingsStore.Save(_context.Settings);
+    }
+
+    public void NavigateTo(string hashRoute)
+    {
+        _hashRoute = NormalizeHashRoute(hashRoute);
+        Text = TitleForRoute(_hashRoute);
+        if (_webView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        _webView.CoreWebView2.Navigate(WebUiConstants.HashUrl(_hashRoute));
     }
 
     private async void OnFormLoad(object? sender, EventArgs e)
@@ -122,7 +194,6 @@ public sealed class WebUiHostForm : Form
             return;
         }
 
-        // https://amr.local/... serves files from wwwroot; file:// breaks Vite ES module bundles (white screen).
         var navigateUrl = WebUiConstants.HashUrl(_hashRoute);
         _webView.CoreWebView2.Navigate(navigateUrl);
         Log.Information("WebUiHostForm navigating to {Uri} (wwwroot={Dir})", navigateUrl, wwwRootDir);
@@ -143,6 +214,14 @@ public sealed class WebUiHostForm : Form
 
     private void OnFormClosing(object? sender, FormClosingEventArgs e)
     {
+        if (HideOnClose && e.CloseReason == CloseReason.UserClosing)
+        {
+            PersistClientSize();
+            e.Cancel = true;
+            Hide();
+            return;
+        }
+
         if (_context is not null)
         {
             _context.HostForm = null;

@@ -91,6 +91,14 @@ export interface AsrModelItem {
   installed: boolean;
 }
 
+export interface WakeWordModelStatus {
+  displayName: string;
+  installed: boolean;
+  engineReady: boolean;
+  resolvedPath: string;
+  builtinPhrases?: string[];
+}
+
 export interface OptionalOverlaySkillItem {
   key: string;
   label: string;
@@ -114,6 +122,13 @@ export interface ValidateResult {
 export interface SaveResult {
   ok: boolean;
   error?: string;
+  warning?: string;
+}
+
+export interface ApplyPttHotkeyResult {
+  ok: boolean;
+  activeHotkey: string;
+  error?: string;
 }
 
 export interface TestLlmResult {
@@ -124,6 +139,11 @@ export interface TestLlmResult {
 
 export interface HotkeyCaptureResult {
   hotkey: string;
+  cancelled: boolean;
+}
+
+export interface FolderPickerResult {
+  path: string;
   cancelled: boolean;
 }
 
@@ -181,6 +201,7 @@ export interface AmrHostObject {
   ListAudioDevices(): Promise<string>;
   ListSpeakerUsers(): Promise<string>;
   ListAsrModels(): Promise<string>;
+  GetWakeWordModelStatus(): Promise<string>;
   ListOptionalOverlaySkills(skillsDirectory: string): Promise<string>;
   GetSkillsCatalogStatus(skillsDirectory: string): Promise<string>;
   LoadSettingsDraft(): Promise<string>;
@@ -188,6 +209,8 @@ export interface AmrHostObject {
   SaveSettingsDraft(draftJson: string): Promise<string>;
   TestLlmConnection(draftJson?: string): Promise<string>;
   OpenHotkeyCaptureDialog(currentHotkey: string): Promise<string>;
+  ApplyPttHotkey(hotkey: string): Promise<string>;
+  OpenFolderPickerDialog(initialPath: string): Promise<string>;
   StartEnrollmentUtterance(): Promise<string>;
   StopEnrollmentUtterance(): Promise<string>;
   CompleteEnrollment(name: string, utteranceCount: number): Promise<string>;
@@ -204,6 +227,7 @@ export interface AmrBridge {
   listAudioDevices(): Promise<AudioDeviceItem[]>;
   listSpeakerUsers(): Promise<SpeakerUserItem[]>;
   listAsrModels(): Promise<AsrModelItem[]>;
+  getWakeWordModelStatus(): Promise<WakeWordModelStatus>;
   listOptionalOverlaySkills(skillsDirectory: string): Promise<OptionalOverlaySkillItem[]>;
   getSkillsCatalogStatus(skillsDirectory: string): Promise<SkillsCatalogStatus>;
   loadSettingsDraft(): Promise<SettingsDraft>;
@@ -211,6 +235,8 @@ export interface AmrBridge {
   saveSettingsDraft(draft: SettingsDraft): Promise<SaveResult>;
   testLlmConnection(draft?: SettingsDraft): Promise<TestLlmResult>;
   openHotkeyCaptureDialog(currentHotkey: string): Promise<HotkeyCaptureResult>;
+  applyPttHotkey(hotkey: string): Promise<ApplyPttHotkeyResult>;
+  openFolderPickerDialog(initialPath: string): Promise<FolderPickerResult>;
   startEnrollmentUtterance(): Promise<StartEnrollmentResult>;
   stopEnrollmentUtterance(): Promise<StopEnrollmentResult>;
   completeEnrollment(name: string, utteranceCount: number): Promise<CompleteEnrollmentResult>;
@@ -304,6 +330,12 @@ function wrapHostObject(host: AmrHostObject): AmrBridge {
     async listAsrModels() {
       return parseJson<AsrModelItem[]>(await host.ListAsrModels(), 'ListAsrModels');
     },
+    async getWakeWordModelStatus() {
+      return parseJson<WakeWordModelStatus>(
+        await host.GetWakeWordModelStatus(),
+        'GetWakeWordModelStatus',
+      );
+    },
     async listOptionalOverlaySkills(skillsDirectory: string) {
       return parseJson<OptionalOverlaySkillItem[]>(
         await host.ListOptionalOverlaySkills(skillsDirectory),
@@ -342,6 +374,18 @@ function wrapHostObject(host: AmrHostObject): AmrBridge {
       return parseJson<HotkeyCaptureResult>(
         await host.OpenHotkeyCaptureDialog(currentHotkey),
         'OpenHotkeyCaptureDialog',
+      );
+    },
+    async applyPttHotkey(hotkey: string) {
+      return parseJson<ApplyPttHotkeyResult>(
+        await host.ApplyPttHotkey(hotkey),
+        'ApplyPttHotkey',
+      );
+    },
+    async openFolderPickerDialog(initialPath: string) {
+      return parseJson<FolderPickerResult>(
+        await host.OpenFolderPickerDialog(initialPath),
+        'OpenFolderPickerDialog',
       );
     },
     async startEnrollmentUtterance() {
@@ -420,7 +464,7 @@ function createMockBridge(): AmrBridge {
     async listSpeakerUsers() {
       await delay(60);
       return [
-        { id: '', displayName: '(无)', isNone: true },
+        { id: '', displayName: '无用户（不做声纹识别）', isNone: true },
         { id: 'user-alice', displayName: 'Alice (Mock)', isNone: false },
       ];
     },
@@ -430,6 +474,15 @@ function createMockBridge(): AmrBridge {
         { id: 'sensevoice-small', displayName: 'SenseVoice Small', installed: true },
         { id: 'sensevoice-large', displayName: 'SenseVoice Large', installed: false },
       ];
+    },
+    async getWakeWordModelStatus() {
+      await delay(40);
+      return {
+        displayName: 'sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01',
+        installed: true,
+        engineReady: true,
+        resolvedPath: 'models\\sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01',
+      };
     },
     async listOptionalOverlaySkills(skillsDirectory: string) {
       await delay(40);
@@ -478,13 +531,22 @@ function createMockBridge(): AmrBridge {
     async openHotkeyCaptureDialog(currentHotkey: string) {
       await delay(200);
       void currentHotkey;
-      // TODO(A4): replace with native HotkeyCaptureDialog via WebUiBridge.
       const accepted = window.confirm(
         'Mock 热键录入：确定使用 Ctrl+Alt+Shift+Space？\n（真实环境由 OpenHotkeyCaptureDialog 打开原生对话框）',
       );
       return accepted
         ? { hotkey: 'Ctrl+Alt+Shift+Space', cancelled: false }
         : { hotkey: currentHotkey, cancelled: true };
+    },
+    async applyPttHotkey(hotkey: string) {
+      await delay(50);
+      draft.pttHotkey = hotkey;
+      return { ok: true, activeHotkey: hotkey };
+    },
+    async openFolderPickerDialog(initialPath: string) {
+      await delay(100);
+      const next = window.prompt('Mock 选择目录（输入绝对路径）', initialPath || 'C:\\models');
+      return next ? { path: next, cancelled: false } : { path: initialPath, cancelled: true };
     },
     async startEnrollmentUtterance() {
       await delay(100);

@@ -1,5 +1,7 @@
 using System.Text.Json;
 using ArrayMicRefreshment.App.Services;
+using ArrayMicRefreshment.Asr;
+using ArrayMicRefreshment.Audio;
 using ArrayMicRefreshment.Core;
 using ArrayMicRefreshment.Prompt;
 
@@ -34,6 +36,22 @@ public sealed partial class WebUiBridge
         var models = SettingsMetadataProvider.ListAsrModels(_context.Settings.ModelsDirectory)
             .Select(m => new { id = m.Id, displayName = m.DisplayName, installed = m.Installed });
         return Serialize(models);
+    }
+
+    public string GetWakeWordModelStatus()
+    {
+        var status = SettingsMetadataProvider.GetWakeWordModelStatus(
+            _context.Settings.ModelsDirectory,
+            _context.Settings.WakeWordPhrase,
+            _context.Settings.WakeWordSensitivity);
+        return Serialize(new
+        {
+            displayName = status.DisplayName,
+            installed = status.Installed,
+            engineReady = status.EngineReady,
+            resolvedPath = status.ResolvedPath,
+            builtinPhrases = WakeWordPhraseEncoding.BuiltinPhrases,
+        });
     }
 
     public string ListOptionalOverlaySkills()
@@ -196,6 +214,68 @@ public sealed partial class WebUiBridge
         });
     }
 
+    public string ApplyPttHotkey(string hotkey)
+    {
+        return RunOnUiForJson(() => ApplyPttHotkeyCore(hotkey));
+    }
+
+    private string ApplyPttHotkeyCore(string hotkey)
+    {
+        var trimmed = hotkey?.Trim() ?? string.Empty;
+        if (!HotkeyParser.TryParse(trimmed, out _, out var parseError))
+        {
+            return Serialize(new ApplyPttHotkeyResultDto
+            {
+                Ok = false,
+                ActiveHotkey = _context.Settings.PttHotkey,
+                Error = parseError ?? "热键格式无效。",
+            });
+        }
+
+        if (_context.SettingsApplyHost is null)
+        {
+            _context.Settings.PttHotkey = trimmed;
+            _context.SettingsStore.Save(_context.Settings);
+            return Serialize(new ApplyPttHotkeyResultDto
+            {
+                Ok = true,
+                ActiveHotkey = trimmed,
+                Error = "已写入 settings.json，但托盘未连接：请重启应用使热键生效。",
+            });
+        }
+
+        if (!_context.SettingsApplyHost.TryUpdatePttHotkey(trimmed, out var registerError))
+        {
+            _context.SettingsApplyHost.NotifyPttHotkeyFailed(registerError);
+            return Serialize(new ApplyPttHotkeyResultDto
+            {
+                Ok = false,
+                ActiveHotkey = _context.SettingsApplyHost.PushToTalk.HotkeyDisplay,
+                Error = registerError ?? "热键注册失败。",
+            });
+        }
+
+        _context.Settings.PttHotkey = trimmed;
+        _context.SettingsApplyHost.RegisteredPttHotkey = trimmed;
+        _context.SettingsStore.Save(_context.Settings);
+        _context.SettingsApplyHost.NotifyPttHotkeyUpdated(_context.SettingsApplyHost.PushToTalk.HotkeyDisplay);
+
+        return Serialize(new ApplyPttHotkeyResultDto
+        {
+            Ok = true,
+            ActiveHotkey = _context.SettingsApplyHost.PushToTalk.HotkeyDisplay,
+        });
+    }
+
+    public string OpenFolderPickerDialog(string? initialPath)
+    {
+        return RunOnUiForJson(() =>
+        {
+            var result = FolderPickerDialog.Show(_context.HostForm, initialPath);
+            return Serialize(result);
+        });
+    }
+
     private string SaveSettingsDraftCore(string draftJson)
     {
         if (!TryParseDraft(draftJson, out var draft, out var parseError))
@@ -238,6 +318,8 @@ public sealed partial class WebUiBridge
         if (_context.SettingsApplyHost is not null)
         {
             applyService.Apply(previous, incoming, _context.SettingsApplyHost);
+            _context.RuntimeTriggerMode = _context.SettingsApplyHost.CurrentTriggerMode;
+            _context.MasterEnabled = _context.Settings.MasterEnabled;
             return Serialize(new SaveSettingsResultDto { Ok = true });
         }
 

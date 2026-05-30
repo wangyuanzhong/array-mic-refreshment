@@ -28,12 +28,15 @@ public class WebUiBridgeSettingsTests
     }
 
     [Fact]
-    public void LoadSettingsDraft_includes_runtime_trigger_mode()
+    public void LoadSettingsDraft_uses_persisted_trigger_mode_runtime_via_GetRuntimeState()
     {
         var settings = new AppSettings { TriggerMode = VoiceTriggerMode.PttOnly };
         var bridge = CreateBridge(settings, runtimeTriggerMode: VoiceTriggerMode.WakeWordOnly);
-        using var doc = JsonDocument.Parse(bridge.LoadSettingsDraft());
-        Assert.Equal("WakeWordOnly", doc.RootElement.GetProperty("triggerMode").GetString());
+        using var draftDoc = JsonDocument.Parse(bridge.LoadSettingsDraft());
+        Assert.Equal("PttOnly", draftDoc.RootElement.GetProperty("triggerMode").GetString());
+
+        using var runtimeDoc = JsonDocument.Parse(bridge.GetRuntimeState());
+        Assert.Equal("WakeWordOnly", runtimeDoc.RootElement.GetProperty("triggerMode").GetString());
     }
 
     [Fact]
@@ -180,6 +183,10 @@ public class WebUiBridgeSettingsTests
         public void PersistAndRefresh() => ApplyCount++;
 
         public void RefreshAudioCaptureAfterSettings()
+        {
+        }
+
+        public void EnsurePttHotkeyRegistered()
         {
         }
 

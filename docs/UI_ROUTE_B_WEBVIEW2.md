@@ -17,7 +17,7 @@
 | WebView2 | 目标引入 | ✅ `Microsoft.Web.WebView2` + `Web/` 宿主与 Bridge |
 | `ui/` + `wwwroot/` | Vite 前端 | ✅ Release 前 `npm ci && npm run build` |
 | `SettingsApplyService` | Phase 0 | ✅ Web / 托盘共用 |
-| 设置入口 | Web 为主 | ✅ 托盘「设置」→ `WebUiHostForm` `#/settings`（**无** WinForms 降级） |
+| 设置入口 | Web 为主 | ✅ 托盘「设置」→ **单例** `WebUiHostForm` `#/settings`（关闭即隐藏，可重复打开同一窗口） |
 | 注册入口 | Web `#/enroll` | ✅ Web 注册；`EnrollmentDialog` 已删除 |
 | 功能预设 | — | ✅ 设置页「功能预设」+ 托盘「功能模式」；`FeaturePresetApplier` |
 | CI Linux | build 可过 | ✅ `build-and-test`（Core/Audio/Prompt） |
@@ -25,6 +25,8 @@
 | 自动化验收 | Phase 2 | ✅ `scripts/test-phase2-route-b.ps1`、`scripts/test-feature-presets.ps1` |
 | Web HUD | Phase 4 可选 | ✅ `VoiceWebStatusHud`（默认开启，可关；`AMR_WEB_HUD=0` 强制原生） |
 | §10.2 手测 | 发布前 | ❌ **须 Windows 实机**（PTT/唤醒/麦克风/粘贴/Web HUD 焦点，脚本不覆盖） |
+
+**后端原则（V0.4.15+）**：WebView 仅替换 WinForms **UI 壳**。采集、pipeline、`VoiceCaptureOrchestrator` 行为与 WebView 前一致，经 `SettingsApplyService` 接线；**托盘 PTT 热键**须用 `LowLevelHotkeyHost`（`RegisterHotKey` 在 `ApplicationContext` 收不到 `WM_HOTKEY`）。**纯 PTT 不按热键不开麦**（`keepStandbyCaptureBetweenSessions: false`）。**新增**功能（功能模式预设等）在基线上扩展。
 
 **结论**：路线 B **工程与自动化验收已完成**；发布前仍须 **§10.2 手动回归**。
 
@@ -277,6 +279,8 @@ Web 设置页 **必须复用上述逻辑**，仅替换「表单 UI」为 bridge 
 **组件约定**（Web）：
 
 - 布局：左侧 **Nav 240px** + 右侧 **Content**（PWA 设置页）
+- **分区切换**：左侧 Nav 点击后仅对应 `section.settings-section` 带 `is-active` 可见（其余 `display: none`），避免多卡片叠在一起只显示标题
+- **唤醒 KWS**：无单独 Nav 项；在 **「触发与 HUD」** 分区展示 `GetWakeWordModelStatus()`（`installed` = 四件套 onnx/txt 存在；`engineReady` = Sherpa 可加载），与 ASR 模型下拉无关
 - 分组：`card` 白底圆角 + `card-title`
 - 主按钮：`btn-primary`；次按钮：`btn-ghost`
 - 表单：`label` 上置，`input/select` 全宽，错误态红色描边
@@ -352,6 +356,7 @@ JS 访问：`window.chrome.webview.hostObjects.amr`（注意 async 代理，需 
 | `ListAsrModels()` | `[{ id, displayName, installed }]` | 复用 `SenseVoiceModelResolver` |
 | `ListOptionalOverlaySkills()` | `[{ key, label, checked }]` | manifest optional_skills |
 | `GetSkillsCatalogStatus()` | `{ missingFiles: string[] }` | 保存前校验 |
+| `GetWakeWordModelStatus()` | `{ displayName, installed, engineReady, resolvedPath }` | `WakeWordModelPaths.TryResolve` + `SherpaKeywordWakeWordDetector.TryCreate` 探测；设置页「触发与 HUD」展示（`installed`≠`engineReady` 时表示文件在但引擎未加载） |
 
 #### 设置读写
 
@@ -367,6 +372,7 @@ JS 访问：`window.chrome.webview.hostObjects.amr`（注意 async 代理，需 
 | 方法 | 说明 |
 |------|------|
 | `OpenHotkeyCaptureDialog(currentHotkey)` | 打开 `HotkeyCaptureDialog` modal；返回 `{ hotkey, cancelled }` |
+| `OpenFolderPickerDialog(initialPath)` | 系统文件夹选择；返回 `{ path, cancelled }`（models/skills 目录） |
 
 Web **不能**直接监听全局热键；必须走此方法。
 

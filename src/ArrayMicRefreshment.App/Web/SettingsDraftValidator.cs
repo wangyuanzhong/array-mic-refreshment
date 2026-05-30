@@ -31,6 +31,27 @@ public static class SettingsDraftValidator
             });
         }
 
+        if (!string.IsNullOrWhiteSpace(draft.WakeWordPhrase))
+        {
+            var modelsDir = string.IsNullOrWhiteSpace(draft.ModelsDirectory)
+                ? template.ModelsDirectory
+                : draft.ModelsDirectory;
+            var sensitivity = draft.WakeWordSensitivity;
+            if (!WakeWordPhraseEncoding.CanEncode(
+                    modelsDir,
+                    draft.WakeWordPhrase,
+                    sensitivity,
+                    out var encodeError)
+                && encodeError is not null)
+            {
+                errors.Add(new SettingsValidationErrorDto
+                {
+                    Field = "wakeWordPhrase",
+                    Message = encodeError,
+                });
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(draft.SelectedAsrModelId))
         {
             var available = SenseVoiceModelResolver.ListAvailableModels(

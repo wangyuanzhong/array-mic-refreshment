@@ -17,6 +17,8 @@ public interface IWebUiBridge
 
     string ListAsrModels();
 
+    string GetWakeWordModelStatus();
+
     string ListOptionalOverlaySkills();
 
     string ListFeaturePresets();
@@ -36,6 +38,11 @@ public interface IWebUiBridge
 
     // Hotkey capture (native modal)
     string OpenHotkeyCaptureDialog(string currentHotkey);
+
+    /// <summary>Register PTT hotkey immediately and persist to settings (no full settings save).</summary>
+    string ApplyPttHotkey(string hotkey);
+
+    string OpenFolderPickerDialog(string? initialPath);
 
     // Enrollment
     string StartEnrollmentUtterance();

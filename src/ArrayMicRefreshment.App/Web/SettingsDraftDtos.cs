@@ -129,3 +129,12 @@ public sealed class HotkeyCaptureResultDto
 
     public bool Cancelled { get; set; }
 }
+
+public sealed class ApplyPttHotkeyResultDto
+{
+    public bool Ok { get; set; }
+
+    public string ActiveHotkey { get; set; } = string.Empty;
+
+    public string? Error { get; set; }
+}

@@ -7,11 +7,11 @@ namespace ArrayMicRefreshment.App.Tests;
 public class SettingsDraftMapperTests
 {
     [Fact]
-    public void ToDraft_uses_runtime_trigger_mode_when_provided()
+    public void ToDraft_uses_persisted_trigger_mode_not_runtime_override()
     {
         var settings = new AppSettings { TriggerMode = VoiceTriggerMode.PttOnly };
         var draft = SettingsDraftMapper.ToDraft(settings, VoiceTriggerMode.Both);
-        Assert.Equal(VoiceTriggerMode.Both, draft.TriggerMode);
+        Assert.Equal(VoiceTriggerMode.PttOnly, draft.TriggerMode);
     }
 
     [Fact]

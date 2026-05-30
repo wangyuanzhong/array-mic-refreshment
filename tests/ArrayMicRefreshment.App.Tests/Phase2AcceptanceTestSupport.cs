@@ -222,6 +222,10 @@ internal static class Phase2AcceptanceTestSupport
         {
         }
 
+        public void EnsurePttHotkeyRegistered()
+        {
+        }
+
         public void ShowWakePhraseWarning(string message)
         {
         }
