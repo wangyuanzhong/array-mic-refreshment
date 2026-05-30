@@ -1,5 +1,12 @@
 # Changelog
 
+## V0.4.22 — 2026-05-26
+
+### Fixed
+
+- **Web HUD 只显示一条**：取消 Form DPI 缩放 + 覆盖 `#app { min-height: 100vh }`（嵌入 WebView 会把 100vh 当成整屏高度）；导航后注入 `innerHeight` 锁定布局；按 DPI 设置 `ZoomFactor`
+- **唤醒指令结束时机**：改为「距最后一次语音活动（含轻声）满 `WakeCommandSilenceMs`」即结束；移除 VAD 在 600ms 时提前截断；环境噪声不再反复重置静音计时
+
 ## V0.4.21 — 2026-05-26
 
 ### Fixed

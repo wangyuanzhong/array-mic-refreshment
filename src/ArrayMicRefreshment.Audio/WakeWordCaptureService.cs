@@ -18,9 +18,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
 
     private const int SessionPollMs = 25;
     private const int PreRollBytes = 288_000;
-    private const int VadEndPollsRequired = 3;
-    private const int MinSilenceBeforeVadEndMs = 600;
-    private const double ExtendSpeechThresholdFactor = 0.30;
+    private const double ExtendSpeechThresholdFactor = 0.45;
     private const double MinSpeechRms = 0.0025;
     private const double MinCommandStartRms = 0.005;
     private const double NoiseFloorMultiplier = 3.5;
@@ -35,7 +33,6 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     private readonly IVoiceActivityDetector _vad;
     private readonly TimeSpan _echoIgnore;
     private TimeSpan _silenceTimeout;
-    private bool _useVadEndDetection;
     private readonly TimeSpan _startGrace;
     private readonly TimeSpan _maxSession;
     private readonly TimeSpan _maxCommand;
@@ -60,8 +57,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     private bool _commandWindowOpen;
     private int _commandBaseIndex;
     private DateTimeOffset? _commandSpeechStartedUtc;
-    private DateTimeOffset? _continuousSilenceStartedUtc;
-    private int _consecutiveVadEndPolls;
+    private DateTimeOffset _lastVocalActivityUtc;
     private System.Threading.Timer? _sessionTimer;
     private WakeWordDetectedEventArgs? _pendingWakeActivated;
 
@@ -83,7 +79,6 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _captureFactory = captureFactory;
         _vad = vad ?? new NullVoiceActivityDetector();
         _silenceTimeout = postWakeSilenceTimeout ?? ResolveSilenceTimeout(settings);
-        _useVadEndDetection = settings.WakeUseVadEndDetection;
         _startGrace = postWakeStartGrace ?? DefaultPostWakeStartGrace;
         _maxSession = postWakeMaxSession ?? DefaultPostWakeMaxSession;
         _maxCommand = postWakeMaxCommand ?? DefaultPostWakeMaxCommand;
@@ -96,7 +91,6 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         lock (_gate)
         {
             _silenceTimeout = ResolveSilenceTimeout(settings);
-            _useVadEndDetection = settings.WakeUseVadEndDetection;
         }
     }
 
@@ -395,8 +389,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             _commandWindowOpen = false;
             _commandBaseIndex = 0;
             _commandSpeechStartedUtc = null;
-            _continuousSilenceStartedUtc = null;
-            _consecutiveVadEndPolls = 0;
+            _lastVocalActivityUtc = DateTimeOffset.UtcNow;
             _preRoll.Clear();
             _dictationStartedUtc = DateTimeOffset.UtcNow;
             _lastSpeechUtc = _dictationStartedUtc;
@@ -456,13 +449,11 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
                 return;
             }
 
-            if (_heardPostWakeSpeech && ShouldEndDictation(now, pollOnly: true))
+            if (_heardPostWakeSpeech && ShouldEndDictation(now))
             {
-                var silenceMs = _continuousSilenceStartedUtc.HasValue
-                    ? (int)(now - _continuousSilenceStartedUtc.Value).TotalMilliseconds
-                    : (int)(now - _lastSpeechUtc).TotalMilliseconds;
+                var silenceMs = (int)(now - _lastVocalActivityUtc).TotalMilliseconds;
                 Log.Information(
-                    "Wake dictation ended after {SilenceMs}ms continuous silence (poll, bytes={Bytes})",
+                    "Wake dictation ended after {SilenceMs}ms since last vocal activity (poll, bytes={Bytes})",
                     silenceMs,
                     _dictationBuffer.Count);
                 EndDictationSessionInternal();
@@ -571,7 +562,6 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         _commandWindowOpen = false;
         _commandBaseIndex = 0;
         _commandSpeechStartedUtc = null;
-        _continuousSilenceStartedUtc = null;
     }
 
     private void OpenCommandWindow()
@@ -679,11 +669,9 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             {
                 if (_dictationActive)
                 {
-                    var silenceMs = _continuousSilenceStartedUtc.HasValue
-                        ? (int)(DateTimeOffset.UtcNow - _continuousSilenceStartedUtc.Value).TotalMilliseconds
-                        : (int)_silenceTimeout.TotalMilliseconds;
+                    var silenceMs = (int)(DateTimeOffset.UtcNow - _lastVocalActivityUtc).TotalMilliseconds;
                     Log.Information(
-                        "Wake dictation ended after {SilenceMs}ms continuous silence (bytes={Bytes})",
+                        "Wake dictation ended after {SilenceMs}ms since last vocal activity (bytes={Bytes})",
                         silenceMs,
                         _dictationBuffer.Count);
                     EndDictationSessionInternal();
@@ -729,13 +717,11 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
         {
             _speechEndByteIndex = indexAfter;
             _sessionPeakRms = Math.Max(_sessionPeakRms, chunkRms);
+            _lastVocalActivityUtc = now;
         }
 
         if (isSpeech)
         {
-            _continuousSilenceStartedUtc = null;
-            _consecutiveVadEndPolls = 0;
-
             if (_consecutiveSpeechChunks == 0)
             {
                 _speechCandidateStartIndex = indexBefore;
@@ -752,6 +738,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
                 && _speechCandidatePeakRms >= Math.Max(threshold, MinCommandStartRms))
             {
                 _heardPostWakeSpeech = true;
+                _lastVocalActivityUtc = now;
                 _sessionPeakRms = _speechCandidatePeakRms;
                 _commandSpeechStartedUtc = now;
                 _speechStartByteIndex = _speechCandidateStartIndex >= 0
@@ -783,8 +770,7 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
             return false;
         }
 
-        _continuousSilenceStartedUtc ??= now;
-        return ShouldEndDictation(now, pollOnly: false);
+        return ShouldEndDictation(now);
     }
 
     private double CurrentSpeechThreshold()
@@ -794,64 +780,14 @@ public sealed class WakeWordCaptureService : IWakeWordCaptureService
     private double ExtendSpeechThreshold()
         => Math.Max(MinSpeechRms, CurrentSpeechThreshold() * ExtendSpeechThresholdFactor);
 
-    private bool ShouldEndDictation(DateTimeOffset now, bool pollOnly)
+    private bool ShouldEndDictation(DateTimeOffset now)
     {
-        if (!_heardPostWakeSpeech || !_continuousSilenceStartedUtc.HasValue)
+        if (!_heardPostWakeSpeech)
         {
             return false;
         }
 
-        var silenceMs = (now - _continuousSilenceStartedUtc.Value).TotalMilliseconds;
-        if (silenceMs >= _silenceTimeout.TotalMilliseconds)
-        {
-            return true;
-        }
-
-        if (!_useVadEndDetection || silenceMs < MinSilenceBeforeVadEndMs)
-        {
-            return false;
-        }
-
-        if (_stream is null || _dictationBuffer.Count < 3200)
-        {
-            return false;
-        }
-
-        var tailBytes = _dictationBuffer.Count > 8000
-            ? _dictationBuffer.ToArray()[^8000..]
-            : _dictationBuffer.ToArray();
-        var mono16k = PcmResampler.To16kHzMono16Le(
-            tailBytes,
-            _stream.SampleRate,
-            _stream.Channels,
-            _stream.BitsPerSample);
-        if (mono16k.Length < 512)
-        {
-            return false;
-        }
-
-        var samples = MemoryMarshal.Cast<byte, short>(mono16k.AsSpan());
-        if (!_vad.IsEndOfSpeech(samples, PcmResampler.TargetSampleRate))
-        {
-            _consecutiveVadEndPolls = 0;
-            return false;
-        }
-
-        _consecutiveVadEndPolls++;
-        if (_consecutiveVadEndPolls < VadEndPollsRequired)
-        {
-            return false;
-        }
-
-        if (pollOnly)
-        {
-            Log.Information(
-                "Wake dictation ended by VAD after {SilenceMs}ms tail silence (bytes={Bytes})",
-                (int)silenceMs,
-                _dictationBuffer.Count);
-        }
-
-        return true;
+        return WakeWordDictationSilence.ShouldEnd(now, _lastVocalActivityUtc, _silenceTimeout);
     }
 
     private void LearnNoiseFloor(double chunkRms)

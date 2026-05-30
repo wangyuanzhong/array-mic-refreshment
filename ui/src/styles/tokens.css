@@ -100,6 +100,21 @@ body {
   min-height: 100vh;
 }
 
+/* HUD WebView2: never use 100vh — embedded view reports full-screen height and clips content */
+body.hud-mode,
+html:has(body.hud-mode) {
+  min-height: 0 !important;
+  height: 100%;
+  background: transparent !important;
+  background-image: none !important;
+}
+
+body.hud-mode #app {
+  min-height: 0 !important;
+  height: 100%;
+  max-height: 100%;
+}
+
 #app:has(.app-shell--settings) {
   height: 100vh;
   overflow: hidden;

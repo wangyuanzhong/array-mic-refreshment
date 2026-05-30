@@ -37,11 +37,13 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
         ShowInTaskbar = false;
         TopMost = true;
         StartPosition = FormStartPosition.Manual;
-        AutoScaleMode = AutoScaleMode.Dpi;
+        // Dpi scaling on the Form + 100vh in CSS shrinks HUD to a clipped strip; size in physical pixels.
+        AutoScaleMode = AutoScaleMode.None;
         ClientSize = new Size(HudClientWidth, HudClientHeight);
         BackColor = Color.Transparent;
         Opacity = 0.99;
         Controls.Add(_webView);
+        ApplyWebViewDpiScale();
 
         _hideTimer = new System.Windows.Forms.Timer { Interval = HideDelayMs };
         _hideTimer.Tick += (_, _) =>
@@ -189,6 +191,7 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
                 CoreWebView2HostResourceAccessKind.Allow);
 
             _core.Navigate(WebUiConstants.HashUrl("#/hud"));
+            ApplyWebViewDpiScale();
             _coreInitialized = true;
 
             if (_phase != VoiceActivityPhase.Idle && !string.IsNullOrWhiteSpace(_pendingMessage))
@@ -214,9 +217,61 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
         }
 
         _navigationReady = true;
+        _ = PinHudDocumentLayoutAsync();
         if (_phase != VoiceActivityPhase.Idle && !string.IsNullOrWhiteSpace(_pendingMessage))
         {
             PostToWeb(_phase, _pendingMessage);
+        }
+    }
+
+    private async Task PinHudDocumentLayoutAsync()
+    {
+        if (_core is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _core.ExecuteScriptAsync(
+                """
+                (() => {
+                  const h = `${window.innerHeight}px`;
+                  document.documentElement.style.height = h;
+                  document.documentElement.style.overflow = 'hidden';
+                  document.body.style.height = h;
+                  document.body.style.overflow = 'hidden';
+                  const app = document.getElementById('app');
+                  if (app) {
+                    app.style.height = h;
+                    app.style.minHeight = '0';
+                    app.style.maxHeight = h;
+                  }
+                })();
+                """);
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Voice Web HUD layout pin script failed");
+        }
+    }
+
+    protected override void OnDpiChanged(DpiChangedEventArgs e)
+    {
+        base.OnDpiChanged(e);
+        ApplyWebViewDpiScale();
+        if (_navigationReady && _core is not null)
+        {
+            _ = PinHudDocumentLayoutAsync();
+        }
+    }
+
+    private void ApplyWebViewDpiScale()
+    {
+        var scale = DeviceDpi / 96.0;
+        if (scale > 0.01)
+        {
+            _webView.ZoomFactor = scale;
         }
     }
 

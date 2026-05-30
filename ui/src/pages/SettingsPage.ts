@@ -422,11 +422,11 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                     <div class="form-field">
                       <label for="wakeCommandSilenceMs">指令结束静音（ms）</label>
                       <input type="number" id="wakeCommandSilenceMs" min="800" max="8000" step="200" value="${draft.wakeCommandSilenceMs}" />
-                      <p class="form-hint">说完指令后，连续静音达到该时长即提交（不含 ASR 识别耗时）。</p>
+                      <p class="form-hint">说完指令后，自最后一次语音（含轻声）起连续静音达到该时长即提交；不再被环境噪声反复重置计时。</p>
                     </div>
                     <div class="form-check">
                       <input type="checkbox" id="wakeUseVadEndDetection"${draft.wakeUseVadEndDetection ? ' checked' : ''} />
-                      <label for="wakeUseVadEndDetection">使用 VAD 尾部分析结束唤醒听写</label>
+                      <label for="wakeUseVadEndDetection">使用 VAD 尾部分析（保留项，结束时机与上方静音时长一致）</label>
                     </div>
                   </div>
 
