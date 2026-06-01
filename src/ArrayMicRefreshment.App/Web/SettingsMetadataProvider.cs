@@ -49,7 +49,8 @@ public static class SettingsMetadataProvider
     public static WakeWordModelStatusEntry GetWakeWordModelStatus(
         string modelsDirectory,
         string? wakePhrase = null,
-        WakeWordSensitivity sensitivity = WakeWordSensitivity.High)
+        WakeWordSensitivity sensitivity = WakeWordSensitivity.High,
+        bool probeEngine = true)
     {
         var installed = WakeWordModelPaths.TryResolve(modelsDirectory, out var paths);
         var resolvedPath = installed
@@ -57,7 +58,7 @@ public static class SettingsMetadataProvider
             : Path.Combine(ModelsPathResolver.Resolve(modelsDirectory), WakeWordModelPaths.ModelDirName);
 
         var engineReady = false;
-        if (installed)
+        if (probeEngine && installed)
         {
             var modelRoot = Path.GetDirectoryName(paths!.TokensPath) ?? resolvedPath;
             WakeWordEncodingBootstrap.EnsureDefaultEncodings(modelRoot);

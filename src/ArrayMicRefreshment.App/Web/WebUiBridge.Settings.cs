@@ -38,12 +38,23 @@ public sealed partial class WebUiBridge
         return Serialize(models);
     }
 
+    public string GetWakeWordModelStatusLite()
+    {
+        return SerializeWakeWordModelStatus(probeEngine: false);
+    }
+
     public string GetWakeWordModelStatus()
+    {
+        return SerializeWakeWordModelStatus(probeEngine: true);
+    }
+
+    private string SerializeWakeWordModelStatus(bool probeEngine)
     {
         var status = SettingsMetadataProvider.GetWakeWordModelStatus(
             _context.Settings.ModelsDirectory,
             _context.Settings.WakeWordPhrase,
-            _context.Settings.WakeWordSensitivity);
+            _context.Settings.WakeWordSensitivity,
+            probeEngine);
         return Serialize(new
         {
             displayName = status.DisplayName,

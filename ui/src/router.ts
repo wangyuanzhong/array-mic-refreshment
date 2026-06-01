@@ -2,7 +2,7 @@ import { mountEnrollPage } from './pages/EnrollPage';
 import { mountHudPage } from './pages/HudPage';
 import { mountOnboardingPage } from './pages/OnboardingPage';
 import { mountPrivacyPage } from './pages/PrivacyPage';
-import { mountSettingsPage } from './pages/SettingsPage';
+import { disposeSettingsPage, mountSettingsPage } from './pages/SettingsPage';
 
 export type RouteId = 'settings' | 'enroll' | 'onboarding' | 'privacy' | 'hud';
 
@@ -38,6 +38,11 @@ export function navigate(route: RouteId, replace = false): void {
 export function startRouter(root: HTMLElement): void {
   const render = async () => {
     const route = normalizeHash(window.location.hash);
+    const previousRoute = root.dataset.route as RouteId | undefined;
+    if (previousRoute === 'settings' && route !== 'settings') {
+      disposeSettingsPage();
+    }
+
     document.body.classList.remove('hud-mode');
     root.innerHTML = '';
     root.dataset.route = route;

@@ -1,5 +1,6 @@
 import {
   type AmrBridge,
+  type AppInfo,
   type AsrModelItem,
   type AudioDeviceItem,
   type ForcedIntent,
@@ -19,6 +20,28 @@ import {
   isMockBridge,
   resolveFeaturePresetStyleKey,
 } from '../bridge';
+
+declare global {
+  interface Window {
+    /** Called from WebUiHostForm when reopening settings without full navigation. */
+    __amrRefreshSettings?: () => Promise<void>;
+  }
+}
+
+/** True after first successful settings paint in this WebView document (cleared on full reload). */
+let settingsDocumentReady = false;
+
+export function disposeSettingsPage(): void {
+  settingsDocumentReady = false;
+  window.__amrRefreshSettings = undefined;
+}
+
+const DEFAULT_WAKE_MODEL_STATUS: WakeWordModelStatus = {
+  displayName: 'sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01',
+  installed: false,
+  engineReady: false,
+  resolvedPath: '',
+};
 import { escapeHtml, renderAppNav, wireAppNav } from '../layout/appShell';
 
 type SectionId =
@@ -143,63 +166,100 @@ function setTestConnectionUi(root: HTMLElement, running: boolean): void {
   if (saveBtn) saveBtn.disabled = running;
 }
 
-export async function mountSettingsPage(root: HTMLElement): Promise<void> {
-  root.innerHTML = `<div class="app-shell"><main class="app-content"><p>加载设置…</p></main></div>`;
-
-  const bridge = await getBridge();
-  let draft = ensureDraftSpecialistKeys(await bridge.loadSettingsDraft());
-  if (!draft.featurePresets?.length) {
-    draft = {
-      ...draft,
-      featurePresets: [
-        {
-          name: '默认',
-          llmPresetName: draft.llmPresets[0]?.name ?? '预设1',
-          forcedIntent: draft.forcedIntent,
-          forcedSpecialistKey: draft.forcedSpecialistKey,
-          onRefineFailure: draft.onRefineFailure,
-          optionalOverlaySkills: [...draft.optionalOverlaySkills],
-        },
-      ],
-      selectedFeaturePresetIndex: 0,
-    };
-    draft = ensureDraftSpecialistKeys(draft);
+function ensureFeaturePresetsOnDraft(draft: SettingsDraft): SettingsDraft {
+  if (draft.featurePresets?.length) {
+    return ensureDraftSpecialistKeys(draft);
   }
-  const runtime = await bridge.getRuntimeState().catch(() => null);
+
+  const withPreset: SettingsDraft = {
+    ...draft,
+    featurePresets: [
+      {
+        name: '默认',
+        llmPresetName: draft.llmPresets[0]?.name ?? '预设1',
+        forcedIntent: draft.forcedIntent,
+        forcedSpecialistKey: draft.forcedSpecialistKey,
+        onRefineFailure: draft.onRefineFailure,
+        optionalOverlaySkills: [...draft.optionalOverlaySkills],
+      },
+    ],
+    selectedFeaturePresetIndex: 0,
+  };
+  return ensureDraftSpecialistKeys(withPreset);
+}
+
+function mergeRuntimeTriggerMode(
+  draft: SettingsDraft,
+  runtimeTriggerMode: TriggerMode | null,
+): SettingsDraft {
+  if (runtimeTriggerMode && runtimeTriggerMode !== draft.triggerMode) {
+    return { ...draft, triggerMode: runtimeTriggerMode };
+  }
+
+  return draft;
+}
+
+async function fetchSettingsBootstrap(bridge: AmrBridge): Promise<{
+  draft: SettingsDraft;
+  appInfo: AppInfo;
+  runtimeTriggerMode: TriggerMode | null;
+  lists: ListData;
+  wakeModelStatus: WakeWordModelStatus;
+}> {
+  const [rawDraft, runtime, appInfo, devices, speakers, asrModels, wakeLite] = await Promise.all([
+    bridge.loadSettingsDraft(),
+    bridge.getRuntimeState().catch(() => null),
+    bridge.getAppInfo().catch(() => ({ version: '—', platform: '—' })),
+    bridge.listAudioDevices().catch(() => []),
+    bridge.listSpeakerUsers().catch(() => []),
+    bridge.listAsrModels().catch(() => []),
+    bridge.getWakeWordModelStatusLite().catch(() => DEFAULT_WAKE_MODEL_STATUS),
+  ]);
+
+  let draft = ensureFeaturePresetsOnDraft(rawDraft);
   const runtimeTriggerMode =
     runtime?.triggerMode && TRIGGER_MODE_OPTIONS.some((o) => o.value === runtime.triggerMode)
       ? (runtime.triggerMode as TriggerMode)
       : null;
-
-  if (runtimeTriggerMode && runtimeTriggerMode !== draft.triggerMode) {
-    draft = { ...draft, triggerMode: runtimeTriggerMode };
-  }
-
-  const appInfo = await bridge.getAppInfo().catch(() => ({ version: '—', platform: '—' }));
+  draft = mergeRuntimeTriggerMode(draft, runtimeTriggerMode);
 
   const lists: ListData = {
-    devices: await bridge.listAudioDevices().catch(() => []),
-    speakers: await bridge.listSpeakerUsers().catch(() => []),
-    asrModels: await bridge.listAsrModels().catch(() => []),
+    devices,
+    speakers,
+    asrModels,
     overlaySkills: [],
     skillsMissing: [],
     refinementStyles: [],
   };
-
-  let selectedRefinementStyleKey: string | null = null;
 
   const initialFpOverlays =
     draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
     draft.optionalOverlaySkills;
   await refreshSkillsLists(bridge, draft.skillsDirectory, lists, initialFpOverlays);
 
-  let wakeModelStatus: WakeWordModelStatus = {
-    displayName: 'sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01',
-    installed: false,
-    engineReady: false,
-    resolvedPath: draft.modelsDirectory,
+  const wakeModelStatus: WakeWordModelStatus = {
+    ...wakeLite,
+    resolvedPath: wakeLite.resolvedPath || draft.modelsDirectory,
   };
-  wakeModelStatus = await bridge.getWakeWordModelStatus().catch(() => wakeModelStatus);
+
+  return { draft, appInfo, runtimeTriggerMode, lists, wakeModelStatus };
+}
+
+export async function mountSettingsPage(root: HTMLElement): Promise<void> {
+  const showBlockingLoader = !settingsDocumentReady;
+  if (showBlockingLoader) {
+    root.innerHTML = `<div class="app-shell"><main class="app-content"><p>加载设置…</p></main></div>`;
+  }
+
+  const bridge = await getBridge();
+  const boot = await fetchSettingsBootstrap(bridge);
+  let draft = boot.draft;
+  const appInfo = boot.appInfo;
+  const runtimeTriggerMode = boot.runtimeTriggerMode;
+  const lists = boot.lists;
+  let wakeModelStatus = boot.wakeModelStatus;
+
+  let selectedRefinementStyleKey: string | null = null;
 
   let activeSection: SectionId =
     runtimeTriggerMode && wakeModeActive(runtimeTriggerMode) ? 'trigger' : 'general';
@@ -962,17 +1022,37 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   }
 
   async function handleCancel(): Promise<void> {
-    draft = ensureDraftSpecialistKeys(await bridge.loadSettingsDraft());
+    const refreshed = await fetchSettingsBootstrap(bridge);
+    draft = refreshed.draft;
+    wakeModelStatus = refreshed.wakeModelStatus;
     fieldErrors.clear();
     selectedRefinementStyleKey = null;
-    const cancelFpOverlays =
-      draft.featurePresets[draft.selectedFeaturePresetIndex]?.optionalOverlaySkills ??
-      draft.optionalOverlaySkills;
-    await refreshSkillsLists(bridge, draft.skillsDirectory, lists, cancelFpOverlays);
     render();
+    scheduleWakeEngineProbe();
   }
 
+  const scheduleWakeEngineProbe = (): void => {
+    void bridge
+      .getWakeWordModelStatus()
+      .then((status) => {
+        wakeModelStatus = status;
+        render();
+      })
+      .catch(() => undefined);
+  };
+
+  window.__amrRefreshSettings = async () => {
+    const refreshed = await fetchSettingsBootstrap(bridge);
+    draft = refreshed.draft;
+    Object.assign(lists, refreshed.lists);
+    wakeModelStatus = refreshed.wakeModelStatus;
+    render();
+    scheduleWakeEngineProbe();
+  };
+
   render();
+  settingsDocumentReady = true;
+  scheduleWakeEngineProbe();
 }
 
 async function refreshSkillsLists(
@@ -981,27 +1061,19 @@ async function refreshSkillsLists(
   lists: ListData,
   selected: string[],
 ): Promise<void> {
-  try {
-    lists.overlaySkills = await bridge.listOptionalOverlaySkills(skillsDirectory);
-    for (const item of lists.overlaySkills) {
-      item.checked = selected.includes(item.key);
-    }
-  } catch {
-    lists.overlaySkills = [];
+  const [overlayResult, catalogResult, stylesResult] = await Promise.all([
+    bridge.listOptionalOverlaySkills(skillsDirectory).catch(() => [] as OptionalOverlaySkillItem[]),
+    bridge.getSkillsCatalogStatus(skillsDirectory).catch(() => ({ missingFiles: [] as string[] })),
+    bridge.listRefinementStyles(skillsDirectory).catch(() => [] as RefinementStyleItem[]),
+  ]);
+
+  lists.overlaySkills = overlayResult;
+  for (const item of lists.overlaySkills) {
+    item.checked = selected.includes(item.key);
   }
 
-  try {
-    const status = await bridge.getSkillsCatalogStatus(skillsDirectory);
-    lists.skillsMissing = status.missingFiles ?? [];
-  } catch {
-    lists.skillsMissing = [];
-  }
+  lists.skillsMissing = catalogResult.missingFiles ?? [];
 
-  try {
-    const styles = await bridge.listRefinementStyles(skillsDirectory);
-    lists.refinementStyles =
-      styles.length > 0 ? styles : structuredClone(BUILTIN_REFINEMENT_STYLES);
-  } catch {
-    lists.refinementStyles = structuredClone(BUILTIN_REFINEMENT_STYLES);
-  }
+  lists.refinementStyles =
+    stylesResult.length > 0 ? stylesResult : structuredClone(BUILTIN_REFINEMENT_STYLES);
 }

@@ -227,6 +227,7 @@ export interface AmrHostObject {
   ListAudioDevices(): Promise<string>;
   ListSpeakerUsers(): Promise<string>;
   ListAsrModels(): Promise<string>;
+  GetWakeWordModelStatusLite(): Promise<string>;
   GetWakeWordModelStatus(): Promise<string>;
   ListOptionalOverlaySkills(skillsDirectory: string): Promise<string>;
   GetSkillsCatalogStatus(skillsDirectory: string): Promise<string>;
@@ -256,6 +257,7 @@ export interface AmrBridge {
   listAudioDevices(): Promise<AudioDeviceItem[]>;
   listSpeakerUsers(): Promise<SpeakerUserItem[]>;
   listAsrModels(): Promise<AsrModelItem[]>;
+  getWakeWordModelStatusLite(): Promise<WakeWordModelStatus>;
   getWakeWordModelStatus(): Promise<WakeWordModelStatus>;
   listOptionalOverlaySkills(skillsDirectory: string): Promise<OptionalOverlaySkillItem[]>;
   getSkillsCatalogStatus(skillsDirectory: string): Promise<SkillsCatalogStatus>;
@@ -429,6 +431,12 @@ function wrapHostObject(host: AmrHostObject): AmrBridge {
     },
     async listAsrModels() {
       return parseJson<AsrModelItem[]>(await host.ListAsrModels(), 'ListAsrModels');
+    },
+    async getWakeWordModelStatusLite() {
+      return parseJson<WakeWordModelStatus>(
+        await host.GetWakeWordModelStatusLite(),
+        'GetWakeWordModelStatusLite',
+      );
     },
     async getWakeWordModelStatus() {
       return parseJson<WakeWordModelStatus>(
@@ -605,6 +613,15 @@ function createMockBridge(): AmrBridge {
         { id: 'sensevoice-small', displayName: 'SenseVoice Small', installed: true },
         { id: 'sensevoice-large', displayName: 'SenseVoice Large', installed: false },
       ];
+    },
+    async getWakeWordModelStatusLite() {
+      await delay(10);
+      return {
+        displayName: 'sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01',
+        installed: true,
+        engineReady: false,
+        resolvedPath: 'models\\sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01',
+      };
     },
     async getWakeWordModelStatus() {
       await delay(40);

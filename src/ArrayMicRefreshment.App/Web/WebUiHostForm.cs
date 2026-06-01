@@ -122,7 +122,28 @@ public sealed class WebUiHostForm : Form
             return;
         }
 
-        _webView.CoreWebView2.Navigate(WebUiConstants.HashUrl(_hashRoute));
+        var targetUrl = WebUiConstants.HashUrl(_hashRoute);
+        var currentUrl = _webView.Source?.AbsoluteUri;
+        if (!string.IsNullOrEmpty(currentUrl)
+            && string.Equals(currentUrl, targetUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            RequestSettingsPageRefresh();
+            return;
+        }
+
+        _webView.CoreWebView2.Navigate(targetUrl);
+    }
+
+    /// <summary>Reload settings data in the SPA without a full document navigation (fast reopen).</summary>
+    public void RequestSettingsPageRefresh()
+    {
+        if (_webView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        _ = _webView.CoreWebView2.ExecuteScriptAsync(
+            "if (typeof window.__amrRefreshSettings==='function') void window.__amrRefreshSettings();");
     }
 
     private async void OnFormLoad(object? sender, EventArgs e)

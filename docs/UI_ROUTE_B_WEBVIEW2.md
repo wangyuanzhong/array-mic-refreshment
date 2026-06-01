@@ -1,7 +1,7 @@
 # 路线 B — 统一 WebView2 UI 升级实施说明
 
 > **文档目的**：在对话上下文耗尽或人员交接后，任何 Agent / 工程师阅读本文即可按 **路线 B** 继续执行，无需依赖历史聊天记录。  
-> **产品版本基准**：V0.5.4（`main` 分支，见 [`VERSION.txt`](../VERSION.txt)）  
+> **产品版本基准**：V0.5.5（`main` 分支，见 [`VERSION.txt`](../VERSION.txt)）  
 > **最后更新**：2026-06-01
 
 ---
@@ -13,7 +13,7 @@
 
 | 维度 | 规划（§1.1） | **当前代码** |
 |------|----------------|------------------|
-| 产品对外版本 | V0.5.x | ✅ `VERSION.txt` / `AppInfo` / csproj 对齐（当前 **V0.5.4**） |
+| 产品对外版本 | V0.5.x | ✅ `VERSION.txt` / `AppInfo` / csproj 对齐（当前 **V0.5.5**） |
 | WebView2 | 目标引入 | ✅ `Microsoft.Web.WebView2` + `Web/` 宿主与 Bridge |
 | `ui/` + `wwwroot/` | Vite 前端 | ✅ Release 前 `npm ci && npm run build` |
 | `SettingsApplyService` | Phase 0 | ✅ Web / 托盘共用 |
@@ -381,7 +381,8 @@ JS 访问：`window.chrome.webview.hostObjects.amr`（注意 async 代理，需 
 | `ListAsrModels()` | `[{ id, displayName, installed }]` | 复用 `SenseVoiceModelResolver` |
 | `ListOptionalOverlaySkills()` | `[{ key, label, checked }]` | manifest optional_skills |
 | `GetSkillsCatalogStatus()` | `{ missingFiles: string[] }` | 保存前校验 |
-| `GetWakeWordModelStatus()` | `{ displayName, installed, engineReady, resolvedPath }` | `WakeWordModelPaths.TryResolve` + `SherpaKeywordWakeWordDetector.TryCreate` 探测；设置页「触发与 HUD」展示（`installed`≠`engineReady` 时表示文件在但引擎未加载） |
+| `GetWakeWordModelStatusLite()` | 同上（`engineReady` 常为 false） | 仅 `TryResolve` 文件存在性；**V0.5.5+** 设置首屏 |
+| `GetWakeWordModelStatus()` | `{ displayName, installed, engineReady, resolvedPath }` | 含 `SherpaKeywordWakeWordDetector.TryCreate` 探测；首屏后后台刷新 |
 
 #### 设置读写
 
@@ -881,6 +882,7 @@ A：V0.5.3+ 宿主见 `Web/WebViewDpiScaling.cs`：`ZoomFactor = 1`（勿用 Zoo
 | 2026-05-26 | 1.1 | V0.5.3：PerMonitorV2 + WebView DPI FAQ / §10.2 |
 | 2026-06-01 | 1.2 | §5.4 高 DPI；`TestLlmConnection` 异步；LOCAL_DEVELOPMENT / README 交叉链接 |
 | 2026-06-01 | 1.3 | V0.5.4：`hostObjects.amr` 优先；测试连接禁 MessageBox |
+| 2026-06-01 | 1.4 | V0.5.5：设置复开软刷新、`GetWakeWordModelStatusLite`、并行 bootstrap |
 
 ---
 

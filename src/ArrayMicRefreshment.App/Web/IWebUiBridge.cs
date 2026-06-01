@@ -17,6 +17,8 @@ public interface IWebUiBridge
 
     string ListAsrModels();
 
+    string GetWakeWordModelStatusLite();
+
     string GetWakeWordModelStatus();
 
     string ListOptionalOverlaySkills();

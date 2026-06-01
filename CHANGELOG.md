@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.5] - 2026-06-01
+
+### Changed
+
+- **设置页打开速度**：复用 WebView 文档时不再对 `#/settings` 重复 `Navigate`（避免整页重载与「加载设置…」）；通过 `__amrRefreshSettings` 软刷新数据
+- **并行加载**：设备/ASR/草稿等 `Promise.all`；skills 三接口并行
+- **唤醒 KWS 状态**：首屏 `GetWakeWordModelStatusLite`（仅文件存在性），Sherpa 引擎探测延后后台执行
+
+### Docs
+
+- `docs/LOCAL_DEVELOPMENT.md` §13；`docs/UI_ROUTE_B_WEBVIEW2.md` §5 / Bridge 表
+
+### Verify
+
+- 打开设置 → 关闭（隐藏）→ 再打开：不应长时间停在「加载设置…」
+- `dotnet test`；`.\scripts\test-phase2-route-b.ps1`；`.\scripts\watch-build-release.ps1 -Once`
+
 ## [0.5.4] - 2026-06-01
 
 ### Fixed
