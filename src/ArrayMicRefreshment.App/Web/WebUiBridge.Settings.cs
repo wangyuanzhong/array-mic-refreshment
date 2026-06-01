@@ -227,54 +227,48 @@ public sealed partial class WebUiBridge
 
     public async Task<string> TestLlmConnection(string? draftJson)
     {
-        AppSettings settings;
-        if (!string.IsNullOrWhiteSpace(draftJson))
+        try
         {
-            if (!TryParseDraft(draftJson, out var draft, out var parseError))
+            AppSettings settings;
+            if (!string.IsNullOrWhiteSpace(draftJson))
             {
-                return Serialize(new LlmTestResultDto
+                if (!TryParseDraft(draftJson, out var draft, out var parseError))
                 {
-                    Ok = false,
-                    Message = parseError ?? "无效 JSON。",
-                });
+                    return Serialize(new LlmTestResultDto
+                    {
+                        Ok = false,
+                        Message = parseError ?? "无效 JSON。",
+                    });
+                }
+
+                settings = SettingsDraftMapper.ToAppSettings(draft!, _context.Settings);
+            }
+            else
+            {
+                settings = SettingsApplyService.CloneSnapshot(_context.Settings);
             }
 
-            settings = SettingsDraftMapper.ToAppSettings(draft!, _context.Settings);
-        }
-        else
-        {
-            settings = SettingsApplyService.CloneSnapshot(_context.Settings);
-        }
+            settings.PromptRefineEnabled = true;
+            settings.ApiBaseUrl = ApiUrlNormalizer.NormalizeBaseUrl(settings.ApiBaseUrl);
 
-        settings.PromptRefineEnabled = true;
-        settings.ApiBaseUrl = ApiUrlNormalizer.NormalizeBaseUrl(settings.ApiBaseUrl);
-
-        var privacyOk = await RunOnUiForJsonAsync(() =>
-        {
             if (string.IsNullOrWhiteSpace(settings.ApiBaseUrl))
             {
                 return Serialize(new LlmTestResultDto { Ok = false, Message = "失败：请先填写 API Base URL" });
             }
 
-            if (!PrivacyConsent.EnsureAccepted(settings, settings.ApiBaseUrl, _context.HostForm))
+            if (!PrivacyConsent.IsAcceptedOrNotRequired(settings, settings.ApiBaseUrl))
             {
-                return Serialize(new LlmTestResultDto { Ok = false, Message = "已取消（隐私未确认）" });
+                return Serialize(new LlmTestResultDto
+                {
+                    Ok = false,
+                    Message = PrivacyConsent.TestRequiresSavePrivacyMessage,
+                });
             }
 
-            return null;
-        }).ConfigureAwait(true);
-
-        if (privacyOk is not null)
-        {
-            return privacyOk;
-        }
-
-        try
-        {
             var handler = _context.LlmTestHttpHandlerFactory?.Invoke();
-            var result = await LlmConnectionTester
-                .TestAsync(settings, handler)
-                .ConfigureAwait(false);
+            var result = await Task.Run(async () =>
+                    await LlmConnectionTester.TestAsync(settings, handler).ConfigureAwait(false))
+                .ConfigureAwait(true);
             return Serialize(result);
         }
         catch (Exception ex)

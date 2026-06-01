@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.4] - 2026-06-01
+
+### Fixed
+
+- **LLM 测试连接卡死/闪退**：`bridge.ts` 优先使用异步 `hostObjects.amr`（勿用 `sync` 代理阻塞 `Task`）；HTTP 在 `Task.Run` 执行并在 UI 线程返回 COM 结果；测试连接路径不再弹出 `MessageBox`（避免 WebView 重入崩溃），未确认隐私时提示先「保存」
+
+### Docs
+
+- `docs/LOCAL_DEVELOPMENT.md` §13；`docs/UI_ROUTE_B_WEBVIEW2.md` Bridge 表；`ui/src/bridge.ts` 注释
+
+### Verify
+
+- 设置 → LLM 预设 → 测试连接：界面不卡死、进程不退出；未保存隐私时显示明确文案
+- `dotnet test`；`.\scripts\test-phase2-route-b.ps1`；`.\scripts\watch-build-release.ps1 -Once`
+
 ## [0.5.3] - 2026-05-26
 
 ### Fixed

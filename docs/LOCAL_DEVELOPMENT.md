@@ -415,7 +415,7 @@ Stop-Process -Name ArrayMicRefreshment -Force -ErrorAction SilentlyContinue
 | 设置页只有分区标题、没有控件 | 旧版 UI 多 section 同时渲染叠在一起 | 用最新 `dist\...\ArrayMicRefreshment.exe`；左侧 Nav 应切换分区；KWS 状态在 **触发与 HUD**（非单独「唤醒模型」菜单） |
 | 高 DPI / 显示比例 125% 下设置窗右侧极窄、文字竖排 | **V0.5.2 及更早** 用 `ZoomFactor` 缩小布局视口，侧栏仍占固定 240+200px | **V0.5.3+**：`WebViewDpiScaling`（`ZoomFactor=1`）+ 侧栏 `clamp(…vw…)`；见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](UI_ROUTE_B_WEBVIEW2.md) §5.4、FAQ |
 | 改显示比例后设置窗大小怪异 | `settings.json` 里 `settingsWindowWidth/Height` 曾为物理像素 | **V0.5.3+** 存 96 DPI 逻辑像素；拖一次边框保存即可；勿手改 json 为超大数值 |
-| 设置页「测试连接」卡住数秒、无结果 | **V0.5.2 及更早** Bridge 在 UI 线程 `GetResult()` 阻塞 WebView | **V0.5.3+** `TestLlmConnection` 返回 `Task`；填好当前 LLM 预设的 API URL/Key/Model 后再测 |
+| 设置页「测试连接」卡住/闪退 | `hostObjects.sync` 阻塞 `Task` 方法，或测试路径弹出 `MessageBox` 导致 WebView 重入 | **V0.5.4+** 优先 `hostObjects.amr`；测试连接不弹窗；云端 API 需先「保存」确认隐私；填好 URL/Key/Model |
 | PTT 热键无效 / 松开无反应 / 卡死 | 托盘收不到 `WM_HOTKEY` 或钩子回调死锁 UI | **V0.4.16** 低级钩子 + `BeginInvoke`；日志应有 `chord released` |
 | 仅 PTT 未按键麦克风常亮 | 待机采集 `standby capture started` | **V0.4.16** `keepStandbyCaptureBetweenSessions: false`；仅按住热键时开麦 |
 | 仅 PTT 未按键麦克风常亮 | 待机采集预开设备 | **V0.4.11+** 不再 `StartStandbyListening`；仅按住热键时开麦 |

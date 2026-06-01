@@ -1,7 +1,7 @@
 # 路线 B — 统一 WebView2 UI 升级实施说明
 
 > **文档目的**：在对话上下文耗尽或人员交接后，任何 Agent / 工程师阅读本文即可按 **路线 B** 继续执行，无需依赖历史聊天记录。  
-> **产品版本基准**：V0.5.3（`main` 分支，见 [`VERSION.txt`](../VERSION.txt)）  
+> **产品版本基准**：V0.5.4（`main` 分支，见 [`VERSION.txt`](../VERSION.txt)）  
 > **最后更新**：2026-06-01
 
 ---
@@ -13,7 +13,7 @@
 
 | 维度 | 规划（§1.1） | **当前代码** |
 |------|----------------|------------------|
-| 产品对外版本 | V0.5.x | ✅ `VERSION.txt` / `AppInfo` / csproj 对齐（当前 **V0.5.3**） |
+| 产品对外版本 | V0.5.x | ✅ `VERSION.txt` / `AppInfo` / csproj 对齐（当前 **V0.5.4**） |
 | WebView2 | 目标引入 | ✅ `Microsoft.Web.WebView2` + `Web/` 宿主与 Bridge |
 | `ui/` + `wwwroot/` | Vite 前端 | ✅ Release 前 `npm ci && npm run build` |
 | `SettingsApplyService` | Phase 0 | ✅ Web / 托盘共用 |
@@ -470,7 +470,7 @@ interface SettingsDraft {
 |------|------|
 | `LoadSettingsDraft` | UI 或线程池均可 |
 | `SaveSettingsDraft` | **必须在 UI 线程**调用 WinForms / 热键注册 / MessageBox |
-| `TestLlmConnection` | 返回 `Task<string>`（JS Promise）；HTTP 在后台 `await`，**禁止** UI 线程 `GetResult()` |
+| `TestLlmConnection` | 返回 `Task<string>`；JS 须用 **async** `hostObjects.amr`（勿 `sync`）；HTTP 在 `Task.Run`；**禁止**测试路径弹 `MessageBox` |
 | ASR 模型下载 | 后台 + 进度事件（可选 `PostWebMessage` 推送到 JS） |
 
 ---
@@ -880,6 +880,7 @@ A：V0.5.3+ 宿主见 `Web/WebViewDpiScaling.cs`：`ZoomFactor = 1`（勿用 Zoo
 | 2026-05-26 | 1.0 | 初版：路线 B 完整 handoff + 5 Agent 分工与 Prompt |
 | 2026-05-26 | 1.1 | V0.5.3：PerMonitorV2 + WebView DPI FAQ / §10.2 |
 | 2026-06-01 | 1.2 | §5.4 高 DPI；`TestLlmConnection` 异步；LOCAL_DEVELOPMENT / README 交叉链接 |
+| 2026-06-01 | 1.3 | V0.5.4：`hostObjects.amr` 优先；测试连接禁 MessageBox |
 
 ---
 

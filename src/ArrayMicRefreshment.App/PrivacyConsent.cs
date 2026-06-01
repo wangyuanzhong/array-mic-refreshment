@@ -49,4 +49,32 @@ internal static class PrivacyConsent
 
         return false;
     }
+
+    /// <summary>
+    /// Non-modal privacy gate for WebView2 host calls (e.g. test connection).
+    /// Do not show <see cref="MessageBox"/> while a host method is in flight — it can freeze or crash WebView2.
+    /// </summary>
+    public static bool IsAcceptedOrNotRequired(AppSettings settings, string apiBaseUrl)
+    {
+        if (!settings.PromptRefineEnabled)
+        {
+            return true;
+        }
+
+        if (!PrivacyConfirmation.TryResolveHost(apiBaseUrl, out var host))
+        {
+            return true;
+        }
+
+        if (PrivacyConfirmation.IsLoopbackHost(host))
+        {
+            settings.PrivacyAcceptedHost = host;
+            return true;
+        }
+
+        return !PrivacyConfirmation.ShouldPromptForHost(apiBaseUrl, settings.PrivacyAcceptedHost);
+    }
+
+    public const string TestRequiresSavePrivacyMessage =
+        "首次连接云端 API 前，请先点击「保存」并完成隐私确认；或改用本机 API（如 http://127.0.0.1:11434/v1）。";
 }

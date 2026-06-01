@@ -805,7 +805,8 @@ export async function getBridge(): Promise<AmrBridge> {
   const hostObjects = window.chrome?.webview?.hostObjects as
     | { amr?: AmrHostObject; sync?: { amr?: AmrHostObject } }
     | undefined;
-  const host = hostObjects?.sync?.amr ?? hostObjects?.amr;
+  // Prefer async proxy so Task-returning bridge methods (e.g. TestLlmConnection) do not block/crash WebView2.
+  const host = hostObjects?.amr ?? hostObjects?.sync?.amr;
   if (host) {
     cachedBridge = wrapHostObject(host);
     bridgeSource = 'host';

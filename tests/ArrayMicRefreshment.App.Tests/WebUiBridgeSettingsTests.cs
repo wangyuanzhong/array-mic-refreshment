@@ -300,6 +300,30 @@ public class WebUiBridgeSettingsTests
         Assert.True(doc.RootElement.GetProperty("routerConfidence").GetDouble() > 0.8);
     }
 
+    [Fact]
+    public async Task TestLlmConnection_without_privacy_returns_message_not_modal()
+    {
+        var settings = Phase2AcceptanceTestSupport.CreateRichTemplateSettings();
+        settings.PromptRefineEnabled = true;
+        settings.SelectedLlmPresetIndex = 1;
+        settings.LlmPresets[1].ApiBaseUrl = "https://api.openai.com/v1";
+        settings.ApiBaseUrl = "https://api.openai.com/v1";
+        settings.PrivacyAcceptedHost = string.Empty;
+
+        var bridge = new WebUiBridge(new WebUiBridgeContext
+        {
+            Settings = settings,
+            SettingsStore = new InMemorySettingsStore(settings),
+        });
+
+        var draft = SettingsDraftMapper.ToDraft(settings, runtimeTriggerMode: null);
+        var resultJson = await bridge.TestLlmConnection(SerializeDraft(draft));
+
+        using var doc = JsonDocument.Parse(resultJson);
+        Assert.False(doc.RootElement.GetProperty("ok").GetBoolean());
+        Assert.Equal(PrivacyConsent.TestRequiresSavePrivacyMessage, doc.RootElement.GetProperty("message").GetString());
+    }
+
     private sealed class StubHttpHandler : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, HttpResponseMessage> _factory;
