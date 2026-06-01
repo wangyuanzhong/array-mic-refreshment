@@ -84,10 +84,10 @@ public sealed class AppSettings
     /// </summary>
     public bool UseWebStatusHud { get; set; } = false;
 
-    /// <summary>Last Web settings window client width (px).</summary>
+    /// <summary>Last Web settings window client width at 96 DPI logical pixels.</summary>
     public int SettingsWindowWidth { get; set; } = 960;
 
-    /// <summary>Last Web settings window client height (px).</summary>
+    /// <summary>Last Web settings window client height at 96 DPI logical pixels.</summary>
     public int SettingsWindowHeight { get; set; } = 720;
 
     public string SkillsDirectory { get; set; } = "skills";

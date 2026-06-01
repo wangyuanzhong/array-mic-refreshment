@@ -41,4 +41,7 @@ public sealed class WebUiBridgeContext
     public Action? OnSuccess { get; init; }
 
     internal WebUiHostForm? HostForm { get; set; }
+
+    /// <summary>Unit tests: optional HTTP handler for <see cref="WebUiBridge.TestLlmConnection"/>.</summary>
+    internal Func<HttpMessageHandler?>? LlmTestHttpHandlerFactory { get; init; }
 }

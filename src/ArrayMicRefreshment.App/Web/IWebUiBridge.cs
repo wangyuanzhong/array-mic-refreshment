@@ -42,7 +42,7 @@ public interface IWebUiBridge
 
     string SaveSettingsDraft(string draftJson);
 
-    string TestLlmConnection(string? draftJson);
+    Task<string> TestLlmConnection(string? draftJson);
 
     // Hotkey capture (native modal)
     string OpenHotkeyCaptureDialog(string currentHotkey);

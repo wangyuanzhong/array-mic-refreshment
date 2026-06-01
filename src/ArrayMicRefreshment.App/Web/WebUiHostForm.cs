@@ -7,10 +7,17 @@ namespace ArrayMicRefreshment.App.Web;
 /// <summary>WinForms shell hosting the unified Web UI (Route B). WebView2 is created on demand when the form loads.</summary>
 public sealed class WebUiHostForm : Form
 {
+    private const int DefaultLogicalWidth = 960;
+    private const int DefaultLogicalHeight = 720;
+    private const int MinLogicalWidth = 640;
+    private const int MinLogicalHeight = 480;
+
     private readonly WebUiBridgeContext? _context;
     private readonly WebView2 _webView = new() { Dock = DockStyle.Fill };
     private WebUiBridge? _bridge;
     private string _hashRoute;
+    private int _logicalWidth = DefaultLogicalWidth;
+    private int _logicalHeight = DefaultLogicalHeight;
 
     /// <summary>When true, user closing the window hides it instead of disposing (settings singleton).</summary>
     public bool HideOnClose { get; set; }
@@ -31,9 +38,9 @@ public sealed class WebUiHostForm : Form
 
         Text = TitleForRoute(_hashRoute);
         StartPosition = FormStartPosition.CenterScreen;
-        AutoScaleMode = AutoScaleMode.Dpi;
-        MinimumSize = new Size(640, 480);
-        ClientSize = ResolveInitialClientSize(context);
+        AutoScaleMode = AutoScaleMode.None;
+        ResolveInitialLogicalSize(context);
+        ApplyDpiLayout();
         TopMost = false;
         Controls.Add(_webView);
 
@@ -42,28 +49,33 @@ public sealed class WebUiHostForm : Form
         FormClosing += OnFormClosing;
     }
 
-    private static Size ResolveInitialClientSize(WebUiBridgeContext? context)
+    private void ResolveInitialLogicalSize(WebUiBridgeContext? context)
     {
-        const int defaultW = 960;
-        const int defaultH = 720;
         if (context?.Settings is null)
         {
-            return new Size(defaultW, defaultH);
+            _logicalWidth = DefaultLogicalWidth;
+            _logicalHeight = DefaultLogicalHeight;
+            return;
         }
 
         var w = context.Settings.SettingsWindowWidth;
         var h = context.Settings.SettingsWindowHeight;
-        if (w < 640)
-        {
-            w = defaultW;
-        }
+        _logicalWidth = w >= MinLogicalWidth ? w : DefaultLogicalWidth;
+        _logicalHeight = h >= MinLogicalHeight ? h : DefaultLogicalHeight;
+    }
 
-        if (h < 480)
-        {
-            h = defaultH;
-        }
+    private void ApplyDpiLayout()
+    {
+        var scale = WebViewDpiScaling.GetScale(this);
+        MinimumSize = WebViewDpiScaling.ScaleLogicalSize(MinLogicalWidth, MinLogicalHeight, scale);
+        ClientSize = WebViewDpiScaling.ScaleLogicalSize(_logicalWidth, _logicalHeight, scale);
+        WebViewDpiScaling.ApplyToWebView(_webView, this);
+    }
 
-        return new Size(w, h);
+    protected override void OnDpiChanged(DpiChangedEventArgs e)
+    {
+        base.OnDpiChanged(e);
+        ApplyDpiLayout();
     }
 
     private void OnResizeEnd(object? sender, EventArgs e) => PersistClientSize();
@@ -80,20 +92,24 @@ public sealed class WebUiHostForm : Form
             return;
         }
 
-        var size = ClientSize;
-        if (size.Width < MinimumSize.Width || size.Height < MinimumSize.Height)
+        var scale = WebViewDpiScaling.GetScale(this);
+        var logical = WebViewDpiScaling.ToLogicalSize(ClientSize, scale);
+        if (logical.Width < MinLogicalWidth || logical.Height < MinLogicalHeight)
         {
             return;
         }
 
-        if (_context.Settings.SettingsWindowWidth == size.Width
-            && _context.Settings.SettingsWindowHeight == size.Height)
+        _logicalWidth = logical.Width;
+        _logicalHeight = logical.Height;
+
+        if (_context.Settings.SettingsWindowWidth == logical.Width
+            && _context.Settings.SettingsWindowHeight == logical.Height)
         {
             return;
         }
 
-        _context.Settings.SettingsWindowWidth = size.Width;
-        _context.Settings.SettingsWindowHeight = size.Height;
+        _context.Settings.SettingsWindowWidth = logical.Width;
+        _context.Settings.SettingsWindowHeight = logical.Height;
         _context.SettingsStore.Save(_context.Settings);
     }
 
@@ -129,6 +145,7 @@ public sealed class WebUiHostForm : Form
         try
         {
             await _webView.EnsureCoreWebView2Async();
+            ApplyDpiLayout();
         }
         catch (Exception ex)
         {

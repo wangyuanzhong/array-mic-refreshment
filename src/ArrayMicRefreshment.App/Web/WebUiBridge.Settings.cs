@@ -225,7 +225,7 @@ public sealed partial class WebUiBridge
         return RunOnUiForJson(() => SaveSettingsDraftCore(draftJson));
     }
 
-    public string TestLlmConnection(string? draftJson)
+    public async Task<string> TestLlmConnection(string? draftJson)
     {
         AppSettings settings;
         if (!string.IsNullOrWhiteSpace(draftJson))
@@ -249,7 +249,7 @@ public sealed partial class WebUiBridge
         settings.PromptRefineEnabled = true;
         settings.ApiBaseUrl = ApiUrlNormalizer.NormalizeBaseUrl(settings.ApiBaseUrl);
 
-        string? privacyOk = RunOnUiForJson(() =>
+        var privacyOk = await RunOnUiForJsonAsync(() =>
         {
             if (string.IsNullOrWhiteSpace(settings.ApiBaseUrl))
             {
@@ -262,7 +262,7 @@ public sealed partial class WebUiBridge
             }
 
             return null;
-        });
+        }).ConfigureAwait(true);
 
         if (privacyOk is not null)
         {
@@ -271,7 +271,10 @@ public sealed partial class WebUiBridge
 
         try
         {
-            var result = Task.Run(() => LlmConnectionTester.TestAsync(settings)).GetAwaiter().GetResult();
+            var handler = _context.LlmTestHttpHandlerFactory?.Invoke();
+            var result = await LlmConnectionTester
+                .TestAsync(settings, handler)
+                .ConfigureAwait(false);
             return Serialize(result);
         }
         catch (Exception ex)

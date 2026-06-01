@@ -257,4 +257,58 @@ public class WebUiBridgeSettingsTests
         {
         }
     }
+
+    [Fact]
+    public async Task TestLlmConnection_async_bridge_returns_success_with_stub_http()
+    {
+        var call = 0;
+        var handler = new StubHttpHandler(_ =>
+        {
+            call++;
+            var assistant = call == 1
+                ? """{"intent":"general_chat","confidence":0.91}"""
+                : "refined";
+            var body =
+                "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":" +
+                JsonSerializer.Serialize(assistant) +
+                "}}]}";
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            };
+        });
+
+        var settings = Phase2AcceptanceTestSupport.CreateRichTemplateSettings();
+        settings.PromptRefineEnabled = true;
+        settings.ApiBaseUrl = "https://api.example.com/v1";
+        settings.ApiKey = "key";
+        settings.ApiModel = "model";
+        settings.PrivacyAcceptedHost = "api.example.com";
+
+        var context = new WebUiBridgeContext
+        {
+            Settings = settings,
+            SettingsStore = new InMemorySettingsStore(settings),
+            LlmTestHttpHandlerFactory = () => handler,
+        };
+        var bridge = new WebUiBridge(context);
+        var draft = SettingsDraftMapper.ToDraft(settings, runtimeTriggerMode: null);
+        var resultJson = await bridge.TestLlmConnection(SerializeDraft(draft));
+
+        using var doc = JsonDocument.Parse(resultJson);
+        Assert.True(doc.RootElement.GetProperty("ok").GetBoolean());
+        Assert.True(doc.RootElement.GetProperty("routerConfidence").GetDouble() > 0.8);
+    }
+
+    private sealed class StubHttpHandler : HttpMessageHandler
+    {
+        private readonly Func<HttpRequestMessage, HttpResponseMessage> _factory;
+
+        public StubHttpHandler(Func<HttpRequestMessage, HttpResponseMessage> factory) => _factory = factory;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(_factory(request));
+    }
 }

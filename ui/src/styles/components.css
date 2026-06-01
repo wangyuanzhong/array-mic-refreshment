@@ -11,6 +11,8 @@
 
 .app-shell--settings .app-nav {
   overflow: hidden;
+  width: clamp(148px, 20vw, 200px);
+  padding: var(--space-5) var(--space-3);
 }
 
 .app-nav {
@@ -326,24 +328,26 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding-bottom: 0;
+  padding: var(--space-6) var(--space-5) 0;
 }
 
 .settings-inner {
   display: flex;
   flex: 1;
-  gap: var(--space-6);
+  gap: var(--space-4);
   align-items: stretch;
   min-height: 0;
   overflow: hidden;
 }
 
 .settings-section-nav {
-  flex: 0 0 200px;
+  flex: 0 0 clamp(132px, 17vw, 176px);
   flex-shrink: 0;
   overflow: hidden;
+  min-width: 0;
 }
 
 .settings-section-nav__meta {

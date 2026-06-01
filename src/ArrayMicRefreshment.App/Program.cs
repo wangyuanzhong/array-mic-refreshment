@@ -32,6 +32,7 @@ internal static class Program
                     "ArrayMicRefreshment",
                     "logs",
                     $"app-{DateTime.UtcNow:yyyyMMdd}.log"));
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             ApplicationConfiguration.Initialize();
             Application.Run(new TrayApplicationContext());
         }

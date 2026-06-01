@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.3] - 2026-05-26
+
+### Fixed
+
+- **LLM 测试连接卡死**：`TestLlmConnection` 改为 `Task<string>` 异步执行 HTTP（去掉 UI 线程 `GetResult()` 阻塞 WebView2）
+- **Windows 显示比例**：WebView `ZoomFactor=1`（避免缩小 `innerWidth` 而侧栏仍占 240+200px 挤爆右侧）；设置页侧栏 `clamp(…vw…)`；窗体 `AutoScaleMode=None` + `settingsWindowWidth/Height` 逻辑像素
+- 启用 `PerMonitorV2` 高 DPI（`Program.SetHighDpiMode` + csproj `ApplicationHighDpiMode`）
+
+### Docs
+
+- `docs/UI_ROUTE_B_WEBVIEW2.md` §5.4（高 DPI）、`TestLlmConnection` → `Task<string>`；`docs/LOCAL_DEVELOPMENT.md` §13（DPI / 测试连接）；`README.md` 设置窗 DPI 说明
+
+### Verify
+
+- 将 Windows「缩放与布局」改为 125%/150%，打开设置窗：左两栏不过宽、右侧正文可横向阅读；改回 100% 仍正常
+- `dotnet test`；`.\scripts\watch-build-release.ps1 -Once`
+
 ## [0.5.2] - 2026-05-26
 
 ### Changed

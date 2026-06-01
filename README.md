@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wangyuanzhong/array-mic-refreshment/actions/workflows/ci.yml?query=branch%3Amain)
 
-**当前版本：V0.5.2**（见 [`VERSION.txt`](VERSION.txt)）
+**当前版本：V0.5.3**（见 [`VERSION.txt`](VERSION.txt)）
 
 本地 Windows 后台常驻工具：**C# + Sherpa-ONNX + SenseVoice**。触发方式：**PTT 按住**、**手动热键开关**、**唤醒词**（可组合）→ **当前用户** 门禁 → **离线句末 ASR** → 可选 **LLM 整理** → 剪贴板 / 光标粘贴。
 
@@ -139,7 +139,9 @@ flowchart TB
 
 ### 设置界面（WebView2 PWA）
 
-托盘右键 **设置** 打开 **WebView2** 内嵌 Web 应用（侧栏 + 卡片，Macaron Pastel 视觉）；**功能模式** 子菜单可快速切换功能预设。需 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（Win10/11 通常已装 Evergreen）。开发者构建前端见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) 步骤 4（`ui/` 目录 `npm ci && npm run build`）。
+托盘右键 **设置** 打开 **WebView2** 内嵌 Web 应用（三栏：主导航 + 分区导航 + 内容卡片，Macaron Pastel 视觉）；**功能模式** 子菜单可快速切换功能预设。需 [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)（Win10/11 通常已装 Evergreen）。开发者构建前端见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) 步骤 4（`ui/` 目录 `npm ci && npm run build`）。
+
+**高 DPI / 显示比例（V0.5.3+）**：宿主 `WebViewDpiScaling` 保持 `ZoomFactor=1`（避免挤窄右侧内容区），窗体按逻辑像素缩放；`settings.json` 的 `settingsWindowWidth` / `settingsWindowHeight` 为 96 DPI 逻辑值。侧栏宽度见 `ui/src/styles/components.css`（`clamp(…vw…)`）。故障排查见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md) §13 与 [`docs/UI_ROUTE_B_WEBVIEW2.md`](docs/UI_ROUTE_B_WEBVIEW2.md) §5.4。
 
 - **功能预设**：组合 LLM 预设名称 + 整理风格 + 可选 overlay skills（原「提示词整理」区升级）
 - **LLM 预设 ×3**：可分别保存名称、API Base URL、Key、Model，一键切换（如本地 Ollama / DeepSeek / OpenAI）

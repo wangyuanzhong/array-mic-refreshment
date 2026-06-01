@@ -197,4 +197,44 @@ public sealed partial class WebUiBridge
 
         return action();
     }
+
+    private Task<string?> RunOnUiForJsonAsync(Func<string?> action)
+    {
+        if (_context.HostForm is { IsDisposed: false } form && form.InvokeRequired)
+        {
+            var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            form.BeginInvoke(() =>
+            {
+                try
+                {
+                    tcs.SetResult(action());
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            });
+            return tcs.Task;
+        }
+
+        if (_context.UiSynchronizationContext is { } uiContext
+            && SynchronizationContext.Current != uiContext)
+        {
+            var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            uiContext.Post(_ =>
+            {
+                try
+                {
+                    tcs.SetResult(action());
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            }, null);
+            return tcs.Task;
+        }
+
+        return Task.FromResult(action());
+    }
 }

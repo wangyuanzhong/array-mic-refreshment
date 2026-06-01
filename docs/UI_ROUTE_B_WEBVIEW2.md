@@ -1,8 +1,8 @@
 # 路线 B — 统一 WebView2 UI 升级实施说明
 
 > **文档目的**：在对话上下文耗尽或人员交接后，任何 Agent / 工程师阅读本文即可按 **路线 B** 继续执行，无需依赖历史聊天记录。  
-> **产品版本基准**：V0.3（`main` 分支，2026-05-26 前后）  
-> **最后更新**：2026-05-28
+> **产品版本基准**：V0.5.3（`main` 分支，见 [`VERSION.txt`](../VERSION.txt)）  
+> **最后更新**：2026-06-01
 
 ---
 
@@ -13,7 +13,7 @@
 
 | 维度 | 规划（§1.1） | **当前代码** |
 |------|----------------|------------------|
-| 产品对外版本 | V0.4 | ✅ `VERSION.txt` / `AppInfo` / csproj `0.4.x` 对齐 |
+| 产品对外版本 | V0.5.x | ✅ `VERSION.txt` / `AppInfo` / csproj 对齐（当前 **V0.5.3**） |
 | WebView2 | 目标引入 | ✅ `Microsoft.Web.WebView2` + `Web/` 宿主与 Bridge |
 | `ui/` + `wwwroot/` | Vite 前端 | ✅ Release 前 `npm ci && npm run build` |
 | `SettingsApplyService` | Phase 0 | ✅ Web / 托盘共用 |
@@ -25,7 +25,8 @@
 | CI Windows | App.Tests | ✅ `build-windows` App.Tests（40 项）；`--blame-hang-timeout 2m` |
 | 自动化验收 | Phase 2 | ✅ `scripts/test-phase2-route-b.ps1`、`scripts/test-feature-presets.ps1` |
 | Web HUD | Phase 4 可选 | ✅ `VoiceWebStatusHud`（默认开启，可关；`AMR_WEB_HUD=0` 强制原生） |
-| §10.2 手测 | 发布前 | ❌ **须 Windows 实机**（PTT/唤醒/麦克风/粘贴/Web HUD 焦点，脚本不覆盖） |
+| 高 DPI / 显示比例 | — | ✅ **V0.5.3+** `WebViewDpiScaling`（`ZoomFactor=1`、逻辑像素窗体）；设置页侧栏 `clamp(…vw…)`，见 §5.4 |
+| §10.2 手测 | 发布前 | ❌ **须 Windows 实机**（PTT/唤醒/麦克风/粘贴/Web HUD 焦点、**显示比例**，脚本不覆盖） |
 
 **后端原则（V0.4.15+）**：WebView 仅替换 WinForms **UI 壳**。采集、pipeline、`VoiceCaptureOrchestrator` 行为与 WebView 前一致，经 `SettingsApplyService` 接线；**托盘 PTT 热键**须用 `LowLevelHotkeyHost`（`RegisterHotKey` 在 `ApplicationContext` 收不到 `WM_HOTKEY`）。**纯 PTT 不按热键不开麦**（`keepStandbyCaptureBetweenSessions: false`）。**新增**功能（功能模式预设等）在基线上扩展。
 
@@ -279,13 +280,35 @@ Web 设置页 **必须复用上述逻辑**，仅替换「表单 UI」为 bridge 
 
 **组件约定**（Web）：
 
-- 布局：左侧 **Nav 240px** + 右侧 **Content**（PWA 设置页）
+- 布局（设置页 `#/settings`）：**三栏** — 主导航 `app-nav` + 分区 `settings-section-nav` + `settings-sections` 内容区（**V0.5.3+** 侧栏用 `clamp(…vw…)`，勿再写死 240+200px 占满窄视口；见 §5.4）
 - **分区切换**：左侧 Nav 点击后仅对应 `section.settings-section` 带 `is-active` 可见（其余 `display: none`），避免多卡片叠在一起只显示标题
 - **唤醒 KWS**：无单独 Nav 项；在 **「触发与 HUD」** 分区展示 `GetWakeWordModelStatus()`（`installed` = 四件套 onnx/txt 存在；`engineReady` = Sherpa 可加载），与 ASR 模型下拉无关
 - 分组：`card` 白底圆角 + `card-title`
 - 主按钮：`btn-primary`；次按钮：`btn-ghost`
 - 表单：`label` 上置，`input/select` 全宽，错误态红色描边
 - 底部：**Sticky footer**「保存 / 取消」
+
+---
+
+## 5.4 高 DPI 与 Windows 显示比例（V0.5.3+）
+
+**现象（旧版）**：系统缩放 125%/150% 时，设置窗左两列很宽、右侧「通用」等正文竖排、每行仅两三字。
+
+**原因**：用 `WebView2.ZoomFactor = DeviceDpi/96` 会缩小页面布局视口（`innerWidth`），而 CSS 侧栏仍为固定 **240px + 200px**，剩余宽度不足以排正文。
+
+**当前实现**（须 C# 与 CSS 同时存在）：
+
+| 层 | 文件 | 行为 |
+|----|------|------|
+| 宿主 | `src/ArrayMicRefreshment.App/Web/WebViewDpiScaling.cs` | `ZoomFactor = 1`；`GetScale` / `ScaleLogicalSize` / `ToLogicalSize` |
+| 窗体 | `Web/WebUiHostForm.cs` | `AutoScaleMode.None`；`OnDpiChanged` → `ApplyDpiLayout`；`ClientSize` 按 DPI 放大 |
+| 持久化 | `AppSettings.SettingsWindowWidth/Height` | **96 DPI 逻辑像素**（非物理像素） |
+| 进程 | `Program.cs` + csproj | `PerMonitorV2`（`SetHighDpiMode` + `ApplicationHighDpiMode`） |
+| 样式 | `ui/src/styles/components.css` | `.app-shell--settings .app-nav`、`.settings-section-nav` 使用 `clamp(…vw…)`；`.settings-sections` 设 `min-width: 0` |
+
+**勿**在路线 B 设置窗上再用 `ZoomFactor` 做 DPI 缩放；字号与清晰度由放大后的 `ClientSize` + PerMonitorV2 承担。
+
+**验收**：§10.2 第 7 项；[`docs/LOCAL_DEVELOPMENT.md`](LOCAL_DEVELOPMENT.md) §13、§14.2。
 
 ---
 
@@ -313,6 +336,7 @@ array-mic-refreshment/
 ├── src/ArrayMicRefreshment.App/
 │   ├── Web/
 │   │   ├── WebUiHostForm.cs               # WebView2 容器 Form
+│   │   ├── WebViewDpiScaling.cs           # 高 DPI：ZoomFactor=1，逻辑像素窗体
 │   │   ├── WebUiBridge.cs                 # [ComVisible] bridge 实现
 │   │   ├── IWebUiBridge.cs                # 接口（便于测试）
 │   │   ├── WebView2RuntimeChecker.cs
@@ -366,7 +390,7 @@ JS 访问：`window.chrome.webview.hostObjects.amr`（注意 async 代理，需 
 | `LoadSettingsDraft()` | — | 返回完整 draft DTO（见 7.3） |
 | `ValidateSettingsDraft(draftJson)` | JSON | 返回 `{ ok, errors: [{ field, message }] }` |
 | `SaveSettingsDraft(draftJson)` | JSON | 执行与 `OnOpenSettings` OK 相同逻辑；返回 `{ ok, error? }` |
-| `TestLlmConnection(draftJson?)` | 可选 draft | 复用 SettingsForm 测试连接逻辑 |
+| `TestLlmConnection(draftJson?)` → `Task<string>` | 可选 draft | `LlmConnectionTester`（router + refiner 各一次 HTTP）；勿阻塞 UI 线程 |
 
 #### 热键（原生对话框）
 
@@ -446,7 +470,7 @@ interface SettingsDraft {
 |------|------|
 | `LoadSettingsDraft` | UI 或线程池均可 |
 | `SaveSettingsDraft` | **必须在 UI 线程**调用 WinForms / 热键注册 / MessageBox |
-| `TestLlmConnection` | **后台线程**执行 HTTP；完成后 UI 线程更新 |
+| `TestLlmConnection` | 返回 `Task<string>`（JS Promise）；HTTP 在后台 `await`，**禁止** UI 线程 `GetResult()` |
 | ASR 模型下载 | 后台 + 进度事件（可选 `PostWebMessage` 推送到 JS） |
 
 ---
@@ -606,6 +630,7 @@ dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.cs
 4. Web 设置保存 → 各模式切换 → 热键修改  
 5. 整理 ON + 各 `ForcedIntent`  smoke test  
 6. 关闭设置窗 → 内存不持续增长（任务管理器观察）
+7. **显示比例**：Windows「缩放与布局」125%/150% 下打开设置窗与 Web HUD，字号与布局与 100% 视觉一致；运行时改缩放后 UI 仍对齐（`WebViewDpiScaling` + `settingsWindowWidth/Height` 逻辑像素）
 
 ---
 
@@ -843,6 +868,9 @@ A：`dotnet build` 可以（`EnableWindowsTargeting`）；WebView2 **运行**仅
 **Q：settings.json 路径？**  
 A：`%AppData%\ArrayMicRefreshment\settings.json` — 永远不进 git。
 
+**Q：高 DPI / 显示比例下 Web UI 错位？**  
+A：V0.5.3+ 宿主见 `Web/WebViewDpiScaling.cs`：`ZoomFactor = 1`（勿用 Zoom 做 DPI，会挤窄设置页右侧）；窗体按逻辑像素缩放 `ClientSize`；`settingsWindowWidth/Height` 为逻辑像素；设置页侧栏 `clamp(…vw…)`。
+
 ---
 
 ## 16. 修订记录
@@ -850,6 +878,8 @@ A：`%AppData%\ArrayMicRefreshment\settings.json` — 永远不进 git。
 | 日期 | 版本 | 说明 |
 |------|------|------|
 | 2026-05-26 | 1.0 | 初版：路线 B 完整 handoff + 5 Agent 分工与 Prompt |
+| 2026-05-26 | 1.1 | V0.5.3：PerMonitorV2 + WebView DPI FAQ / §10.2 |
+| 2026-06-01 | 1.2 | §5.4 高 DPI；`TestLlmConnection` 异步；LOCAL_DEVELOPMENT / README 交叉链接 |
 
 ---
 

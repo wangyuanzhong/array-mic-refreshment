@@ -37,10 +37,7 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
         StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
         Padding = Padding.Empty;
-        var scale = DeviceDpi / 96f;
-        ClientSize = new Size(
-            (int)Math.Round(HudLayout.LogicalWidth * scale),
-            (int)Math.Round(HudLayout.LogicalHeight * scale));
+        ApplyClientSizeForDpi();
         BackColor = Color.Transparent;
         Opacity = 0.99;
         Controls.Add(_webView);
@@ -163,6 +160,18 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
 
     protected override bool ShowWithoutActivation => true;
 
+    protected override void OnDpiChanged(DpiChangedEventArgs e)
+    {
+        base.OnDpiChanged(e);
+        ApplyClientSizeForDpi();
+        WebViewDpiScaling.ApplyToWebView(_webView, this);
+        SyncWebViewBounds();
+        if (Visible)
+        {
+            Reposition();
+        }
+    }
+
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
@@ -173,6 +182,15 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
     {
         base.OnShown(e);
         SyncWebViewBounds();
+    }
+
+    private void ApplyClientSizeForDpi()
+    {
+        var scale = WebViewDpiScaling.GetScale(this);
+        ClientSize = WebViewDpiScaling.ScaleLogicalSize(
+            HudLayout.LogicalWidth,
+            HudLayout.LogicalHeight,
+            scale);
     }
 
     private void SyncWebViewBounds()
@@ -187,7 +205,7 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
             await _webView.EnsureCoreWebView2Async().ConfigureAwait(true);
 
             _core = _webView.CoreWebView2;
-            _webView.ZoomFactor = 1.0;
+            WebViewDpiScaling.ApplyToWebView(_webView, this);
             _webView.DefaultBackgroundColor = Color.Transparent;
             _core.Settings.AreDefaultContextMenusEnabled = false;
             _core.Settings.AreDevToolsEnabled = false;
@@ -261,11 +279,11 @@ internal sealed class VoiceWebStatusHud : Form, IVoiceStatusHud
     {
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 800, 600);
         var x = _corner is HudScreenCorner.TopRight or HudScreenCorner.BottomRight
-            ? area.Right - Width - MarginPx
+            ? area.Right - ClientSize.Width - MarginPx
             : area.Left + MarginPx;
         var y = _corner is HudScreenCorner.TopLeft or HudScreenCorner.TopRight
             ? area.Top + MarginPx
-            : area.Bottom - Height - MarginPx;
+            : area.Bottom - ClientSize.Height - MarginPx;
         Location = new Point(x, y);
     }
 
