@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.6] - 2026-06-02
+
+### Fixed
+
+- **无麦克风/录音失败卡住**：`CaptureFailed` 后未 `ClearSession()`，HUD 一直显示「录音失败」、托盘保持录音红点；现与 `CaptureEmpty` 一致，提示后回到 Idle
+
+### Verify
+
+- 禁用或拔掉麦克风 → 按住 PTT → 应出现失败气泡，HUD 消失、托盘恢复常态，可再次 PTT
+- `dotnet test`；`.\scripts\watch-build-release.ps1 -Once`
+
 ## [0.5.5] - 2026-06-01
 
 ### Changed

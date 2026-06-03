@@ -1028,16 +1028,20 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     private void OnCaptureFailed(object? sender, Exception ex)
     {
-        Log.Warning(ex, "PTT capture failed");
+        Log.Warning(ex, "Capture failed");
         RunOnUi(() =>
         {
-            _statusItem.Text = "状态: 录音失败";
+            _statusItem.Text = _voiceTriggerMode == VoiceTriggerMode.PttOnly
+                ? "状态: 录音失败"
+                : "状态: 监听唤醒词…";
             _feedback.SetPhase(VoiceActivityPhase.Error, "录音失败");
             _balloons.Show(
                 4000,
                 "Array Mic",
                 ex.Message,
                 ToolTipIcon.Warning);
+            _feedback.ClearSession();
+            UpdateTrayTooltip();
         });
     }
 

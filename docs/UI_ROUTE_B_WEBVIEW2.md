@@ -1,7 +1,7 @@
 # 路线 B — 统一 WebView2 UI 升级实施说明
 
 > **文档目的**：在对话上下文耗尽或人员交接后，任何 Agent / 工程师阅读本文即可按 **路线 B** 继续执行，无需依赖历史聊天记录。  
-> **产品版本基准**：V0.5.5（`main` 分支，见 [`VERSION.txt`](../VERSION.txt)）  
+> **产品版本基准**：V0.5.6（`main` 分支，见 [`VERSION.txt`](../VERSION.txt)）  
 > **最后更新**：2026-06-01
 
 ---
@@ -13,7 +13,7 @@
 
 | 维度 | 规划（§1.1） | **当前代码** |
 |------|----------------|------------------|
-| 产品对外版本 | V0.5.x | ✅ `VERSION.txt` / `AppInfo` / csproj 对齐（当前 **V0.5.5**） |
+| 产品对外版本 | V0.5.x | ✅ `VERSION.txt` / `AppInfo` / csproj 对齐（当前 **V0.5.6**） |
 | WebView2 | 目标引入 | ✅ `Microsoft.Web.WebView2` + `Web/` 宿主与 Bridge |
 | `ui/` + `wwwroot/` | Vite 前端 | ✅ Release 前 `npm ci && npm run build` |
 | `SettingsApplyService` | Phase 0 | ✅ Web / 托盘共用 |
