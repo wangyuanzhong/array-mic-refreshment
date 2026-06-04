@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.7] - 2026-05-26
+
+### Fixed
+
+- **PTT 热键含字母/数字键泄漏**：`RegisterHotKey` 触发后主键仍可能进入前台应用，导致误输入或松开检测异常；`GlobalHotkeyListener` 增加 `PttChordKeySuppressor`（WH_KEYBOARD_LL）在按住 PTT 期间吞掉主键并在松开后 `SendKeyUp` 清理；松开轮询仅检测主键 VK
+
+### Verify
+
+- 将 PTT 设为 `Ctrl+Alt+A`（或其它字母/数字）→ 按住说话松开 → 前台不应出现多余字符，HUD/托盘应正常结束
+- `dotnet test`；`.\scripts\watch-build-release.ps1 -Once`
+
 ## [0.5.6] - 2026-06-02
 
 ### Fixed

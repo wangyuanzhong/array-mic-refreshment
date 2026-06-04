@@ -12,6 +12,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
     private const int HotkeyId = 0xA11C;
     private const uint ModNorepeat = 0x4000;
 
+    private readonly PttChordKeySuppressor _chordKeySuppressor = new();
     private HotkeyChord? _chord;
     private bool _pttHeld;
     private int _releaseStreak;
@@ -46,6 +47,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
 
         Unregister();
         _chord = chord;
+        _chordKeySuppressor.Register(chord);
         var mods = chord.Modifiers | ModNorepeat;
         if (!RegisterHotKey(Handle, HotkeyId, mods, chord.VirtualKey))
         {
@@ -70,12 +72,14 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
     {
         _pttHeld = false;
         _releaseStreak = 0;
+        _chordKeySuppressor.SetPttActive(false);
         StopReleasePolling();
     }
 
     public void Unregister()
     {
         StopReleasePolling();
+        _chordKeySuppressor.Unregister();
         if (_chord is not null && IsHandleCreated)
         {
             UnregisterHotKey(Handle, HotkeyId);
@@ -103,6 +107,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
                 {
                     _releaseStreak = 0;
                     _pressUtc = DateTimeOffset.UtcNow;
+                    _chordKeySuppressor.SetPttActive(true);
                     Log.Information(
                         "PTT hotkey down ({Mode}, {Chord})",
                         RecordingMode,
@@ -115,6 +120,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
                 {
                     _releaseStreak = 0;
                     _releaseCooldownUtc = DateTimeOffset.UtcNow.AddMilliseconds(200);
+                    _chordKeySuppressor.SetPttActive(false);
                     StopReleasePolling();
                     Log.Information(
                         "PTT hotkey toggle stop ({Chord})",
@@ -163,7 +169,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
             return;
         }
 
-        if (IsChordPhysicallyHeld(_chord))
+        if (IsKeyDown((int)_chord.VirtualKey))
         {
             _releaseStreak = 0;
             if (DateTimeOffset.UtcNow - _pressUtc > TimeSpan.FromMinutes(10))
@@ -184,48 +190,6 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
         CommitRelease();
     }
 
-    private static bool IsChordPhysicallyHeld(HotkeyChord chord)
-    {
-        if (IsKeyDown((int)chord.VirtualKey))
-        {
-            return true;
-        }
-
-        if (chord.Ctrl && !IsCtrlDown())
-        {
-            return false;
-        }
-
-        if (chord.Alt && !IsAltDown())
-        {
-            return false;
-        }
-
-        if (chord.Shift && !IsShiftDown())
-        {
-            return false;
-        }
-
-        if (chord.Win && !IsWinDown())
-        {
-            return false;
-        }
-
-        return false;
-    }
-
-    private static bool IsCtrlDown() =>
-        IsKeyDown(0x11) || IsKeyDown(0xA2) || IsKeyDown(0xA3);
-
-    private static bool IsAltDown() =>
-        IsKeyDown(0x12) || IsKeyDown(0xA4) || IsKeyDown(0xA5);
-
-    private static bool IsShiftDown() =>
-        IsKeyDown(0x10) || IsKeyDown(0xA0) || IsKeyDown(0xA1);
-
-    private static bool IsWinDown() =>
-        IsKeyDown(0x5B) || IsKeyDown(0x5C);
-
     private void CommitRelease()
     {
         if (!_pttHeld)
@@ -236,6 +200,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
         _pttHeld = false;
         _releaseStreak = 0;
         _releaseCooldownUtc = DateTimeOffset.UtcNow.AddMilliseconds(200);
+        _chordKeySuppressor.SetPttActive(false);
         StopReleasePolling();
         Log.Information("PTT hotkey chord released via RegisterHotKey");
         ForegroundAtRelease?.Invoke(GetForegroundWindow());
@@ -249,6 +214,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
         if (disposing)
         {
             Unregister();
+            _chordKeySuppressor.Dispose();
         }
 
         base.Dispose(disposing);

@@ -1,0 +1,203 @@
+#if WINDOWS
+
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using Serilog;
+
+namespace ArrayMicRefreshment.Audio;
+
+/// <summary>
+/// WH_KEYBOARD_LL companion for <see cref="GlobalHotkeyListener"/>:
+/// swallows the PTT main key while recording so letter/space keys do not leak into the focused app,
+/// and clears a stuck main-key-up after release.
+/// </summary>
+internal sealed class PttChordKeySuppressor : IDisposable
+{
+    private const int WhKeyboardLl = 13;
+    private const int WmKeydown = 0x0100;
+    private const int WmKeyup = 0x0101;
+    private const int WmSysKeydown = 0x0104;
+    private const int WmSysKeyup = 0x0105;
+    private const uint LlkhfRepeat = 0x4000;
+
+    private readonly LowLevelKeyboardProc _hookProc;
+    private IntPtr _hookHandle = IntPtr.Zero;
+    private HotkeyChord? _chord;
+    private bool _pttActive;
+    private bool _swallowedMainKeyDown;
+
+    public PttChordKeySuppressor()
+    {
+        _hookProc = OnHook;
+    }
+
+    public void Register(HotkeyChord chord)
+    {
+        _chord = chord;
+        EnsureHookInstalled();
+    }
+
+    public void Unregister()
+    {
+        _chord = null;
+        _pttActive = false;
+        _swallowedMainKeyDown = false;
+        UninstallHook();
+    }
+
+    public void SetPttActive(bool active)
+    {
+        if (_chord is null)
+        {
+            return;
+        }
+
+        if (active)
+        {
+            _pttActive = true;
+            return;
+        }
+
+        _pttActive = false;
+        if (_swallowedMainKeyDown)
+        {
+            NativeKeyboardInput.SendKeyUp((ushort)_chord.VirtualKey);
+            _swallowedMainKeyDown = false;
+            Log.Debug("PTT chord main key 0x{Vk:X} key-up flushed after release", _chord.VirtualKey);
+        }
+        else
+        {
+            NativeKeyboardInput.SendKeyUp((ushort)_chord.VirtualKey);
+        }
+    }
+
+    public void Dispose() => Unregister();
+
+    private bool EnsureHookInstalled()
+    {
+        if (_hookHandle != IntPtr.Zero)
+        {
+            return true;
+        }
+
+        using var process = Process.GetCurrentProcess();
+        var moduleName = process.MainModule?.ModuleName;
+        var moduleHandle = !string.IsNullOrEmpty(moduleName)
+            ? GetModuleHandle(moduleName)
+            : GetModuleHandle(null);
+        if (moduleHandle == IntPtr.Zero)
+        {
+            moduleHandle = GetModuleHandle(null);
+        }
+
+        _hookHandle = SetWindowsHookEx(WhKeyboardLl, _hookProc, moduleHandle, 0);
+        return _hookHandle != IntPtr.Zero;
+    }
+
+    private void UninstallHook()
+    {
+        if (_hookHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        UnhookWindowsHookEx(_hookHandle);
+        _hookHandle = IntPtr.Zero;
+    }
+
+    private IntPtr OnHook(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && _chord is not null)
+        {
+            var msg = wParam.ToInt32();
+            var keyDown = msg is WmKeydown or WmSysKeydown;
+            var keyUp = msg is WmKeyup or WmSysKeyup;
+            if (keyDown || keyUp)
+            {
+                var data = Marshal.PtrToStructure<KbdllHookStruct>(lParam);
+                if (ShouldSuppress(data, keyDown))
+                {
+                    return (IntPtr)1;
+                }
+            }
+        }
+
+        return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
+    }
+
+    private bool ShouldSuppress(KbdllHookStruct data, bool keyDown)
+    {
+        if (!HotkeyChordKeys.IsMainKey(_chord!, data.VirtualKey))
+        {
+            return false;
+        }
+
+        if (_pttActive)
+        {
+            return true;
+        }
+
+        if (_swallowedMainKeyDown)
+        {
+            return true;
+        }
+
+        if (!keyDown || (data.Flags & LlkhfRepeat) != 0)
+        {
+            return false;
+        }
+
+        if (!ChordModifiersMatch(_chord!))
+        {
+            return false;
+        }
+
+        // First main-key down of the chord (RegisterHotKey also fires): swallow so the key is not typed into the app.
+        _swallowedMainKeyDown = true;
+        return true;
+    }
+
+    private static bool ChordModifiersMatch(HotkeyChord chord) =>
+        chord.Ctrl == IsCtrlDown()
+        && chord.Alt == IsAltDown()
+        && chord.Shift == IsShiftDown()
+        && chord.Win == IsWinDown();
+
+    private static bool IsCtrlDown() =>
+        NativeKeyboardInput.IsKeyDown(0x11) || NativeKeyboardInput.IsKeyDown(0xA2) || NativeKeyboardInput.IsKeyDown(0xA3);
+
+    private static bool IsAltDown() =>
+        NativeKeyboardInput.IsKeyDown(0x12) || NativeKeyboardInput.IsKeyDown(0xA4) || NativeKeyboardInput.IsKeyDown(0xA5);
+
+    private static bool IsShiftDown() =>
+        NativeKeyboardInput.IsKeyDown(0x10) || NativeKeyboardInput.IsKeyDown(0xA0) || NativeKeyboardInput.IsKeyDown(0xA1);
+
+    private static bool IsWinDown() =>
+        NativeKeyboardInput.IsKeyDown(0x5B) || NativeKeyboardInput.IsKeyDown(0x5C);
+
+    private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct KbdllHookStruct
+    {
+        public uint VirtualKey;
+        public uint ScanCode;
+        public uint Flags;
+        public uint Time;
+        public IntPtr ExtraInfo;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
+}
+
+#endif

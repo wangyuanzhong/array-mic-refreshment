@@ -32,6 +32,7 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
     private bool _altDown;
     private bool _shiftDown;
     private bool _winDown;
+    private bool _swallowedMainKeyDown;
     private Control? _uiAnchor;
 
     public LowLevelHotkeyHost()
@@ -69,6 +70,7 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
         _chord = null;
         _pttHeld = false;
         _releaseStreak = 0;
+        _swallowedMainKeyDown = false;
         ResetModifierState();
         UninstallHook();
     }
@@ -139,6 +141,11 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
             {
                 var data = Marshal.PtrToStructure<KbdllHookStruct>(lParam);
                 UpdateModifierState(data.VirtualKey, keyDown);
+                if (ShouldSuppressMainKey(data, keyDown))
+                {
+                    return (IntPtr)1;
+                }
+
                 if (keyDown)
                 {
                     TryHandleKeyDown(data);
@@ -175,6 +182,43 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
         _shiftDown = false;
         _winDown = false;
     }
+
+    private bool ShouldSuppressMainKey(KbdllHookStruct data, bool keyDown)
+    {
+        if (_chord is null || !HotkeyChordKeys.IsMainKey(_chord, data.VirtualKey))
+        {
+            return false;
+        }
+
+        if (_pttHeld)
+        {
+            return true;
+        }
+
+        if (_swallowedMainKeyDown)
+        {
+            return true;
+        }
+
+        if (!keyDown || (data.Flags & LlkhfRepeat) != 0)
+        {
+            return false;
+        }
+
+        if (!ModifiersMatchHook(_chord))
+        {
+            return false;
+        }
+
+        _swallowedMainKeyDown = true;
+        return true;
+    }
+
+    private bool ModifiersMatchHook(HotkeyChord chord) =>
+        chord.Ctrl == _ctrlDown
+        && chord.Alt == _altDown
+        && chord.Shift == _shiftDown
+        && chord.Win == _winDown;
 
     private void TryHandleKeyDown(KbdllHookStruct data)
     {
@@ -249,6 +293,7 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
             {
                 _releaseStreak = 0;
                 _releaseCooldownUtc = DateTimeOffset.UtcNow.AddMilliseconds(200);
+                FlushMainKeyUp();
                 StopReleasePolling();
                 Log.Information("PTT hotkey toggle stop via keyboard hook ({Chord})", chord);
                 ForegroundAtRelease?.Invoke(GetForegroundWindow());
@@ -316,10 +361,22 @@ public sealed class LowLevelHotkeyHost : IGlobalHotkeyHost
         _pttHeld = false;
         _releaseStreak = 0;
         _releaseCooldownUtc = DateTimeOffset.UtcNow.AddMilliseconds(200);
+        FlushMainKeyUp();
         StopReleasePolling();
         Log.Information("PTT hotkey chord released via keyboard hook");
         ForegroundAtRelease?.Invoke(GetForegroundWindow());
         HotkeyReleased?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void FlushMainKeyUp()
+    {
+        if (_chord is null)
+        {
+            return;
+        }
+
+        NativeKeyboardInput.SendKeyUp((ushort)_chord.VirtualKey);
+        _swallowedMainKeyDown = false;
     }
 
     private void MarshalToUi(Action action)

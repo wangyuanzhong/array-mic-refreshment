@@ -418,6 +418,7 @@ Stop-Process -Name ArrayMicRefreshment -Force -ErrorAction SilentlyContinue
 | 设置页「测试连接」卡住/闪退 | `hostObjects.sync` 阻塞 `Task` 方法，或测试路径弹出 `MessageBox` 导致 WebView 重入 | **V0.5.4+** 优先 `hostObjects.amr`；测试连接不弹窗；云端 API 需先「保存」确认隐私；填好 URL/Key/Model |
 | 每次打开设置都显示「加载设置…」很久 | 重复 `Navigate` 整页重载 + 串行 bridge + 唤醒引擎探测阻塞首屏 | **V0.5.5+** 同 URL 软刷新；并行拉取；`GetWakeWordModelStatusLite` 首屏 + 后台探测 |
 | PTT 后 HUD/托盘一直红点、显示「录音失败」不消失 | `CaptureFailed` 未调用 `ClearSession()` | **V0.5.6+** 失败提示后回到 Idle；检查麦克风设备 |
+| PTT 含字母/数字键后前台误输入或流程错乱 | 主键未吞掉、OS 仍认为键按下 | **V0.5.7+** `PttChordKeySuppressor`；松开轮询只看主键 VK |
 | PTT 热键无效 / 松开无反应 / 卡死 | 托盘收不到 `WM_HOTKEY` 或钩子回调死锁 UI | **V0.4.16** 低级钩子 + `BeginInvoke`；日志应有 `chord released` |
 | 仅 PTT 未按键麦克风常亮 | 待机采集 `standby capture started` | **V0.4.16** `keepStandbyCaptureBetweenSessions: false`；仅按住热键时开麦 |
 | 仅 PTT 未按键麦克风常亮 | 待机采集预开设备 | **V0.4.11+** 不再 `StartStandbyListening`；仅按住热键时开麦 |
