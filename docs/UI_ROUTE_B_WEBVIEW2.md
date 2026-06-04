@@ -176,7 +176,7 @@ Web 设置页 **必须复用上述逻辑**，仅替换「表单 UI」为 bridge 
 |------|------|------|
 | PTT 采集 | `src/ArrayMicRefreshment.Audio/PttCaptureService.cs` | 含 standby pre-roll；UI 线程纪律已修复 |
 | 唤醒采集 | `src/ArrayMicRefreshment.Audio/WakeWordCaptureService.cs` | KWS + dictation 结束逻辑 |
-| 热键 | `src/ArrayMicRefreshment.Audio/Windows/GlobalHotkeyListener.cs` | WndProc 在 UI 线程 |
+| 热键 | `GlobalHotkeyListener.cs` + `PttChordKeySuppressor.cs` | `RegisterHotKey` + **V0.5.7+** LL 钩子吞主键（字母/数字 PTT） |
 | ASR | `src/ArrayMicRefreshment.Asr/**` | Sherpa 封装 |
 | 管道 | `src/ArrayMicRefreshment.Core/VoicePipeline.cs` | 整理门控 |
 | 粘贴 | `src/ArrayMicRefreshment.Output/ClipboardTranscriptSink.cs` | HWND 目标 |
@@ -883,6 +883,7 @@ A：V0.5.3+ 宿主见 `Web/WebViewDpiScaling.cs`：`ZoomFactor = 1`（勿用 Zoo
 | 2026-06-01 | 1.2 | §5.4 高 DPI；`TestLlmConnection` 异步；LOCAL_DEVELOPMENT / README 交叉链接 |
 | 2026-06-01 | 1.3 | V0.5.4：`hostObjects.amr` 优先；测试连接禁 MessageBox |
 | 2026-06-01 | 1.4 | V0.5.5：设置复开软刷新、`GetWakeWordModelStatusLite`、并行 bootstrap |
+| 2026-05-26 | 1.5 | V0.5.7：PTT 字母/数字主键 `PttChordKeySuppressor`；Red Zone 热键行 |
 
 ---
 

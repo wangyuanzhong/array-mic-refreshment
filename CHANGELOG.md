@@ -2,9 +2,19 @@
 
 ## [0.5.7] - 2026-05-26
 
+托盘 PTT 使用 `RegisterHotKey` 时，组合里的字母/数字主键仍会进入前台应用，松开后可能被系统视为仍按下，导致误输入或松开检测失败。本版在 `GlobalHotkeyListener` 上挂 `WH_KEYBOARD_LL` 伴生钩子，按住期间吞主键、松开后补发 KeyUp，且 release 轮询只盯主键 VK。
+
 ### Fixed
 
-- **PTT 热键含字母/数字键泄漏**：`RegisterHotKey` 触发后主键仍可能进入前台应用，导致误输入或松开检测异常；`GlobalHotkeyListener` 增加 `PttChordKeySuppressor`（WH_KEYBOARD_LL）在按住 PTT 期间吞掉主键并在松开后 `SendKeyUp` 清理；松开轮询仅检测主键 VK
+- **PTT 热键含字母/数字键泄漏**：`PttChordKeySuppressor` 吞主键；`SetPttActive` 结束时 `SendKeyUp`；`LowLevelHotkeyHost` 同步 `FlushMainKeyUp`
+
+### Files / modules touched
+
+- `src/ArrayMicRefreshment.Audio/Windows/PttChordKeySuppressor.cs` — 低级键盘钩子吞主键与释放清理
+- `src/ArrayMicRefreshment.Audio/Windows/NativeKeyboardInput.cs` — `GetAsyncKeyState` / `SendInput` KeyUp
+- `src/ArrayMicRefreshment.Audio/Windows/HotkeyChordKeys.cs` — 主键 VK 判定
+- `src/ArrayMicRefreshment.Audio/Windows/GlobalHotkeyListener.cs` — 集成 suppressor；松开轮询仅主键
+- `src/ArrayMicRefreshment.Audio/Windows/LowLevelHotkeyHost.cs` — 备用钩子路径同样吞键/刷 KeyUp
 
 ### Verify
 
