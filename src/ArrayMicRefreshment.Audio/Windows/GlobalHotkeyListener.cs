@@ -27,6 +27,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
         StartPosition = FormStartPosition.Manual;
         Location = new Point(-32000, -32000);
         Size = new Size(1, 1);
+        _chordKeySuppressor.MainKeyReleased += OnSuppressorMainKeyReleased;
     }
 
     public event EventHandler? HotkeyPressed;
@@ -190,7 +191,29 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
         CommitRelease();
     }
 
+    private void OnSuppressorMainKeyReleased()
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(OnSuppressorMainKeyReleased);
+            return;
+        }
+
+        if (!_pttHeld || RecordingMode != PttRecordingMode.Hold)
+        {
+            return;
+        }
+
+        Log.Debug("PTT main key up via suppressor hook");
+        CommitRelease("suppressor hook");
+    }
+
     private void CommitRelease()
+    {
+        CommitRelease("RegisterHotKey poll");
+    }
+
+    private void CommitRelease(string source)
     {
         if (!_pttHeld)
         {
@@ -202,7 +225,7 @@ public sealed class GlobalHotkeyListener : Form, IGlobalHotkeyHost
         _releaseCooldownUtc = DateTimeOffset.UtcNow.AddMilliseconds(200);
         _chordKeySuppressor.SetPttActive(false);
         StopReleasePolling();
-        Log.Information("PTT hotkey chord released via RegisterHotKey");
+        Log.Information("PTT hotkey chord released ({Source})", source);
         ForegroundAtRelease?.Invoke(GetForegroundWindow());
         HotkeyReleased?.Invoke(this, EventArgs.Empty);
     }

@@ -8,8 +8,8 @@ namespace ArrayMicRefreshment.Audio;
 
 /// <summary>
 /// WH_KEYBOARD_LL companion for <see cref="GlobalHotkeyListener"/>:
-/// swallows the PTT main key while recording so letter/space keys do not leak into the focused app,
-/// and clears a stuck main-key-up after release.
+/// while PTT is active, swallows the chord main key so letter/space keys do not leak into the focused app.
+/// Hook is installed only during an active PTT session (no global overhead while idle).
 /// </summary>
 internal sealed class PttChordKeySuppressor : IDisposable
 {
@@ -18,31 +18,29 @@ internal sealed class PttChordKeySuppressor : IDisposable
     private const int WmKeyup = 0x0101;
     private const int WmSysKeydown = 0x0104;
     private const int WmSysKeyup = 0x0105;
-    private const uint LlkhfRepeat = 0x4000;
 
     private readonly LowLevelKeyboardProc _hookProc;
     private IntPtr _hookHandle = IntPtr.Zero;
     private HotkeyChord? _chord;
     private bool _pttActive;
-    private bool _swallowedMainKeyDown;
 
     public PttChordKeySuppressor()
     {
         _hookProc = OnHook;
     }
 
+    /// <summary>Fired on the hook thread when the main key is released during an active PTT session.</summary>
+    public event Action? MainKeyReleased;
+
     public void Register(HotkeyChord chord)
     {
         _chord = chord;
-        EnsureHookInstalled();
     }
 
     public void Unregister()
     {
         _chord = null;
-        _pttActive = false;
-        _swallowedMainKeyDown = false;
-        UninstallHook();
+        SetPttActive(false);
     }
 
     public void SetPttActive(bool active)
@@ -54,21 +52,24 @@ internal sealed class PttChordKeySuppressor : IDisposable
 
         if (active)
         {
-            _pttActive = true;
+            if (!_pttActive)
+            {
+                _pttActive = true;
+                EnsureHookInstalled();
+            }
+
+            return;
+        }
+
+        if (!_pttActive)
+        {
             return;
         }
 
         _pttActive = false;
-        if (_swallowedMainKeyDown)
-        {
-            NativeKeyboardInput.SendKeyUp((ushort)_chord.VirtualKey);
-            _swallowedMainKeyDown = false;
-            Log.Debug("PTT chord main key 0x{Vk:X} key-up flushed after release", _chord.VirtualKey);
-        }
-        else
-        {
-            NativeKeyboardInput.SendKeyUp((ushort)_chord.VirtualKey);
-        }
+        UninstallHook();
+        NativeKeyboardInput.SendKeyUp((ushort)_chord.VirtualKey);
+        Log.Debug("PTT chord main key 0x{Vk:X} key-up flushed after release", _chord.VirtualKey);
     }
 
     public void Dispose() => Unregister();
@@ -91,6 +92,11 @@ internal sealed class PttChordKeySuppressor : IDisposable
         }
 
         _hookHandle = SetWindowsHookEx(WhKeyboardLl, _hookProc, moduleHandle, 0);
+        if (_hookHandle == IntPtr.Zero)
+        {
+            Log.Warning("PTT chord key suppressor hook install failed (win32={Err})", Marshal.GetLastWin32Error());
+        }
+
         return _hookHandle != IntPtr.Zero;
     }
 
@@ -107,7 +113,7 @@ internal sealed class PttChordKeySuppressor : IDisposable
 
     private IntPtr OnHook(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && _chord is not null)
+        if (nCode >= 0 && _pttActive && _chord is not null)
         {
             var msg = wParam.ToInt32();
             var keyDown = msg is WmKeydown or WmSysKeydown;
@@ -115,8 +121,20 @@ internal sealed class PttChordKeySuppressor : IDisposable
             if (keyDown || keyUp)
             {
                 var data = Marshal.PtrToStructure<KbdllHookStruct>(lParam);
-                if (ShouldSuppress(data, keyDown))
+                if (HotkeyChordKeys.IsMainKey(_chord, data.VirtualKey))
                 {
+                    if (keyUp)
+                    {
+                        try
+                        {
+                            MainKeyReleased?.Invoke();
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning(ex, "PTT suppressor MainKeyReleased handler failed");
+                        }
+                    }
+
                     return (IntPtr)1;
                 }
             }
@@ -124,56 +142,6 @@ internal sealed class PttChordKeySuppressor : IDisposable
 
         return CallNextHookEx(_hookHandle, nCode, wParam, lParam);
     }
-
-    private bool ShouldSuppress(KbdllHookStruct data, bool keyDown)
-    {
-        if (!HotkeyChordKeys.IsMainKey(_chord!, data.VirtualKey))
-        {
-            return false;
-        }
-
-        if (_pttActive)
-        {
-            return true;
-        }
-
-        if (_swallowedMainKeyDown)
-        {
-            return true;
-        }
-
-        if (!keyDown || (data.Flags & LlkhfRepeat) != 0)
-        {
-            return false;
-        }
-
-        if (!ChordModifiersMatch(_chord!))
-        {
-            return false;
-        }
-
-        // First main-key down of the chord (RegisterHotKey also fires): swallow so the key is not typed into the app.
-        _swallowedMainKeyDown = true;
-        return true;
-    }
-
-    private static bool ChordModifiersMatch(HotkeyChord chord) =>
-        chord.Ctrl == IsCtrlDown()
-        && chord.Alt == IsAltDown()
-        && chord.Shift == IsShiftDown()
-        && chord.Win == IsWinDown();
-
-    private static bool IsCtrlDown() =>
-        NativeKeyboardInput.IsKeyDown(0x11) || NativeKeyboardInput.IsKeyDown(0xA2) || NativeKeyboardInput.IsKeyDown(0xA3);
-
-    private static bool IsAltDown() =>
-        NativeKeyboardInput.IsKeyDown(0x12) || NativeKeyboardInput.IsKeyDown(0xA4) || NativeKeyboardInput.IsKeyDown(0xA5);
-
-    private static bool IsShiftDown() =>
-        NativeKeyboardInput.IsKeyDown(0x10) || NativeKeyboardInput.IsKeyDown(0xA0) || NativeKeyboardInput.IsKeyDown(0xA1);
-
-    private static bool IsWinDown() =>
-        NativeKeyboardInput.IsKeyDown(0x5B) || NativeKeyboardInput.IsKeyDown(0x5C);
 
     private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 

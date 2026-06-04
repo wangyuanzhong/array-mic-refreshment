@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.5.8] - 2026-05-26
+
+V0.5.7 的 `PttChordKeySuppressor` 在 PTT 未按住时也会吞主键并干扰 `GetAsyncKeyState`，导致热键几乎瞬间松开（无 HUD）、且设置页输入（尤其空格）卡顿。
+
+### Fixed
+
+- **PTT 无反应 / 无 HUD**：仅在 `SetPttActive(true)` 期间安装 LL 钩子并吞主键；松开由钩子 `MainKeyReleased` + 轮询双路径
+- **设置页变卡**：空闲时不再全局处理每个按键（默认 `Ctrl+Alt+Space` 时每个空格曾触发 8 次 `GetAsyncKeyState`）
+
+### Files / modules touched
+
+- `PttChordKeySuppressor.cs` — 钩子按需安装；移除激活前吞键
+- `GlobalHotkeyListener.cs` — 钩子主键抬起 → `CommitRelease`
+
+### Verify
+
+- 按住默认 PTT → HUD 出现 → 松开结束；设置页快速输入空格/中文无卡顿
+- `dotnet test`；`.\scripts\watch-build-release.ps1 -Once`
+
 ## [0.5.7] - 2026-05-26
 
 托盘 PTT 使用 `RegisterHotKey` 时，组合里的字母/数字主键仍会进入前台应用，松开后可能被系统视为仍按下，导致误输入或松开检测失败。本版在 `GlobalHotkeyListener` 上挂 `WH_KEYBOARD_LL` 伴生钩子，按住期间吞主键、松开后补发 KeyUp，且 release 轮询只盯主键 VK。
