@@ -26,9 +26,9 @@
 | 自动化验收 | Phase 2 | ✅ `scripts/test-phase2-route-b.ps1`、`scripts/test-feature-presets.ps1` |
 | Web HUD | Phase 4 可选 | ✅ `VoiceWebStatusHud`（默认开启，可关；`AMR_WEB_HUD=0` 强制原生） |
 | 高 DPI / 显示比例 | — | ✅ **V0.5.3+** `WebViewDpiScaling`（`ZoomFactor=1`、逻辑像素窗体）；设置页侧栏 `clamp(…vw…)`，见 §5.4 |
-| §10.2 手测 | 发布前 | ❌ **须 Windows 实机**（PTT/唤醒/麦克风/粘贴/Web HUD 焦点、**显示比例**，脚本不覆盖） |
+| §10.2 手测 | 发布前 | ❌ **须 Windows 实机**（PTT/唤醒/麦克风/粘贴/Web HUD 焦点、**显示比例**、**PTT 含字母/数字键**，脚本不覆盖） |
 
-**后端原则（V0.4.15+）**：WebView 仅替换 WinForms **UI 壳**。采集、pipeline、`VoiceCaptureOrchestrator` 行为与 WebView 前一致，经 `SettingsApplyService` 接线；**托盘 PTT 热键**须用 `LowLevelHotkeyHost`（`RegisterHotKey` 在 `ApplicationContext` 收不到 `WM_HOTKEY`）。**纯 PTT 不按热键不开麦**（`keepStandbyCaptureBetweenSessions: false`）。**新增**功能（功能模式预设等）在基线上扩展。
+**后端原则（V0.4.15+）**：WebView 仅替换 WinForms **UI 壳**。采集、pipeline、`VoiceCaptureOrchestrator` 行为与 WebView 前一致，经 `SettingsApplyService` 接线；**托盘 PTT 热键**用 `GlobalHotkeyListener`（隐藏 Form + `RegisterHotKey`；V0.4.16 曾用 `LowLevelHotkeyHost` 实机易卡松开）。**V0.5.7+** 字母/数字主键由 `PttChordKeySuppressor`（WH_KEYBOARD_LL）吞键并补 KeyUp。**纯 PTT 不按热键不开麦**（`keepStandbyCaptureBetweenSessions: false`）。**新增**功能（功能模式预设等）在基线上扩展。
 
 **结论**：路线 B **工程与自动化验收已完成**；发布前仍须 **§10.2 手动回归**。
 
@@ -632,6 +632,7 @@ dotnet test tests/ArrayMicRefreshment.App.Tests/ArrayMicRefreshment.App.Tests.cs
 5. 整理 ON + 各 `ForcedIntent`  smoke test  
 6. 关闭设置窗 → 内存不持续增长（任务管理器观察）
 7. **显示比例**：Windows「缩放与布局」125%/150% 下打开设置窗与 Web HUD，字号与布局与 100% 视觉一致；运行时改缩放后 UI 仍对齐（`WebViewDpiScaling` + `settingsWindowWidth/Height` 逻辑像素）
+8. **PTT 字母/数字主键**（**V0.5.7+**）：设置 PTT 为 `Ctrl+Alt+A` 等 → 记事本焦点下按住说话松开 → 无多余字符、HUD/托盘正常结束（见 [`LOCAL_DEVELOPMENT.md`](LOCAL_DEVELOPMENT.md) §13）
 
 ---
 
@@ -883,7 +884,7 @@ A：V0.5.3+ 宿主见 `Web/WebViewDpiScaling.cs`：`ZoomFactor = 1`（勿用 Zoo
 | 2026-06-01 | 1.2 | §5.4 高 DPI；`TestLlmConnection` 异步；LOCAL_DEVELOPMENT / README 交叉链接 |
 | 2026-06-01 | 1.3 | V0.5.4：`hostObjects.amr` 优先；测试连接禁 MessageBox |
 | 2026-06-01 | 1.4 | V0.5.5：设置复开软刷新、`GetWakeWordModelStatusLite`、并行 bootstrap |
-| 2026-05-26 | 1.5 | V0.5.7：PTT 字母/数字主键 `PttChordKeySuppressor`；Red Zone 热键行 |
+| 2026-05-26 | 1.5 | V0.5.7：PTT 字母/数字主键 `PttChordKeySuppressor`；Red Zone 热键行；§1/§10.2 与 `GlobalHotkeyListener` 对齐 |
 
 ---
 

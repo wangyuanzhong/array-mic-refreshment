@@ -15,6 +15,7 @@
 - `src/ArrayMicRefreshment.Audio/Windows/HotkeyChordKeys.cs` — 主键 VK 判定
 - `src/ArrayMicRefreshment.Audio/Windows/GlobalHotkeyListener.cs` — 集成 suppressor；松开轮询仅主键
 - `src/ArrayMicRefreshment.Audio/Windows/LowLevelHotkeyHost.cs` — 备用钩子路径同样吞键/刷 KeyUp
+- `docs/UI_ROUTE_B_WEBVIEW2.md` — §1/§10.2 与托盘 `GlobalHotkeyListener` + suppressor 对齐（修正过时「须用 LowLevelHotkeyHost」）
 
 ### Verify
 
