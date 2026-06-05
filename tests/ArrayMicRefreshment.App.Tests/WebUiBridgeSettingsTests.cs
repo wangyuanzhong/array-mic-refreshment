@@ -43,6 +43,7 @@ public class WebUiBridgeSettingsTests
     public void SaveSettingsDraft_without_apply_host_persists_with_warning()
     {
         var settings = new AppSettings { PttHotkey = "Ctrl+Alt+Space" };
+        AsrModelTestFixtures.EnsureFireRedStubInstalled(settings);
         settings.MigrateLegacyApiSettings();
         settings.MigrateLegacyFeaturePresets();
         settings.PrivacyAcceptedHost = "api.openai.com";
@@ -64,6 +65,7 @@ public class WebUiBridgeSettingsTests
     public void SaveSettingsDraft_with_apply_host_invokes_service()
     {
         var settings = new AppSettings { PttHotkey = "Ctrl+Alt+Space" };
+        AsrModelTestFixtures.EnsureFireRedStubInstalled(settings);
         settings.MigrateLegacyApiSettings();
         settings.MigrateLegacyFeaturePresets();
         settings.PrivacyAcceptedHost = "api.openai.com";
