@@ -100,6 +100,7 @@ internal static class Phase2AcceptanceTestSupport
         };
         settings.MigrateLegacyApiSettings();
         settings.MigrateLegacyFeaturePresets();
+        AsrModelTestFixtures.EnsureFireRedStubInstalled(settings);
         return settings;
     }
 

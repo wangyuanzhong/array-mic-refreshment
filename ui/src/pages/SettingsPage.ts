@@ -257,6 +257,9 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   const appInfo = boot.appInfo;
   const runtimeTriggerMode = boot.runtimeTriggerMode;
   const lists = boot.lists;
+  if (!draft.selectedAsrModelId && lists.asrModels.length > 0) {
+    draft = { ...draft, selectedAsrModelId: lists.asrModels[0]!.id };
+  }
   let wakeModelStatus = boot.wakeModelStatus;
 
   let selectedRefinementStyleKey: string | null = null;
@@ -264,6 +267,8 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
   let activeSection: SectionId =
     runtimeTriggerMode && wakeModeActive(runtimeTriggerMode) ? 'trigger' : 'general';
   let testConnectionRunning = false;
+  let asrDownloadRunning = false;
+  let asrDownloadMessage = '';
   const fieldErrors = new Map<string, string>();
 
   const render = (): void => {
@@ -293,11 +298,17 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       : '';
 
     const selectedAsr = lists.asrModels.find((m) => m.id === draft.selectedAsrModelId);
-    const asrStatus = selectedAsr
-      ? selectedAsr.installed
-        ? '✓ 已安装'
-        : '✗ 未安装 — 保存前请在宿主环境下载模型'
+    const asrStatus = asrDownloadRunning
+      ? escapeHtml(asrDownloadMessage || '正在下载…')
+      : selectedAsr
+        ? selectedAsr.installed
+          ? '✓ 已安装'
+          : '✗ 未安装 — 可点击下方「下载模型」，或保存前切换已安装模型'
+        : '';
+    const asrDescription = selectedAsr?.description
+      ? `<p class="form-hint">${escapeHtml(selectedAsr.description)}</p>`
       : '';
+    const canDownloadAsr = Boolean(selectedAsr && !selectedAsr.installed && !asrDownloadRunning);
 
     root.innerHTML = `
       <div class="app-shell app-shell--settings">
@@ -388,7 +399,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                 <h2 class="card-title">ASR 模型</h2>
                 <div class="form-grid">
                   <div class="form-field${fieldErrorClass(fieldErrors, 'selectedAsrModelId')}">
-                    <label for="selectedAsrModelId">SenseVoice 模型</label>
+                    <label for="selectedAsrModelId">语音识别模型</label>
                     <select id="selectedAsrModelId">
                       ${lists.asrModels
                         .map(
@@ -397,7 +408,13 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                         )
                         .join('')}
                     </select>
-                    <p class="form-hint">${escapeHtml(asrStatus)}</p>
+                    ${asrDescription}
+                    <p class="form-hint">${asrStatus}</p>
+                    <div class="form-row">
+                      <button type="button" class="btn-ghost" id="btnDownloadAsr"${canDownloadAsr ? '' : ' disabled'}>
+                        ${asrDownloadRunning ? '下载中…' : '下载模型'}
+                      </button>
+                    </div>
                     ${fieldErrorHtml(fieldErrors, 'selectedAsrModelId')}
                   </div>
                   <div class="form-field${fieldErrorClass(fieldErrors, 'modelsDirectory')}">
@@ -453,7 +470,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
 
               <section id="section-trigger" class="settings-section card${activeSection === 'trigger' ? ' is-active' : ''}">
                 <h2 class="card-title">触发与 HUD</h2>
-                <p class="card-subtitle">唤醒词依赖 KWS 模型（与 ASR 的 SenseVoice 不同）。</p>
+                <p class="card-subtitle">唤醒词依赖 KWS 模型（与 ASR 语音识别模型不同）。</p>
                 <div class="form-grid">
                   <div class="form-field">
                     <span class="form-label">唤醒 KWS 模型</span>
@@ -876,6 +893,64 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
         }
 
         render();
+      })();
+    });
+
+    root.querySelector('#selectedAsrModelId')?.addEventListener('change', () => {
+      draft = readDraftFromDom();
+      render();
+    });
+
+    root.querySelector('#btnDownloadAsr')?.addEventListener('click', () => {
+      void (async () => {
+        draft = readDraftFromDom();
+        const modelId = draft.selectedAsrModelId;
+        if (!modelId) {
+          fieldErrors.set('selectedAsrModelId', '请先选择要下载的模型。');
+          render();
+          return;
+        }
+
+        asrDownloadRunning = true;
+        asrDownloadMessage = '准备下载…';
+        fieldErrors.delete('selectedAsrModelId');
+        fieldErrors.delete('_global');
+        render();
+
+        const poll = window.setInterval(async () => {
+          try {
+            const progress = await bridge.getAsrModelDownloadProgress();
+            if (progress.active || progress.message) {
+              asrDownloadMessage = progress.message || `下载中 ${progress.percent}%`;
+              render();
+            }
+          } catch {
+            /* ignore poll errors */
+          }
+        }, 500);
+
+        try {
+          const result = await bridge.downloadAsrModel(modelId, draft.modelsDirectory);
+          window.clearInterval(poll);
+          asrDownloadRunning = false;
+          if (!result.ok) {
+            asrDownloadMessage = '';
+            fieldErrors.set('selectedAsrModelId', result.error ?? '下载失败');
+            render();
+            return;
+          }
+
+          lists.asrModels = await bridge.listAsrModels();
+          asrDownloadMessage = '✓ 下载完成';
+          fieldErrors.delete('selectedAsrModelId');
+          render();
+        } catch (err) {
+          window.clearInterval(poll);
+          asrDownloadRunning = false;
+          asrDownloadMessage = '';
+          fieldErrors.set('selectedAsrModelId', err instanceof Error ? err.message : '下载失败');
+          render();
+        }
       })();
     });
 

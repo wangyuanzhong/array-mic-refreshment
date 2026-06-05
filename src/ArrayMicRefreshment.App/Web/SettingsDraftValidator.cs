@@ -54,20 +54,19 @@ public static class SettingsDraftValidator
 
         if (!string.IsNullOrWhiteSpace(draft.SelectedAsrModelId))
         {
-            var available = SenseVoiceModelResolver.ListAvailableModels(
+            var available = AsrModelResolver.ListInstalledModels(
                 string.IsNullOrWhiteSpace(draft.ModelsDirectory)
                     ? template.ModelsDirectory
                     : draft.ModelsDirectory);
             var isInstalled = available.Any(a => a.Id == draft.SelectedAsrModelId);
             if (!isInstalled)
             {
-                var displayName = AsrModelInfo.All
-                    .FirstOrDefault(m => m.Id == draft.SelectedAsrModelId)?.DisplayName
+                var displayName = AsrModelInfo.TryGetById(draft.SelectedAsrModelId)?.DisplayName
                     ?? draft.SelectedAsrModelId;
                 errors.Add(new SettingsValidationErrorDto
                 {
                     Field = "selectedAsrModelId",
-                    Message = $"ASR 模型「{displayName}」尚未安装。请先下载或切换已安装模型。",
+                    Message = $"ASR 模型「{displayName}」尚未安装。请先点击「下载模型」或切换已安装模型。",
                 });
             }
         }

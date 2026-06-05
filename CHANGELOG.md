@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.5.10] - 2026-06-05
+
+修复 Windows CI 中 App.Tests 因默认 FireRed ASR 未安装而导致 `SaveSettingsDraft` 验收失败的问题。
+
+### Fixed
+
+- `AsrModelTestFixtures`：为 Phase 2 / Bridge 设置保存测试提供最小 FireRed 模型目录 stub
+
+### Files / modules touched
+
+- `tests/ArrayMicRefreshment.App.Tests/AsrModelTestFixtures.cs` — 新增
+- `tests/ArrayMicRefreshment.App.Tests/Phase2AcceptanceTestSupport.cs`、`WebUiBridgeSettingsTests.cs` — 调用 stub
+
+### Verify
+
+- Windows CI `build-windows` App.Tests 全绿
+
+## [0.5.9] - 2026-06-05
+
+新增 **FireRedASR2 CTC int8** 作为推荐 ASR 引擎（中英 code-switch），并在 Web 设置页提供 **应用内一键下载**（自动解析 `models/` 目录，从 GitHub release 拉取 manifest 包）。
+
+### Added
+
+- **FireRedASR2 CTC**（`sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25`）：`SherpaFireRedCtcBackend` + `AsrModelCatalog` / `AsrModelResolver`
+- 设置 → ASR 模型：**下载模型** 按钮；`DownloadAsrModel` / `GetAsrModelDownloadProgress` Bridge API
+- `ModelDownloadService.IsPackageInstalled`；`AsrModelDownloadProgressHub` 进度快照
+
+### Changed
+
+- `ModelManifest.json`：`asr-primary` 改为 FireRed；SenseVoice 包保留为 fallback / 高精度 / 粤语
+- 新安装默认选中 FireRedASR2（draft 空 `selectedAsrModelId` 时）
+- `download-models.ps1` 增加 `-Package asr-yue`
+
+### Files / modules touched
+
+- `src/ArrayMicRefreshment.Asr/` — FireRed backend、统一模型目录与解析
+- `src/ArrayMicRefreshment.Core/ModelDownloadService.cs` — 已安装检测
+- `src/ArrayMicRefreshment.App/Web/` — Bridge 下载 API、元数据 description
+- `ui/src/pages/SettingsPage.ts`、`ui/src/bridge.ts` — 下载 UI
+- `scripts/ModelManifest.json`、`docs/ASR_MODEL.md`
+
+### Verify
+
+- 设置 → ASR：选 FireRed → **下载模型** → 列表显示 ✓ → 保存 → PTT 识别中英混说
+- `dotnet test ArrayMicRefreshment.CI.slnf -c Release`
+- Windows：`build-windows` + **Build release EXE** CI 绿
+
 ## [0.5.8] - 2026-05-26
 
 V0.5.7 的 `PttChordKeySuppressor` 在 PTT 未按住时也会吞主键并干扰 `GetAsyncKeyState`，导致热键几乎瞬间松开（无 HUD）、且设置页输入（尤其空格）卡顿。

@@ -14,7 +14,7 @@
 param(
     [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
     [string]$ModelsRoot = "",
-    [ValidateSet("asr-primary", "asr-fallback", "all")]
+    [ValidateSet("asr-primary", "asr-fallback", "asr-high-precision", "asr-yue", "all")]
     [string]$Package = "asr-primary",
     [switch]$IncludeSpeaker,
     [switch]$SkipSpeaker,

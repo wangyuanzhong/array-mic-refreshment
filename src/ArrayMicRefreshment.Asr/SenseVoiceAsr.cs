@@ -6,25 +6,28 @@ namespace ArrayMicRefreshment.Asr;
 
 public sealed class SenseVoiceAsr : IUtteranceAsr, IDisposable
 {
-    private readonly IOfflineSenseVoiceBackend _backend;
+    private readonly IOfflineAsrBackend _backend;
+    private readonly AsrEngineKind _engine;
 
     public string ModelId { get; }
 
-    public SenseVoiceAsr(IOfflineSenseVoiceBackend backend, string modelId)
+    public SenseVoiceAsr(IOfflineAsrBackend backend, string modelId, AsrEngineKind engine = AsrEngineKind.SenseVoice)
     {
         _backend = backend;
         ModelId = modelId;
+        _engine = engine;
     }
 
     public static SenseVoiceAsr CreateFromSettings(AppSettings settings)
     {
-        var paths = SenseVoiceModelResolver.Resolve(settings.ModelsDirectory, settings.SelectedAsrModelId);
+        var paths = AsrModelResolver.Resolve(settings.ModelsDirectory, settings.SelectedAsrModelId);
         Log.Information(
-            "SenseVoice ASR loaded: {ModelId} from {Directory} (ONNX: {ModelPath})",
+            "Sherpa ASR loaded: {Engine} {ModelId} from {Directory} (ONNX: {ModelPath})",
+            paths.Engine,
             paths.ModelId,
             paths.DirectoryPath,
             paths.ModelPath);
-        return new SenseVoiceAsr(new SherpaSenseVoiceBackend(paths), paths.ModelId);
+        return new SenseVoiceAsr(AsrBackendFactory.Create(paths), paths.ModelId, paths.Engine);
     }
 
     public async Task<string> RecognizeUtteranceAsync(AudioUtterance utterance, CancellationToken cancellationToken)
@@ -39,13 +42,18 @@ public sealed class SenseVoiceAsr : IUtteranceAsr, IDisposable
                 cancellationToken)
             .ConfigureAwait(false);
 
-        var text = SenseVoiceTextExtractor.ExtractPlainText(raw);
+        var text = _engine switch
+        {
+            AsrEngineKind.SenseVoice => SenseVoiceTextExtractor.ExtractPlainText(raw),
+            _ => raw.Trim(),
+        };
         var cleaned = SpeechCleaner.Clean(text);
         if (cleaned != text)
         {
             Log.Debug("SpeechCleaner removed {Removed} filler chars", text.Length - cleaned.Length);
         }
-        Log.Debug("SenseVoice recognized {Chars} characters", cleaned.Length);
+
+        Log.Debug("ASR ({Engine}) recognized {Chars} characters", _engine, cleaned.Length);
         return cleaned;
     }
 

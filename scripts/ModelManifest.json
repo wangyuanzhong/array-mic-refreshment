@@ -1,14 +1,14 @@
 {
-  "version": 2,
+  "version": 3,
   "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models",
   "packages": [
     {
-      "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
+      "id": "sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25",
       "role": "asr-primary",
-      "archive": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09.tar.bz2",
-      "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
+      "archive": "sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25.tar.bz2",
+      "extractDir": "sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25",
       "sha256": null,
-      "notes": "SenseVoice int8 粤语微调版 — 粤语识别优化，但不支持标点"
+      "notes": "FireRedASR2 CTC int8 — 中英 code-switch 推荐，约 740 MB"
     },
     {
       "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
@@ -24,7 +24,15 @@
       "archive": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
       "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
       "sha256": null,
-      "notes": "SenseVoice float32 高精度版 — 无精度损失，准确率最高，但体积大速度慢"
+      "notes": "SenseVoice float32 高精度版 — 纯中文略优，体积大"
+    },
+    {
+      "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
+      "role": "asr-yue",
+      "archive": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09.tar.bz2",
+      "extractDir": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09",
+      "sha256": null,
+      "notes": "SenseVoice int8 粤语微调版 — 粤语识别优化，但不支持标点"
     }
   ],
   "phase2Kws": {

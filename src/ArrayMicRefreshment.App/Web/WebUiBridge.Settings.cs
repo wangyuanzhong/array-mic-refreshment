@@ -34,8 +34,74 @@ public sealed partial class WebUiBridge
     public string ListAsrModels()
     {
         var models = SettingsMetadataProvider.ListAsrModels(_context.Settings.ModelsDirectory)
-            .Select(m => new { id = m.Id, displayName = m.DisplayName, installed = m.Installed });
+            .Select(m => new
+            {
+                id = m.Id,
+                displayName = m.DisplayName,
+                description = m.Description,
+                installed = m.Installed,
+            });
         return Serialize(models);
+    }
+
+    public async Task<string> DownloadAsrModel(string modelId, string? modelsDirectory)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(modelId))
+            {
+                return Serialize(new { ok = false, error = "未指定模型 ID。" });
+            }
+
+            var catalogEntry = AsrModelInfo.TryGetById(modelId.Trim());
+            if (catalogEntry is null)
+            {
+                return Serialize(new { ok = false, error = $"未知 ASR 模型：{modelId}" });
+            }
+
+            var modelsDir = string.IsNullOrWhiteSpace(modelsDirectory)
+                ? _context.Settings.ModelsDirectory
+                : modelsDirectory.Trim();
+            modelsDir = SettingsPathNormalizer.NormalizeModelsDirectory(modelsDir);
+
+            AsrModelDownloadProgressHub.Begin(modelId);
+            var downloader = new ModelDownloadService();
+            var progress = new Progress<DownloadProgress>(p => AsrModelDownloadProgressHub.Report(p));
+
+            await Task.Run(async () =>
+                    await downloader.DownloadModelAsync(modelsDir, modelId, progress, CancellationToken.None)
+                        .ConfigureAwait(false))
+                .ConfigureAwait(true);
+
+            AsrModelDownloadProgressHub.Clear();
+
+            if (_context.SettingsApplyHost is not null
+                && string.Equals(_context.Settings.ModelsDirectory, modelsDir, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_context.Settings.SelectedAsrModelId, modelId, StringComparison.OrdinalIgnoreCase))
+            {
+                _context.SettingsApplyHost.RebuildPipeline();
+            }
+
+            return Serialize(new { ok = true, modelId, modelsDirectory = modelsDir });
+        }
+        catch (Exception ex)
+        {
+            AsrModelDownloadProgressHub.Clear();
+            return Serialize(new { ok = false, error = ex.Message });
+        }
+    }
+
+    public string GetAsrModelDownloadProgress()
+    {
+        var snapshot = AsrModelDownloadProgressHub.Snapshot();
+        return Serialize(new
+        {
+            active = snapshot.ModelId is not null,
+            modelId = snapshot.ModelId,
+            percent = snapshot.Progress.Percent,
+            message = snapshot.Progress.Message,
+            complete = snapshot.Progress.IsComplete,
+        });
     }
 
     public string GetWakeWordModelStatusLite()

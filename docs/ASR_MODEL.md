@@ -1,29 +1,41 @@
-# ASR 模型定稿（v0.1）
+# ASR 模型（Sherpa-ONNX 离线）
 
-设置窗可选择已安装的 SenseVoice 包（2025-09 粤语优化 / 2024-07 int8 通用 / 2024-07 float32 高精度），未安装时可一键下载。
+设置窗 **ASR 模型** 分区可选引擎；未安装的包可点击 **「下载模型」**（应用内从 GitHub release 下载到 `models/`）。
 
-## 首版（已确认）
+## 默认推荐（中英混说）
 
 | 项 | 选择 |
 |----|------|
-| 运行时 | **Sherpa-ONNX** `OfflineRecognizer` |
-| 模型 | **SenseVoice int8** |
-| 主包 ID | `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09` |
-| 回退 | `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17` |
+| 引擎 | **FireRedASR2 CTC int8** |
+| 包 ID | `sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25` |
+| 体积 | 约 740 MB |
+| 场景 | 普通话 + **句内频繁夹英文** / code-switch |
+
+## 可选 SenseVoice（纯中文或粤语为主）
+
+| 包 ID | 说明 |
+|-------|------|
+| `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17` | int8 通用，有标点 |
+| `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17` | float32 高精度，纯中文略优 |
+| `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09` | 粤语优化 |
+
+## 运行时
+
+| 项 | 说明 |
+|----|------|
+| 栈 | **Sherpa-ONNX** `OfflineRecognizer` |
 | 模式 | 离线、非流式；**松开 PTT** 后整段识别 |
+| 音频 | 设备原生采样率 → 边界 **16 kHz mono** |
+| SenseVoice | 输出去情感/事件标签（`SenseVoiceTextExtractor`） |
+| FireRed CTC | 直接文本输出 |
 
-## 理由（简要）
+## 下载方式
 
-- 与 C# + 句末 PTT 管线一致，CPU 与体积适合后台托盘。
-- 中文/粤语场景成熟；首版不引入第二套 ASR 降低集成风险。
+1. **应用内**：设置 → ASR 模型 → 选择包 → **下载模型**（目录默认 exe 旁 `models/`，可浏览修改）。
+2. **脚本**：`.\scripts\download-models.ps1`（`-Package asr-primary` 默认 FireRed；`-Package all` 全部 ASR）。
 
-## 后续可选（首版不做 UI）
+清单与 URL：[`scripts/ModelManifest.json`](../scripts/ModelManifest.json)（嵌入 `ArrayMicRefreshment.Core` 供运行时下载）。
 
-- **Qwen3-ASR-0.6B int8**：更高 CER，更慢；见 README「SenseVoice 和 Qwen3-ASR」对比。
-- 实现仍通过 `IUtteranceAsr`，仅更换模型目录与 factory。
+## 后续可选
 
-## 实现注意
-
-- 设备原生采样率采集 → 模型边界 **16 kHz mono**。
-- SenseVoice 输出若含情感/事件标签，管道只取 **纯文本** 字段。
-- `download-models.ps1` / `ModelManifest` 仅包含 SenseVoice 条目（Phase 3）。
+- **Qwen3-ASR-0.6B int8**：更强多语言，体积与延迟更大；仍可通过 `IUtteranceAsr` + manifest 扩展。
