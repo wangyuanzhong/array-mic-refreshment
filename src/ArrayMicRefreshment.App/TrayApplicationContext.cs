@@ -1086,7 +1086,7 @@ public sealed class TrayApplicationContext : ApplicationContext
                 _balloons.Show(
                     8000,
                     "Array Mic",
-                    "未找到 SenseVoice 模型，无法语音转写。请将 models 文件夹放在 exe 同级目录（在仓库根目录运行 scripts\\download-models.ps1 下载）。",
+                    "未找到语音识别模型，无法转写。请打开设置 → ASR 模型 → 下载模型，或运行 scripts\\download-models.ps1。",
                     ToolTipIcon.Error);
                 _feedback.ClearSession();
             });

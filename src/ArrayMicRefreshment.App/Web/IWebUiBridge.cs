@@ -17,6 +17,10 @@ public interface IWebUiBridge
 
     string ListAsrModels();
 
+    Task<string> DownloadAsrModel(string modelId, string? modelsDirectory);
+
+    string GetAsrModelDownloadProgress();
+
     string GetWakeWordModelStatusLite();
 
     string GetWakeWordModelStatus();

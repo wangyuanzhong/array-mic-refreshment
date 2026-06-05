@@ -11,7 +11,7 @@ public static class SettingsMetadataProvider
 {
     public sealed record AudioDeviceEntry(string Id, string DisplayName, bool IsDefault);
 
-    public sealed record AsrModelEntry(string Id, string DisplayName, bool Installed);
+    public sealed record AsrModelEntry(string Id, string DisplayName, string Description, bool Installed);
 
     public sealed record OptionalOverlaySkillEntry(string Key, string Label, bool Checked);
 
@@ -31,12 +31,16 @@ public static class SettingsMetadataProvider
 
     public static IReadOnlyList<AsrModelEntry> ListAsrModels(string modelsDirectory)
     {
-        var installedIds = SenseVoiceModelResolver.ListAvailableModels(modelsDirectory)
+        var installedIds = AsrModelResolver.ListInstalledModels(modelsDirectory)
             .Select(m => m.Id)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return AsrModelInfo.All
-            .Select(m => new AsrModelEntry(m.Id, m.DisplayName, installedIds.Contains(m.Id)))
+            .Select(m => new AsrModelEntry(
+                m.Id,
+                m.DisplayName,
+                m.Description,
+                installedIds.Contains(m.Id)))
             .ToArray();
     }
 

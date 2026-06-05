@@ -1,3 +1,4 @@
+using ArrayMicRefreshment.Asr;
 using ArrayMicRefreshment.App.Services;
 using ArrayMicRefreshment.Core;
 using ArrayMicRefreshment.Prompt;
@@ -26,7 +27,9 @@ public static class SettingsDraftMapper
             SelectedDeviceId = settings.SelectedDeviceId,
             CurrentSpeakerUserId = settings.CurrentSpeakerUserId,
             SpeakerVerifyThreshold = settings.SpeakerVerifyThreshold,
-            SelectedAsrModelId = settings.SelectedAsrModelId,
+            SelectedAsrModelId = string.IsNullOrWhiteSpace(settings.SelectedAsrModelId)
+                ? AsrModelInfo.All[0].Id
+                : settings.SelectedAsrModelId,
             SkillsDirectory = settings.SkillsDirectory,
             ModelsDirectory = settings.ModelsDirectory,
             TriggerMode = settings.TriggerMode,

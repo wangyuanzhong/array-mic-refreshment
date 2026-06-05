@@ -2,26 +2,25 @@ using SherpaOnnx;
 
 namespace ArrayMicRefreshment.Asr;
 
-public sealed class SherpaSenseVoiceBackend : IOfflineSenseVoiceBackend
+public sealed class SherpaFireRedCtcBackend : IOfflineAsrBackend
 {
     private readonly OfflineRecognizer _recognizer;
 
-    public SherpaSenseVoiceBackend(AsrModelPaths paths, int numThreads = 2)
+    public SherpaFireRedCtcBackend(AsrModelPaths paths, int numThreads = 2)
     {
         var config = new OfflineRecognizerConfig
         {
             FeatConfig = new FeatureConfig
             {
-                SampleRate = 16000,
+                SampleRate = 16_000,
                 FeatureDim = 80,
             },
             ModelConfig = new OfflineModelConfig
             {
                 Tokens = paths.TokensPath,
-                SenseVoice = new OfflineSenseVoiceModelConfig
+                FireRedAsrCtc = new OfflineFireRedAsrCtcModelConfig
                 {
                     Model = paths.ModelPath,
-                    UseInverseTextNormalization = 1,
                 },
                 NumThreads = numThreads,
                 Debug = 0,

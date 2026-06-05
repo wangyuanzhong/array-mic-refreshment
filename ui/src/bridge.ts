@@ -91,7 +91,23 @@ export interface SpeakerUserItem {
 export interface AsrModelItem {
   id: string;
   displayName: string;
+  description?: string;
   installed: boolean;
+}
+
+export interface DownloadAsrModelResult {
+  ok: boolean;
+  error?: string;
+  modelId?: string;
+  modelsDirectory?: string;
+}
+
+export interface AsrModelDownloadProgress {
+  active: boolean;
+  modelId?: string | null;
+  percent: number;
+  message: string;
+  complete: boolean;
 }
 
 export interface WakeWordModelStatus {
@@ -227,6 +243,8 @@ export interface AmrHostObject {
   ListAudioDevices(): Promise<string>;
   ListSpeakerUsers(): Promise<string>;
   ListAsrModels(): Promise<string>;
+  DownloadAsrModel(modelId: string, modelsDirectory: string): Promise<string>;
+  GetAsrModelDownloadProgress(): Promise<string>;
   GetWakeWordModelStatusLite(): Promise<string>;
   GetWakeWordModelStatus(): Promise<string>;
   ListOptionalOverlaySkills(skillsDirectory: string): Promise<string>;
@@ -257,6 +275,8 @@ export interface AmrBridge {
   listAudioDevices(): Promise<AudioDeviceItem[]>;
   listSpeakerUsers(): Promise<SpeakerUserItem[]>;
   listAsrModels(): Promise<AsrModelItem[]>;
+  downloadAsrModel(modelId: string, modelsDirectory: string): Promise<DownloadAsrModelResult>;
+  getAsrModelDownloadProgress(): Promise<AsrModelDownloadProgress>;
   getWakeWordModelStatusLite(): Promise<WakeWordModelStatus>;
   getWakeWordModelStatus(): Promise<WakeWordModelStatus>;
   listOptionalOverlaySkills(skillsDirectory: string): Promise<OptionalOverlaySkillItem[]>;
@@ -431,6 +451,18 @@ function wrapHostObject(host: AmrHostObject): AmrBridge {
     },
     async listAsrModels() {
       return parseJson<AsrModelItem[]>(await host.ListAsrModels(), 'ListAsrModels');
+    },
+    async downloadAsrModel(modelId: string, modelsDirectory: string) {
+      return parseJson<DownloadAsrModelResult>(
+        await host.DownloadAsrModel(modelId, modelsDirectory),
+        'DownloadAsrModel',
+      );
+    },
+    async getAsrModelDownloadProgress() {
+      return parseJson<AsrModelDownloadProgress>(
+        await host.GetAsrModelDownloadProgress(),
+        'GetAsrModelDownloadProgress',
+      );
     },
     async getWakeWordModelStatusLite() {
       return parseJson<WakeWordModelStatus>(
@@ -610,9 +642,26 @@ function createMockBridge(): AmrBridge {
     async listAsrModels() {
       await delay(60);
       return [
-        { id: 'sensevoice-small', displayName: 'SenseVoice Small', installed: true },
-        { id: 'sensevoice-large', displayName: 'SenseVoice Large', installed: false },
+        {
+          id: 'sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25',
+          displayName: 'FireRedASR2 CTC (int8) [推荐·中英混说]',
+          description: 'Mock bilingual ASR',
+          installed: false,
+        },
+        {
+          id: 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17',
+          displayName: 'SenseVoice 2024-07 (int8)',
+          description: 'Mock SenseVoice',
+          installed: true,
+        },
       ];
+    },
+    async downloadAsrModel(modelId: string, modelsDirectory: string) {
+      await delay(400);
+      return { ok: true, modelId, modelsDirectory };
+    },
+    async getAsrModelDownloadProgress() {
+      return { active: false, percent: 0, message: '', complete: false };
     },
     async getWakeWordModelStatusLite() {
       await delay(10);

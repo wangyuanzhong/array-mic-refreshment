@@ -32,8 +32,8 @@ Linux CI（`scripts/build-libraries.sh`）在 `linux-x64` 下同样会还原 `ru
 
 | 角色 | 目录 / 文件 |
 |------|-------------|
-| ASR 主包 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/` |
-| ASR 回退 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/` |
+| ASR 主包 | `models/sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25/`（推荐·中英混说） |
+| ASR 备选 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/` 等 SenseVoice |
 | Speaker | `models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k/*.onnx` |
 
 应用通过 `AppSettings.ModelsDirectory`（默认 `models`）解析上述路径；缺失时托盘回退 stub 并提示运行 `download-models.ps1`。

@@ -14,6 +14,23 @@ public sealed class ModelDownloadService
         _httpClient = httpClient ?? new HttpClient();
     }
 
+    public static bool IsPackageInstalled(string modelsDirectory, ModelPackage package)
+    {
+        var root = ModelsPathResolver.Resolve(modelsDirectory);
+        var extractDir = Path.Combine(root, package.ExtractDir);
+        if (!Directory.Exists(extractDir))
+        {
+            return false;
+        }
+
+        if (!File.Exists(Path.Combine(extractDir, "tokens.txt")))
+        {
+            return false;
+        }
+
+        return Directory.EnumerateFiles(extractDir, "*.onnx", SearchOption.AllDirectories).Any();
+    }
+
     public async Task DownloadModelAsync(
         string modelsDirectory,
         string packageId,
@@ -25,6 +42,14 @@ public sealed class ModelDownloadService
             ?? throw new InvalidOperationException($"Model package '{packageId}' not found in manifest.");
 
         var root = ModelsPathResolver.Resolve(modelsDirectory);
+        Directory.CreateDirectory(root);
+
+        if (IsPackageInstalled(modelsDirectory, package))
+        {
+            progress?.Report(new DownloadProgress(100, $"✓ {packageId} 已安装", true));
+            return;
+        }
+
         var cacheDir = Path.Combine(root, ".cache");
         Directory.CreateDirectory(cacheDir);
 

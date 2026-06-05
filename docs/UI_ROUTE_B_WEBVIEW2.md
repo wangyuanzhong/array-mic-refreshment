@@ -378,7 +378,9 @@ JS 访问：`window.chrome.webview.hostObjects.amr`（注意 async 代理，需 
 | `GetRuntimeState()` | `{ triggerMode, masterEnabled, ... }` | 托盘运行时模式（`RuntimeTriggerMode`） |
 | `ListAudioDevices()` | `[{ id, displayName, isDefault }]` | 复用 `DeviceComboPopulator` |
 | `ListSpeakerUsers()` | `[{ id, displayName, isNone }]` | 复用 enrollment |
-| `ListAsrModels()` | `[{ id, displayName, installed }]` | 复用 `SenseVoiceModelResolver` |
+| `ListAsrModels()` | `[{ id, displayName, description, installed }]` | `AsrModelCatalog` + `AsrModelResolver` |
+| `DownloadAsrModel(modelId, modelsDirectory)` → `Task<string>` | 从 manifest 下载 tar.bz2 到 `models/` | `ModelDownloadService`；勿阻塞 UI |
+| `GetAsrModelDownloadProgress()` | `{ active, modelId, percent, message, complete }` | 下载轮询 |
 | `ListOptionalOverlaySkills()` | `[{ key, label, checked }]` | manifest optional_skills |
 | `GetSkillsCatalogStatus()` | `{ missingFiles: string[] }` | 保存前校验 |
 | `GetWakeWordModelStatusLite()` | 同上（`engineReady` 常为 false） | 仅 `TryResolve` 文件存在性；**V0.5.5+** 设置首屏 |

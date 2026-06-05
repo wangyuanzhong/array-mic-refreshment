@@ -158,9 +158,10 @@ array-mic-refreshment/
 
 | 角色 | 目录名 | 说明 |
 |------|--------|------|
-| ASR 主模型 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/` | int8，默认优先 |
-| ASR 回退 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/` | int8，带标点 |
-| ASR 高精度 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/` | float32，大且慢 |
+| ASR 主模型（推荐） | `models/sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25/` | FireRed CTC int8，中英混说 |
+| ASR SenseVoice 通用 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/` | int8，带标点 |
+| ASR 高精度 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/` | float32 |
+| ASR 粤语 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/` | int8 粤语微调 |
 | 声纹 | `models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k/*.onnx` | 说话人门禁 |
 | 唤醒 KWS | `models/sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01/` | 需 `-IncludeKws` |
 | 唤醒结束 VAD | `models/silero_vad.onnx` | **默认随 `download-models.ps1` 下载**；无此文件时回退能量检测 |
@@ -174,7 +175,7 @@ array-mic-refreshment/
 ### 5.3 验证模型是否就绪
 
 ```powershell
-Test-Path models\sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09
+Test-Path models\sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25\model.int8.onnx
 Test-Path models\3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k\*.onnx
 # 唤醒词：
 Test-Path models\sherpa-onnx-kws-zipformer-wenetspeech-3.3M-2024-01-01\tokens.txt
@@ -411,7 +412,7 @@ Stop-Process -Name ArrayMicRefreshment -Force -ErrorAction SilentlyContinue
 
 | 现象 | 可能原因 | 处理 |
 |------|----------|------|
-| 启动后无 ASR，托盘提示模型 | `models/` 为空 | 运行 `download-models.ps1` |
+| 启动后无 ASR，托盘提示模型 | `models/` 为空 | 设置 → ASR → **下载模型**，或 `download-models.ps1` |
 | 设置页只有分区标题、没有控件 | 旧版 UI 多 section 同时渲染叠在一起 | 用最新 `dist\...\ArrayMicRefreshment.exe`；左侧 Nav 应切换分区；KWS 状态在 **触发与 HUD**（非单独「唤醒模型」菜单） |
 | 高 DPI / 显示比例 125% 下设置窗右侧极窄、文字竖排 | **V0.5.2 及更早** 用 `ZoomFactor` 缩小布局视口，侧栏仍占固定 240+200px | **V0.5.3+**：`WebViewDpiScaling`（`ZoomFactor=1`）+ 侧栏 `clamp(…vw…)`；见 [`docs/UI_ROUTE_B_WEBVIEW2.md`](UI_ROUTE_B_WEBVIEW2.md) §5.4、FAQ |
 | 改显示比例后设置窗大小怪异 | `settings.json` 里 `settingsWindowWidth/Height` 曾为物理像素 | **V0.5.3+** 存 96 DPI 逻辑像素；拖一次边框保存即可；勿手改 json 为超大数值 |
