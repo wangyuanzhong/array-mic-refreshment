@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.5.10] - 2026-06-05
+
+修复 Windows CI 中 App.Tests 因默认 FireRed ASR 未安装而导致 `SaveSettingsDraft` 验收失败的问题。
+
+### Fixed
+
+- `AsrModelTestFixtures`：为 Phase 2 / Bridge 设置保存测试提供最小 FireRed 模型目录 stub
+
+### Files / modules touched
+
+- `tests/ArrayMicRefreshment.App.Tests/AsrModelTestFixtures.cs` — 新增
+- `tests/ArrayMicRefreshment.App.Tests/Phase2AcceptanceTestSupport.cs`、`WebUiBridgeSettingsTests.cs` — 调用 stub
+
+### Verify
+
+- Windows CI `build-windows` App.Tests 全绿
+
 ## [0.5.9] - 2026-06-05
 
 新增 **FireRedASR2 CTC int8** 作为推荐 ASR 引擎（中英 code-switch），并在 Web 设置页提供 **应用内一键下载**（自动解析 `models/` 目录，从 GitHub release 拉取 manifest 包）。
