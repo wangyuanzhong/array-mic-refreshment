@@ -166,6 +166,24 @@ function setTestConnectionUi(root: HTMLElement, running: boolean): void {
   if (saveBtn) saveBtn.disabled = running;
 }
 
+/** Update ASR download progress without full render (preserves focus in other fields). */
+function updateAsrDownloadProgressUi(
+  root: HTMLElement,
+  message: string,
+  running: boolean,
+  canDownload: boolean,
+): void {
+  const statusEl = root.querySelector('#asrDownloadStatus');
+  if (statusEl) {
+    statusEl.textContent = message || (running ? '正在下载…' : '');
+  }
+  const btn = root.querySelector<HTMLButtonElement>('#btnDownloadAsr');
+  if (btn) {
+    btn.disabled = running || !canDownload;
+    btn.textContent = running ? '下载中…' : '下载模型';
+  }
+}
+
 function ensureFeaturePresetsOnDraft(draft: SettingsDraft): SettingsDraft {
   if (draft.featurePresets?.length) {
     return ensureDraftSpecialistKeys(draft);
@@ -409,7 +427,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
                         .join('')}
                     </select>
                     ${asrDescription}
-                    <p class="form-hint">${asrStatus}</p>
+                    <p class="form-hint" id="asrDownloadStatus">${asrStatus}</p>
                     <div class="form-row">
                       <button type="button" class="btn-ghost" id="btnDownloadAsr"${canDownloadAsr ? '' : ' disabled'}>
                         ${asrDownloadRunning ? '下载中…' : '下载模型'}
@@ -922,7 +940,7 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
             const progress = await bridge.getAsrModelDownloadProgress();
             if (progress.active || progress.message) {
               asrDownloadMessage = progress.message || `下载中 ${progress.percent}%`;
-              render();
+              updateAsrDownloadProgressUi(root, asrDownloadMessage, true, false);
             }
           } catch {
             /* ignore poll errors */
@@ -1111,6 +1129,9 @@ export async function mountSettingsPage(root: HTMLElement): Promise<void> {
       .getWakeWordModelStatus()
       .then((status) => {
         wakeModelStatus = status;
+        if (asrDownloadRunning) {
+          return;
+        }
         render();
       })
       .catch(() => undefined);

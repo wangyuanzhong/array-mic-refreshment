@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased]
+
+## [0.5.11] - 2026-06-08
+
+修复 ASR 模型下载进行中设置页输入框与下拉无法保持焦点的问题：进度轮询不再整页重绘，仅更新下载状态 DOM。
+
+### Fixed
+
+- 设置页 ASR **下载模型** 进度轮询（500ms）由全量 `render()` 改为 `updateAsrDownloadProgressUi()` 局部更新 `#asrDownloadStatus` 与按钮，避免销毁 DOM 导致光标闪失
+- 下载进行中跳过唤醒引擎探测触发的整页 `render()`，减少无关重绘
+
+### Files / modules touched
+
+- `ui/src/pages/SettingsPage.ts` — 局部进度 UI、`#asrDownloadStatus`
+- `docs/LOCAL_DEVELOPMENT.md` — FAQ 新增条目
+
+### Verify
+
+- `cd ui && npm run build`
+- `.\scripts\watch-build-release.ps1 -Once` 后打开设置 → ASR → **下载模型**，下载进行中切换到 LLM/其他分区，输入框与下拉应可正常聚焦编辑
+
 ## [0.5.10] - 2026-06-05
 
 修复 Windows CI 中 App.Tests 因默认 FireRed ASR 未安装而导致 `SaveSettingsDraft` 验收失败的问题。
