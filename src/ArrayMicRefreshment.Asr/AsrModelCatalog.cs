@@ -11,6 +11,13 @@ public sealed record AsrModelInfo(
     public static readonly AsrModelInfo[] All =
     [
         new(
+            "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+            "Qwen3-ASR 0.6B (int8) [推荐·中英混说]",
+            "千问离线 ASR，针对普通话 + 英文 + 中英 code-switch 优化；约 940 MB。适合长句口述（一两百字）。",
+            AsrEngineKind.Qwen3Asr,
+            false,
+            true),
+        new(
             "sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25",
             "FireRedASR2 CTC (int8) [推荐·中英混说]",
             "传统 ASR，针对普通话 + 英文 + 中英 code-switch 优化；约 740 MB。纯中文与 SenseVoice 相当，频繁夹英文词时明显更好。",

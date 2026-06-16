@@ -158,7 +158,8 @@ array-mic-refreshment/
 
 | 角色 | 目录名 | 说明 |
 |------|--------|------|
-| ASR 主模型（推荐） | `models/sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25/` | FireRed CTC int8，中英混说 |
+| ASR 主模型（推荐） | `models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/` | Qwen3-ASR 0.6B int8，中英混说 |
+| ASR FireRed | `models/sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25/` | FireRed CTC int8，中英混说 |
 | ASR SenseVoice 通用 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17/` | int8，带标点 |
 | ASR 高精度 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17/` | float32 |
 | ASR 粤语 | `models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09/` | int8 粤语微调 |
@@ -175,6 +176,7 @@ array-mic-refreshment/
 ### 5.3 验证模型是否就绪
 
 ```powershell
+Test-Path models\sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25\encoder.int8.onnx
 Test-Path models\sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25\model.int8.onnx
 Test-Path models\3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k\*.onnx
 # 唤醒词：
@@ -380,7 +382,7 @@ Stop-Process -Name ArrayMicRefreshment -Force -ErrorAction SilentlyContinue
 
 ## 11. Sherpa-ONNX 原生依赖
 
-无需手动拷贝 DLL：NuGet 包 `org.k2fsa.sherpa.onnx`（当前 **1.13.2**）+ `org.k2fsa.sherpa.onnx.runtime.win-x64` 在 build/publish 时复制 native 库到输出目录。
+无需手动拷贝 DLL：NuGet 包 `org.k2fsa.sherpa.onnx`（当前 **1.13.3**）+ `org.k2fsa.sherpa.onnx.runtime.win-x64` 在 build/publish 时复制 native 库到输出目录。
 
 详情与故障排查：[`docs/DEPLOY_SHERPA.md`](DEPLOY_SHERPA.md)。
 

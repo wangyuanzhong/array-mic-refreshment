@@ -6,8 +6,9 @@ public sealed class SherpaSenseVoiceBackend : IOfflineSenseVoiceBackend
 {
     private readonly OfflineRecognizer _recognizer;
 
-    public SherpaSenseVoiceBackend(AsrModelPaths paths, int numThreads = 2)
+    public SherpaSenseVoiceBackend(AsrModelPaths paths, int? numThreads = null)
     {
+        var threads = numThreads ?? AsrInferenceTuning.ResolveNumThreads();
         var config = new OfflineRecognizerConfig
         {
             FeatConfig = new FeatureConfig
@@ -23,7 +24,7 @@ public sealed class SherpaSenseVoiceBackend : IOfflineSenseVoiceBackend
                     Model = paths.ModelPath,
                     UseInverseTextNormalization = 1,
                 },
-                NumThreads = numThreads,
+                NumThreads = threads,
                 Debug = 0,
                 Provider = "cpu",
             },

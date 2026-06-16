@@ -1,6 +1,7 @@
 # Plain-text polish (minimal, token-efficient)
 # Used when settings → 整理风格 = 纯文本整理
 # Output language must match the user's transcript (usually 中文).
+# If the transcript contains Latin letters (中英混说), the app auto-selects plain-text-polish-mixed.md instead.
 #
 # Qwen3 hybrid models (Qwen3 / Qwen3.5, LM Studio, vLLM):
 # Official soft switch — append /no_think on the latest user or system turn to skip

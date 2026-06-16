@@ -2,6 +2,46 @@
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-06-16
+
+Bump reason: 新增 Qwen3-ASR 离线引擎与纯文本整理的中英混说自动保护，均为用户可见能力升级。
+
+新增 **Qwen3-ASR 0.6B int8** 作为默认推荐 ASR（中英混说），并升级 CPU 离线推理调优（动态线程、warmup、`max_new_tokens` 512）。纯文本整理在检测到拉丁字母时自动切换混说 prompt、列出需保留的英文 token，整理后若英文被大量删改则回退 ASR 原文；纯中文路径 prompt 与 token 消耗不变，仍仅 **1 次** LLM 调用。
+
+### Added
+
+- **Qwen3-ASR**：`SherpaQwen3AsrBackend`、`Qwen3AsrModelFiles`、`AsrModelResolver.TryResolveQwen3InDirectory`
+- `ModelManifest.json` 包 `sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25`（`asr-qwen`）
+- `AsrInferenceTuning`：线程 `min(8, max(2, ProcessorCount/2))`、Qwen `max_new_tokens`/`max_total_len` 512、warmup 0.1s
+- `PcmConverters.Ensure16KHzMonoFloats`：跳过 PCM 往返
+- `IOfflineAsrBackend.Warmup()`；加载 ASR 后预热
+- 纯文本整理混说保护：`PlainTextPolishPrompts`、`MixedTranscriptRefineGuard`、`plain-text-polish-mixed.md`
+
+### Changed
+
+- 默认推荐 ASR 模型改为 **Qwen3-ASR 0.6B int8**（`AsrModelCatalog.All[0]`）
+- Sherpa-ONNX NuGet **1.13.2 → 1.13.3**（Asr / App runtime / Speaker）
+- `OpenAiCompatiblePromptRefiner`：纯中文沿用原 prompt；含英文自动混说 prompt + token 保护 + 校验回退
+- `docs/SKILL_PIPELINE.md`、`docs/ASR_MODEL.md` 同步混说整理与 Qwen3 说明
+
+### Files / modules touched
+
+- `src/ArrayMicRefreshment.Asr/` — Qwen3 后端、推理调优、模型目录解析
+- `src/ArrayMicRefreshment.App/SherpaPipelineFactory.cs` — ASR warmup
+- `src/ArrayMicRefreshment.Core/Audio/PcmConverters.cs` — 16 kHz float 直通
+- `src/ArrayMicRefreshment.Prompt/` — 混说整理 guard 与双 prompt
+- `skills/upstream/array-mic/plain-text-polish*.md` — 文档与代码同步
+- `scripts/ModelManifest.json` — Qwen3 下载包
+- `tests/` — `AsrInferenceTuningTests`、`AsrModelResolverTests`、`MixedTranscriptRefineGuardTests`、Refiner 混说用例
+
+### Verify
+
+- `dotnet build ArrayMicRefreshment.sln -c Release`
+- `dotnet test ArrayMicRefreshment.sln -c Release --filter "FullyQualifiedName!~Integration"`
+- `.\scripts\download-models.ps1 -Package all` 后设置选 Qwen3 → PTT 中英混说
+- 开启纯文本整理：纯中文体验不变；混说含 `deploy`/`React` 等，若 8B 翻掉英文应回退 ASR 原文
+- `.\scripts\watch-build-release.ps1 -Once` → 托盘版本 **V0.5.12**
+
 ## [0.5.11] - 2026-06-08
 
 修复 ASR 模型下载进行中设置页输入框与下拉无法保持焦点的问题：进度轮询不再整页重绘，仅更新下载状态 DOM。

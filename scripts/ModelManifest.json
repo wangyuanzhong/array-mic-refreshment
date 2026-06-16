@@ -1,7 +1,15 @@
 {
-  "version": 3,
+  "version": 4,
   "baseUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models",
   "packages": [
+    {
+      "id": "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+      "role": "asr-qwen",
+      "archive": "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25.tar.bz2",
+      "extractDir": "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+      "sha256": null,
+      "notes": "Qwen3-ASR 0.6B int8 — 中英 code-switch 推荐，约 940 MB"
+    },
     {
       "id": "sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25",
       "role": "asr-primary",

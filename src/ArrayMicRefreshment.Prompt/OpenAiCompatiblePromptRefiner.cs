@@ -9,25 +9,6 @@ public sealed class OpenAiCompatiblePromptRefiner : IPromptRefiner
     private readonly SkillsCatalog _catalog;
     private readonly OpenAiChatClient _client;
 
-    /// <summary>
-    /// Default text-polishing system prompt.  Instructs the LLM to act as a
-    /// transcript cleaner — remove filler words, fix grammar, add punctuation —
-    /// and *never* answer the user's question.
-    /// </summary>
-    /// <summary>
-    /// Keep in sync with <c>skills/upstream/array-mic/plain-text-polish.md</c> (prompt-only; not program logic).
-    /// </summary>
-    private const string DefaultPolishPrompt =
-        "You clean speech-to-text transcripts.\n\n" +
-        "Rules:\n" +
-        "- Remove fillers, repetitions, and false starts (e.g. 嗯/啊/那个/就是).\n" +
-        "- Fix punctuation and obvious ASR/word errors; keep grammar natural.\n" +
-        "- Preserve meaning, tone, language, names, numbers, and code—do not translate or add facts.\n" +
-        "- For short input (one sentence or a few words), change only what is necessary—no headings, no bullet lists, no expansion.\n" +
-        "- Do not reason, plan, or explain. Output the cleaned line directly.\n\n" +
-        "Output ONLY the cleaned text. No quotes, labels, markdown, or commentary.\n\n" +
-        "/no_think";
-
     /// <summary>Qwen3 hybrid models: per-turn soft switch to skip reasoning (official).</summary>
     private const string QwenNoThinkSuffix = "\n/no_think";
 
@@ -36,46 +17,6 @@ public sealed class OpenAiCompatiblePromptRefiner : IPromptRefiner
         _settings = settings;
         _catalog = catalog;
         _client = new OpenAiChatClient(settings, handler);
-    }
-
-    /// <summary>
-    /// Build the system prompt for the given intent/skill.
-    ///
-    /// - PlainText → built-in Chinese transcript-polish prompt (no skill files).
-    /// - Other     → resolve the specialist stack from manifest.yaml.
-    /// </summary>
-    private string BuildSystemPrompt(PromptIntent intent)
-    {
-        var specialistKey = ForcedStyleSelection.GetEffectiveKey(_settings);
-        if (string.Equals(specialistKey, ForcedStyleSelection.AutoKey, StringComparison.OrdinalIgnoreCase))
-        {
-            specialistKey = SpecialistKeyMapper.ToSpecialistKey(intent);
-        }
-
-        // Fast path: plain-text polish uses the built-in prompt so the user
-        // never gets an AI-prompt transformation when they just want clean text.
-        if (string.Equals(specialistKey, "plain-text", StringComparison.OrdinalIgnoreCase)
-            || intent == PromptIntent.PlainText)
-        {
-            Log.Debug("Using built-in plain-text polish prompt");
-            return DefaultPolishPrompt;
-        }
-
-        if (_catalog is not null
-            && RefinementStyleService.TryBuildSystemPrompt(
-                _catalog,
-                specialistKey,
-                _settings.OptionalOverlaySkills,
-                out var skillPrompt)
-            && !string.IsNullOrWhiteSpace(skillPrompt)
-            && skillPrompt.Length > 50)
-        {
-            Log.Debug("Using skill-based system prompt for specialist={Specialist}", specialistKey);
-            return skillPrompt;
-        }
-
-        Log.Debug("Skill stack empty or missing; falling back to built-in plain-text polish");
-        return DefaultPolishPrompt;
     }
 
     public void ApplySettings(AppSettings settings)
@@ -103,16 +44,18 @@ public sealed class OpenAiCompatiblePromptRefiner : IPromptRefiner
             return raw;
         }
 
-        var systemPrompt = BuildSystemPrompt(intent);
+        var plainTextPath = TryResolvePlainTextRefine(raw, intent, out var systemPrompt, out var userContent, out var englishTokens);
+        if (!plainTextPath)
+        {
+            systemPrompt = BuildSpecialistSystemPrompt(intent);
+            userContent = raw;
+        }
 
-        Log.Debug("PromptRefiner systemPromptLength={SysLen}, rawLength={RawLen}",
-            systemPrompt?.Length ?? 0, raw?.Length ?? 0);
-
-        // Qwen3 / Qwen3.5: /no_think on the user turn is the most reliable way to disable thinking
-        // in LM Studio (see QwenLM/Qwen3 discussions). PlainText always appends it.
-        var userContent = intent == PromptIntent.PlainText
-            ? raw.TrimEnd() + QwenNoThinkSuffix
-            : raw;
+        Log.Debug(
+            "PromptRefiner systemPromptLength={SysLen}, rawLength={RawLen}, mixedPlainText={Mixed}",
+            systemPrompt?.Length ?? 0,
+            raw?.Length ?? 0,
+            plainTextPath && MixedTranscriptRefineGuard.LooksMixed(raw));
 
         var messages = new List<(string Role, string Content)>
         {
@@ -130,8 +73,86 @@ public sealed class OpenAiCompatiblePromptRefiner : IPromptRefiner
             Log.Warning("PromptRefiner: LLM returned empty/whitespace. System prompt length was {SysLen}. " +
                 "Possible causes: context length exceeded, unsupported prompt format, or API returned empty content.",
                 systemPrompt?.Length ?? 0);
+            return trimmed;
+        }
+
+        if (plainTextPath
+            && MixedTranscriptRefineGuard.LooksMixed(raw)
+            && !MixedTranscriptRefineGuard.PassesValidation(raw, trimmed, englishTokens!))
+        {
+            Log.Warning(
+                "Mixed-transcript refine altered protected English tokens; using ASR raw ({RawLen} chars).",
+                raw?.Length ?? 0);
+            return raw.Trim();
         }
 
         return trimmed;
+    }
+
+    private bool TryResolvePlainTextRefine(
+        string raw,
+        PromptIntent intent,
+        out string systemPrompt,
+        out string userContent,
+        out IReadOnlyList<string> englishTokens)
+    {
+        englishTokens = Array.Empty<string>();
+        var specialistKey = ForcedStyleSelection.GetEffectiveKey(_settings);
+        if (string.Equals(specialistKey, ForcedStyleSelection.AutoKey, StringComparison.OrdinalIgnoreCase))
+        {
+            specialistKey = SpecialistKeyMapper.ToSpecialistKey(intent);
+        }
+
+        if (!string.Equals(specialistKey, "plain-text", StringComparison.OrdinalIgnoreCase)
+            && intent != PromptIntent.PlainText)
+        {
+            systemPrompt = string.Empty;
+            userContent = raw;
+            return false;
+        }
+
+        var mixed = MixedTranscriptRefineGuard.LooksMixed(raw);
+        systemPrompt = mixed ? PlainTextPolishPrompts.Mixed : PlainTextPolishPrompts.ChineseOnly;
+        userContent = raw.TrimEnd();
+        if (mixed)
+        {
+            englishTokens = MixedTranscriptRefineGuard.ExtractEnglishTokens(raw);
+            userContent = MixedTranscriptRefineGuard.AppendProtectionHint(userContent, englishTokens);
+            Log.Debug(
+                "Using built-in mixed plain-text polish prompt ({TokenCount} protected tokens)",
+                englishTokens.Count);
+        }
+        else
+        {
+            Log.Debug("Using built-in plain-text polish prompt");
+        }
+
+        userContent += QwenNoThinkSuffix;
+        return true;
+    }
+
+    private string BuildSpecialistSystemPrompt(PromptIntent intent)
+    {
+        var specialistKey = ForcedStyleSelection.GetEffectiveKey(_settings);
+        if (string.Equals(specialistKey, ForcedStyleSelection.AutoKey, StringComparison.OrdinalIgnoreCase))
+        {
+            specialistKey = SpecialistKeyMapper.ToSpecialistKey(intent);
+        }
+
+        if (_catalog is not null
+            && RefinementStyleService.TryBuildSystemPrompt(
+                _catalog,
+                specialistKey,
+                _settings.OptionalOverlaySkills,
+                out var skillPrompt)
+            && !string.IsNullOrWhiteSpace(skillPrompt)
+            && skillPrompt.Length > 50)
+        {
+            Log.Debug("Using skill-based system prompt for specialist={Specialist}", specialistKey);
+            return skillPrompt;
+        }
+
+        Log.Debug("Skill stack empty or missing; falling back to built-in plain-text polish");
+        return PlainTextPolishPrompts.ChineseOnly;
     }
 }

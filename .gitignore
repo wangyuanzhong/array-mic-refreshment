@@ -52,5 +52,8 @@ scripts/cer-audio/
 Thumbs.db
 Desktop.ini
 
+# Local dev tools (portable Node, etc.)
+.tools/
+
 # Local agent transcripts only (not shared)
 agent-transcripts/

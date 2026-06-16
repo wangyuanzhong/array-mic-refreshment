@@ -33,18 +33,20 @@ internal static class SherpaPipelineFactory
         var asrMissing = false;
         try
         {
-            asr = SenseVoiceAsr.CreateFromSettings(settings);
-            Log.Information("Sherpa SenseVoice ASR loaded.");
+            var sherpaAsr = SenseVoiceAsr.CreateFromSettings(settings);
+            sherpaAsr.Warmup();
+            asr = sherpaAsr;
+            Log.Information("Sherpa ASR loaded ({ModelId}).", sherpaAsr.ModelId);
         }
         catch (ModelNotFoundException ex)
         {
-            Log.Warning(ex, "SenseVoice ASR model missing; using stub.");
+            Log.Warning(ex, "ASR model missing; using stub.");
             asr = new StubUtteranceAsr();
             asrMissing = true;
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to initialize SenseVoice ASR; using stub.");
+            Log.Error(ex, "Failed to initialize ASR; using stub.");
             asr = new StubUtteranceAsr();
             asrMissing = true;
         }

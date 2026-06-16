@@ -1,6 +1,6 @@
 # 多 Skill 协同管线（v0.1）
 
-设置页 **纯文本整理**（`PromptIntent.PlainText`）使用精简 prompt：`skills/upstream/array-mic/plain-text-polish.md`（与代码内 `DefaultPolishPrompt` 同步）。为兼容 **Qwen3 / Qwen3.5** 本地推理，system 与 user 消息末尾均附加官方软开关 **`/no_think`**（禁用 thinking，避免占满 Max Tokens 导致 `content` 为空）。不加载 danielrosehill 长栈。
+设置页 **纯文本整理**（`PromptIntent.PlainText`）使用精简 prompt：`skills/upstream/array-mic/plain-text-polish.md`（与代码内 `PlainTextPolishPrompts.ChineseOnly` 同步）。若 ASR 原文含拉丁字母（中英混说），**不增加 LLM 调用**，自动改用 `plain-text-polish-mixed.md`（`PlainTextPolishPrompts.Mixed`）并在 user 消息末尾列出需原样保留的英文 token；整理后若英文 token 丢失过多则回退 ASR 原文。为兼容 **Qwen3 / Qwen3.5** 本地推理，system 与 user 消息末尾均附加官方软开关 **`/no_think`**（禁用 thinking，避免占满 Max Tokens 导致 `content` 为空）。不加载 danielrosehill 长栈。
 
 其他整理风格仍走下方「第三方 prompt 栈」。
 

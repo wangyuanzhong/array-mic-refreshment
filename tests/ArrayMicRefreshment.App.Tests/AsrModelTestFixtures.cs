@@ -8,7 +8,8 @@ internal static class AsrModelTestFixtures
 {
     internal static string EnsureFireRedStubInstalled(AppSettings settings)
     {
-        var model = AsrModelInfo.All[0];
+        var model = AsrModelInfo.TryGetById("sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25")
+            ?? throw new InvalidOperationException("FireRed model metadata missing.");
         var root = Path.Combine(Path.GetTempPath(), "amr-test-models-" + Guid.NewGuid().ToString("N"));
         var extractDir = Path.Combine(root, model.DirectoryName);
         Directory.CreateDirectory(extractDir);

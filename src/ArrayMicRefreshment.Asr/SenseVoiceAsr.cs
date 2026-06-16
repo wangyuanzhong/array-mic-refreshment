@@ -21,30 +21,47 @@ public sealed class SenseVoiceAsr : IUtteranceAsr, IDisposable
     public static SenseVoiceAsr CreateFromSettings(AppSettings settings)
     {
         var paths = AsrModelResolver.Resolve(settings.ModelsDirectory, settings.SelectedAsrModelId);
+        var threads = AsrInferenceTuning.ResolveNumThreads();
         Log.Information(
-            "Sherpa ASR loaded: {Engine} {ModelId} from {Directory} (ONNX: {ModelPath})",
+            "Sherpa ASR loaded: {Engine} {ModelId} from {Directory} (threads={Threads}, ONNX: {ModelPath})",
             paths.Engine,
             paths.ModelId,
             paths.DirectoryPath,
-            paths.ModelPath);
-        return new SenseVoiceAsr(AsrBackendFactory.Create(paths), paths.ModelId, paths.Engine);
+            threads,
+            paths.Engine == AsrEngineKind.Qwen3Asr
+                ? paths.Qwen3?.EncoderPath
+                : paths.ModelPath);
+        return new SenseVoiceAsr(AsrBackendFactory.Create(paths, threads), paths.ModelId, paths.Engine);
+    }
+
+    public void Warmup()
+    {
+        try
+        {
+            _backend.Warmup();
+            Log.Debug("ASR warmup completed for {ModelId} ({Engine})", ModelId, _engine);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "ASR warmup failed for {ModelId}", ModelId);
+        }
     }
 
     public async Task<string> RecognizeUtteranceAsync(AudioUtterance utterance, CancellationToken cancellationToken)
     {
-        var pcm = PcmConverters.Ensure16KHzMonoPcm16Le(utterance.Pcm16LeMono, utterance.SampleRate);
-        var floats = PcmConverters.Pcm16LeToFloat(pcm);
+        var floats = PcmConverters.Ensure16KHzMonoFloats(utterance.Pcm16LeMono, utterance.SampleRate);
 
         cancellationToken.ThrowIfCancellationRequested();
 
         var raw = await Task.Run(
-                () => _backend.Decode(floats, PcmConverters.TargetSampleRate),
+                () => _backend.Decode(floats.AsMemory(), PcmConverters.TargetSampleRate),
                 cancellationToken)
             .ConfigureAwait(false);
 
         var text = _engine switch
         {
             AsrEngineKind.SenseVoice => SenseVoiceTextExtractor.ExtractPlainText(raw),
+            AsrEngineKind.Qwen3Asr => raw.Trim(),
             _ => raw.Trim(),
         };
         var cleaned = SpeechCleaner.Clean(text);

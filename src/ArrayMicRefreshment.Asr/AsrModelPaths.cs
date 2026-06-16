@@ -5,7 +5,8 @@ public sealed record AsrModelPaths(
     string TokensPath,
     string ModelPath,
     string ModelId,
-    AsrEngineKind Engine);
+    AsrEngineKind Engine,
+    Qwen3AsrModelFiles? Qwen3 = null);
 
 /// <summary>Backward-compatible alias for SenseVoice-only call sites.</summary>
 public sealed record SenseVoiceModelPaths(string DirectoryPath, string TokensPath, string ModelPath, string ModelId)

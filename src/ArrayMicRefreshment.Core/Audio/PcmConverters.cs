@@ -17,6 +17,18 @@ public static class PcmConverters
         return FloatToPcm16Le(resampled);
     }
 
+    /// <summary>Resample when needed and return mono float samples for ASR (avoids PCM round-trip).</summary>
+    public static float[] Ensure16KHzMonoFloats(ReadOnlySpan<byte> pcm16LeMono, int sampleRate)
+    {
+        var floats = Pcm16LeToFloat(pcm16LeMono);
+        if (sampleRate == TargetSampleRate)
+        {
+            return floats;
+        }
+
+        return Resample(floats, sampleRate, TargetSampleRate);
+    }
+
     public static float[] Pcm16LeToFloat(ReadOnlySpan<byte> pcm16LeMono)
     {
         if (pcm16LeMono.Length % 2 != 0)

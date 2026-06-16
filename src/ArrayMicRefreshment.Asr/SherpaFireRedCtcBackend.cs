@@ -6,8 +6,9 @@ public sealed class SherpaFireRedCtcBackend : IOfflineAsrBackend
 {
     private readonly OfflineRecognizer _recognizer;
 
-    public SherpaFireRedCtcBackend(AsrModelPaths paths, int numThreads = 2)
+    public SherpaFireRedCtcBackend(AsrModelPaths paths, int? numThreads = null)
     {
+        var threads = numThreads ?? AsrInferenceTuning.ResolveNumThreads();
         var config = new OfflineRecognizerConfig
         {
             FeatConfig = new FeatureConfig
@@ -22,7 +23,7 @@ public sealed class SherpaFireRedCtcBackend : IOfflineAsrBackend
                 {
                     Model = paths.ModelPath,
                 },
-                NumThreads = numThreads,
+                NumThreads = threads,
                 Debug = 0,
                 Provider = "cpu",
             },

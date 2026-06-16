@@ -229,6 +229,11 @@ public static class AsrModelResolver
     private static bool TryResolveInDirectoryCore(string directory, AsrModelInfo modelInfo, out AsrModelPaths paths)
     {
         paths = null!;
+        if (modelInfo.Engine == AsrEngineKind.Qwen3Asr)
+        {
+            return TryResolveQwen3InDirectory(directory, modelInfo, out paths);
+        }
+
         var tokens = Path.Combine(directory, "tokens.txt");
         if (!File.Exists(tokens))
         {
@@ -263,6 +268,47 @@ public static class AsrModelResolver
         }
 
         return Directory.EnumerateFiles(directory, "*.onnx").OrderBy(p => p, StringComparer.Ordinal).FirstOrDefault();
+    }
+
+    private static bool TryResolveQwen3InDirectory(string directory, AsrModelInfo modelInfo, out AsrModelPaths paths)
+    {
+        paths = null!;
+        var convFrontend = Path.Combine(directory, "conv_frontend.onnx");
+        if (!File.Exists(convFrontend))
+        {
+            return false;
+        }
+
+        var encoder = FindFirstExisting(directory, "encoder.int8.onnx", "encoder.onnx");
+        var decoder = FindFirstExisting(directory, "decoder.int8.onnx", "decoder.onnx");
+        var tokenizerDir = Path.Combine(directory, "tokenizer");
+        if (encoder is null || decoder is null || !Directory.Exists(tokenizerDir))
+        {
+            return false;
+        }
+
+        paths = new AsrModelPaths(
+            directory,
+            string.Empty,
+            string.Empty,
+            modelInfo.Id,
+            modelInfo.Engine,
+            new Qwen3AsrModelFiles(convFrontend, encoder, decoder, tokenizerDir));
+        return true;
+    }
+
+    private static string? FindFirstExisting(string directory, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var path = Path.Combine(directory, name);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        return null;
     }
 }
 
